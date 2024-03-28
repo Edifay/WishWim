@@ -13,7 +13,7 @@
 
 #define CTRL_KEY(k) ((k)&0x1f)
 
-#define SEPARATOR true
+#define SEPARATOR false
 
 
 void PrintAt(int x, int y, char c) {
@@ -30,7 +30,7 @@ void clearFullScreen() {
   write(STDOUT_FILENO, "\x1b[2J", 4);
 }
 
-void initNewWrite() {
+void initNewWrite(LineNode* line, int index) {
   write(STDOUT_FILENO, "\x1b[2J", 4);
   write(STDOUT_FILENO, "\x1b[H", 3);
   printf("-------------------------------------\n\r");
@@ -38,7 +38,7 @@ void initNewWrite() {
 
 struct termios orig_termios;
 
-void die(const char *s) {
+void die(const char* s) {
   perror(s);
   exit(1);
 }
@@ -66,7 +66,30 @@ void enableRawMode() {
     die("tcsetattr");
 }
 
-void printLine(LineNode *line, int index, bool sep) {
+void printLine(LineNode* line, int index, bool sep) {
+  write(STDOUT_FILENO, "\x1b[14;H", 6); // Write at line 15
+
+  // if (line->prev != NULL) {
+  // line = line->prev;
+  // }
+
+  LineNode* temp = line;
+  int index_temp = index;
+
+  Identifier id = moduloIdentifier(line, index);
+  line = id.line;
+  index = id.relative_index;
+
+  int ava_here = MAX_ELEMENT_NODE - line->element_number;
+  int ava_prev = line->prev == NULL ? 0 : MAX_ELEMENT_NODE - line->prev->element_number;
+  int ava_next = line->next == NULL ? 0 : MAX_ELEMENT_NODE - line->next->element_number;
+
+  printf("PREV %d | HERE %d | NEXT %d      =>  INDEX %d  & ABS INDEX %d\r\n", ava_prev, ava_here, ava_next, index,
+         index_temp);
+
+  line = temp;
+  index = index_temp;
+
   write(STDOUT_FILENO, "\x1b[15;H", 6); // Write at line 15
 
   int internal_index = 0;
@@ -91,12 +114,12 @@ void printLine(LineNode *line, int index, bool sep) {
 }
 
 
-int main(int argc, char **args) {
+int main(int argc, char** args) {
   enableRawMode();
   clearFullScreen(); // Clear screen
 
   // Alloc memory for one line.
-  LineNode *line = malloc(sizeof(LineNode));
+  LineNode* line = malloc(sizeof(LineNode));
   initEmptyLineNode(line);
 
   // Current column
@@ -112,37 +135,66 @@ int main(int argc, char **args) {
       break;
     }
 
+    if (c == 0)
+      continue;
+
     if (iscntrl(c)) {
       // printf("%d\r\n", c);
-      if (c == 127) {
-        initNewWrite();
-        removeChar(line, column);
-        printLine(line, column, SEPARATOR);
-      } else if (c == '\x1b') {
 
+      if (c == 127) {
+        initNewWrite(line, column);
+        removeChar(line, column);
+        column--;
+        printLine(line, column, SEPARATOR);
+      }
+      else if (c == '\x1b') {
         if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN)
           die("read");
 
         if (c == '[') {
-
           if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN)
             die("read");
 
-          if (c == 'C') { // move caret
+          if (c == 'C') {
+            // move caret
             column++;
-          } else if (c == 'D') { // move caret
-            column--;
+            initNewWrite(line, column);
+            printLine(line, column, SEPARATOR);
           }
-          initNewWrite();
-          printLine(line, column, SEPARATOR);
-        } else {
+          else if (c == 'D') {
+            // move caret
+            column--;
+            initNewWrite(line, column);
+            printLine(line, column, SEPARATOR);
+          }
+          else if (c == '3') {
+            if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN)
+              die("read");
+
+            if (c == '~') {
+              printf("DEL !\r\n");
+              initNewWrite(line, column+1);
+              removeChar(line, column + 1);
+              printLine(line, column, SEPARATOR);
+            }
+            else {
+              printf("Unsupported char. %c\r\n", c);
+              exit(0);
+            }
+          }
+          else {
+            printf("Unsupported char. %c\r\n", c);
+            exit(0);
+          }
+        }
+        else {
           printf("Unsupported char.\r\n");
           exit(0);
         }
-        
       }
-    } else {
-      initNewWrite();
+    }
+    else {
+      initNewWrite(line, column);
       Char_U8 ch = readChar_U8FromInput(c);
       insertChar(line, ch, column++);
       printLine(line, column, SEPARATOR);
@@ -150,7 +202,7 @@ int main(int argc, char **args) {
     }
   }
 
-  destroyLine(line);
+  destroyFullLine(line);
 
   printf("\n\r");
 

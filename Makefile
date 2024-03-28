@@ -3,14 +3,17 @@ CFLAGS=-g -fsanitize=address# -Wall -Wextra -Werror -gdwarf-4
 LDFLAGS += -fsanitize=address
 
 executable=al
-modules=data-structure/utf_8_extractor.o data-structure/file_structure.o
+modules=main.o data-structure/utf_8_extractor.o data-structure/file_structure.o
 
-all: $(executable)
+all: $(modules) $(executable)
 
-%.o : %.c %.h
-	$(CC) -c $< -o $@
+main.o: main.c data-structure/utf_8_extractor.h data-structure/file_structure.h
+	$(CC) -c $< -o $@ $(LDFLAGS)
+    
+%.o : %.c %.h data-structure/utf_8_extractor.h data-structure/file_structure.h
+	$(CC) -c $< -o $@ $(LDFLAGS)
 
-al: main.o $(modules)
+al: main.o $(modules) 
 	$(CC) $^ -o $@ $(LDFLAGS)
 	
 clean:

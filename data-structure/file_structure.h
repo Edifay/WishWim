@@ -31,7 +31,7 @@ typedef struct FileNode_ {
 } FileNode;
 
 /**
- * Identify a element in a node. With possible old relative index.
+ * Represent a cursor in the line.
  */
 typedef struct {
   int relative_index;
@@ -76,10 +76,54 @@ int sizeLineNode(LineNode* line);
  */
 Char_U8 getCharAt(FileNode* file, int line, int column);
 
+
+/**
+ * Insert an EMPTY node before the node given.
+ */
+// LineNode* insertNodeBefore(LineNode* node);
+
+
 /**
  * Insert an EMPTY node after the node given.
  */
-LineNode* insertNodeAfter(LineNode* node);
+// LineNode* insertNodeAfter(LineNode* node);
+
+
+/**
+ * -1     => failed.
+ * 0      => access to index 0 from the next node
+ * other  => Number of Char_U8 moved to previous node.
+ */
+// int slideFromNodeToNextNodeAfterIndex(LineNode* node, int index);
+
+/**
+ * -1     => failed.
+ * 0      => access to last item from the previous node
+ * other  => Number of Char_U8 moved to previous node.
+ */
+// int slideFromNodeToPreviousNodeBeforeIndex(LineNode* node, int index);
+
+/**
+ * Get 1 case open in line
+ * Return the new relative index for line cell.
+ * Shift cannot be positive.
+ *
+ * If index == 0 focus on previous.
+ *
+ * If the current node has place focus on it.
+ *
+ * Else focus on previous.
+ *
+ * Else focus on next.
+ *
+ *
+ */
+// int allocateOneCharAtIndex(LineNode* line, int index);
+
+/**
+ * Return idenfier for the node containing current relative index.
+ */
+Identifier moduloIdentifier(LineNode* line, int index);
 
 /**
  * Insert a char at index of the line node.
@@ -89,13 +133,13 @@ Identifier insertChar(LineNode* line, Char_U8 ch, int index);
 /**
  * Insert a char at index of the line node.
  */
-Identifier removeChar(LineNode* line, int index);
+Identifier removeChar(LineNode* line, int cursorPos);
 
 
 /**
  * Destroy line free all memory.
  */
-void destroyLine(LineNode* node);
+void destroyFullLine(LineNode* node);
 
 
 #endif
