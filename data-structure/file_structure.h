@@ -6,6 +6,8 @@
 #define MAX_ELEMENT_NODE 20
 #define CACHE_SIZE 10
 
+#define LOGS
+
 typedef unsigned int Size;
 
 /**

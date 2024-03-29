@@ -69,9 +69,6 @@ void enableRawMode() {
 void printLine(LineNode* line, int index, bool sep) {
   write(STDOUT_FILENO, "\x1b[14;H", 6); // Write at line 15
 
-  // if (line->prev != NULL) {
-  // line = line->prev;
-  // }
 
   LineNode* temp = line;
   int index_temp = index;
@@ -173,7 +170,7 @@ int main(int argc, char** args) {
 
             if (c == '~') {
               printf("DEL !\r\n");
-              initNewWrite(line, column+1);
+              initNewWrite(line, column + 1);
               removeChar(line, column + 1);
               printLine(line, column, SEPARATOR);
             }

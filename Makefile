@@ -1,6 +1,6 @@
 CC=clang
 CFLAGS=-g -fsanitize=address# -Wall -Wextra -Werror -gdwarf-4
-LDFLAGS += -fsanitize=address
+LDFLAGS += -fsanitize=address #-lncurses
 
 executable=al
 modules=main.o data-structure/utf_8_extractor.o data-structure/file_structure.o

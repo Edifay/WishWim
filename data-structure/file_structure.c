@@ -1,6 +1,5 @@
 #include "file_structure.h"
 #include <stdlib.h>
-#include <math.h>
 #include <string.h>
 #include <assert.h>
 
@@ -93,6 +92,36 @@ LineNode* insertNodeAfter(LineNode* node) {
   }
   node->next = newNode;
 
+  return newNode;
+}
+
+/**
+ * Free the current Node. And return the prev node if not NULL or the next node if not NULL.
+ */
+LineNode* destroyCurrentNode(LineNode* node) {
+  LineNode* newNode = NULL;
+
+  if (node->prev != NULL) {
+    newNode = node->prev;
+  }
+  else if (node->next != NULL) {
+    newNode = node->next;
+  }
+
+
+  if (node->next != NULL) {
+    node->next->prev = node->prev;
+  }
+
+  if (node->prev != NULL) {
+    node->prev->next = node->next;
+  }
+
+  assert(node->prev == NULL || node->prev->next == node->next);
+  assert(node->next == NULL || node->next->prev == node->prev);
+
+  free(node->ch);
+  free(node);
   return newNode;
 }
 
@@ -355,6 +384,7 @@ Identifier removeChar(LineNode* line, int cursorPos) {
   printf("ABSOLUTE INDEX %d\r\n", cursorPos);
   printf("ABSOLUTE LINE ELEMENT NUMBER %d\n\r", line->element_number);
 
+
   Identifier id = moduloIdentifier(line, cursorPos);
   line = id.line;
   cursorPos = id.relative_index - 1;
@@ -369,7 +399,6 @@ Identifier removeChar(LineNode* line, int cursorPos) {
 
   printf("REMOVE CHAR RELATIVE %d \r\n", cursorPos);
   printf("CURRENT LINE ELEMENT NUMBER %d\r\n", line->element_number);
-
   assert(cursorPos >= 0);
   assert(cursorPos < line->element_number);
 
@@ -384,6 +413,27 @@ Identifier removeChar(LineNode* line, int cursorPos) {
   }
 
   line->element_number--;
+
+  if (line->element_number == 0) {
+    // the current node is empty.
+    int available_prev = line->prev == NULL ? 0 : MAX_ELEMENT_NODE - line->prev->element_number;
+    int available_next = line->next == NULL ? 0 : MAX_ELEMENT_NODE - line->next->element_number;
+
+    if (available_prev != 0 || available_next != 0) {
+      printf("FREE NODE\r\n");
+      line = destroyCurrentNode(line);
+      id.line = line;
+      id.relative_index = id.line->element_number;
+    }
+    else {
+      if (line->current_max_element_number > CACHE_SIZE + 1) {
+        printf("REALLOC ONLY CACHE\r\n");
+        line->current_max_element_number = min(MAX_ELEMENT_NODE, CACHE_SIZE);
+        assert(line->current_max_element_number <= MAX_ELEMENT_NODE);
+        line->ch = realloc(line->ch, line->current_max_element_number * sizeof(Char_U8));
+      }
+    }
+  }
 
   printf("REMOVE ENDED\r\n");
   return id;
