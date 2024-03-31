@@ -2,6 +2,7 @@
 #define FILE_STRUCTURE_H
 
 #include "utf_8_extractor.h"
+#include <stdbool.h>
 
 #define MAX_ELEMENT_NODE 20
 #define CACHE_SIZE 10
@@ -14,6 +15,7 @@ typedef unsigned int Size;
  *  Containings char from ONE line.
  */
 typedef struct LineNode_ {
+  bool fixed;
   struct LineNode_* next;
   struct LineNode_* prev;
   Char_U8* ch;
@@ -161,7 +163,7 @@ FileIdentifier removeLineInFile(FileNode* file, int row);
 
 void destroyFullFile(FileNode* node);
 
-LineIdentifier identifierForCursor(FileNode *file, int row, int column);
+LineIdentifier identifierForCursor(FileNode* file, int row, int column);
 
 
 #endif

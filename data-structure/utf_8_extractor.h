@@ -23,6 +23,12 @@ int sizeChar_U8(Char_U8 ch);
 Char_U8 readChar_U8FromFile(FILE* f);
 
 /**
+ * Return the first Char_U8 from FILE with first c.
+ */
+Char_U8 readChar_U8FromFileWithFirst(FILE *f, char c);
+
+
+/**
  * Return the first Char_U8 from sdtin.
  */
 Char_U8 readChar_U8FromInput(char c);

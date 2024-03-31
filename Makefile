@@ -3,7 +3,7 @@ CFLAGS=-g -fsanitize=address# -Wall -Wextra -Werror -gdwarf-4
 LDFLAGS += -fsanitize=address #-lncurses
 
 executable=main.o test_line.o al test_line
-modules=data-structure/utf_8_extractor.o data-structure/file_structure.o utils/tools.o
+modules=data-structure/utf_8_extractor.o data-structure/file_structure.o utils/tools.o io_management/file_manager.o
 
 all: $(modules) $(executable)
 
