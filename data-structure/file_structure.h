@@ -39,7 +39,14 @@ typedef struct {
   int relative_index;
   LineNode* line;
   int last_shift;
-} Identifier;
+} LineIdentifier;
+
+typedef struct {
+  int row;
+  int column;
+  FileNode* file;
+  int last_shift;
+} FileIdentifier;
 
 
 /**
@@ -125,23 +132,36 @@ Char_U8 getCharAt(FileNode* file, int line, int column);
 /**
  * Return idenfier for the node containing current relative index.
  */
-Identifier moduloIdentifier(LineNode* line, int index);
+LineIdentifier moduloLineIdentifier(LineNode* line, int index);
 
 /**
  * Insert a char at index of the line node.
  */
-Identifier insertChar(LineNode* line, Char_U8 ch, int index);
+LineIdentifier insertCharInLine(LineNode* line, Char_U8 ch, int index);
 
 /**
  * Insert a char at index of the line node.
  */
-Identifier removeChar(LineNode* line, int cursorPos);
+LineIdentifier removeCharInLine(LineNode* line, int cursorPos);
 
 
 /**
  * Destroy line free all memory.
  */
 void destroyFullLine(LineNode* node);
+
+////// --------------------FILE-----------------------------
+
+
+FileIdentifier moduloFileIdentifier(FileNode* file, int row, int column);
+
+FileIdentifier insertEmptyLineInFile(FileNode* file, int row);
+
+FileIdentifier removeLineInFile(FileNode* file, int row);
+
+void destroyFullFile(FileNode* node);
+
+LineIdentifier identifierForCursor(FileNode *file, int row, int column);
 
 
 #endif
