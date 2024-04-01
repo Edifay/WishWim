@@ -129,7 +129,9 @@ int slideFromLineNodeToNextLineNodeAfterIndex(LineNode* node, int index) {
   }
 
   int moved = min(node->element_number - index, node->next->current_max_element_number - node->next->element_number);
+#ifdef LOGS
   printf("SLIDING RIGHT NUMBER %d\r\n", moved);
+#endif
   assert(node->next->element_number + moved <= MAX_ELEMENT_NODE);
 
   memmove(node->next->ch + moved, node->next->ch, node->next->element_number * sizeof(Char_U8));
@@ -158,15 +160,21 @@ int slideFromLineNodeToPreviousLineNodeBeforeIndex(LineNode* node, int index) {
       -
       node->prev->element_number) {
     // If previous is not already full allocated && need more space to store
+#ifdef LOGS
     printf("Realloc previous ");
+#endif
     node->prev->current_max_element_number = min(node->prev->current_max_element_number + index + 1 + CACHE_SIZE,
                                                  MAX_ELEMENT_NODE);
     assert(node->prev->current_max_element_number <=MAX_ELEMENT_NODE);
+#ifdef LOGS
     printf(" new size %d\n\r", node->prev->current_max_element_number);
+#endif
     node->prev->ch = realloc(node->prev->ch, node->prev->current_max_element_number * sizeof(Char_U8));
   }
+#ifdef LOGS
   printf("Min Of Index : %d and %d - %d  = %d  \r\n", index, node->prev->current_max_element_number,
          node->prev->element_number, node->prev->current_max_element_number - node->prev->element_number);
+#endif
 
   if (index == 0)
     return 0;
@@ -205,41 +213,45 @@ int allocateOneCharAtIndex(LineNode* line, int index) {
 
   int available_here = MAX_ELEMENT_NODE - line->element_number;
 
-  if (index == 0 && line->prev != NULL && line->prev->element_number != MAX_ELEMENT_NODE) {
-    printf("JUMP !\r\n");
-    goto skip_here;
-  }
-
-  if (available_here >= 1) {
-    // Is size available in current cell
+  if (index != 0 || line->prev == NULL || line->prev->element_number == MAX_ELEMENT_NODE) {
+    if (available_here >= 1) {
+      // Is size available in current cell
+#ifdef LOGS
     printf("Simple case !\n\r");
+#endif
 
-
-    if (line->current_max_element_number - line->element_number < 1) {
+      if (line->current_max_element_number - line->element_number < 1) {
+#ifdef LOGS
       printf("Realloc mem\n\r");
-      // Need to realloc memory ?
-      line->current_max_element_number = min(line->current_max_element_number + 1 + CACHE_SIZE, MAX_ELEMENT_NODE);
-      assert(line->current_max_element_number <= MAX_ELEMENT_NODE);
-      line->ch = realloc(line->ch, line->current_max_element_number * sizeof(Char_U8));
+#endif
+        // Need to realloc memory ?
+        line->current_max_element_number = min(line->current_max_element_number + 1 + CACHE_SIZE, MAX_ELEMENT_NODE);
+        assert(line->current_max_element_number <= MAX_ELEMENT_NODE);
+        line->ch = realloc(line->ch, line->current_max_element_number * sizeof(Char_U8));
+      }
+
+      assert(line->current_max_element_number - line->element_number >= 1);
+      return 0;
     }
 
-    assert(line->current_max_element_number - line->element_number >= 1);
-    return 0;
+    assert(available_here == 0);
   }
 
-  assert(available_here == 0);
-skip_here:
+#ifdef LOGS
   printf("Hard case !\n\r");
+#endif
 
   // Current cell cannot contain the asked size.
   int available_prev = line->prev == NULL ? 0 : MAX_ELEMENT_NODE - line->prev->element_number;
   int available_next = line->next == NULL ? 0 : MAX_ELEMENT_NODE - line->next->element_number;
-
+#ifdef LOGS
   printf("AVAILABLE PREVIOUS %d | NEXT %d | CURRENT %d \r\n", available_prev, available_next, available_here);
-
+#endif
   if (available_prev + available_next + available_here < 1) {
     // Need to insert node
+#ifdef LOGS
     printf("INSERTING A NODE\r\n");
+#endif
 
     if (index == 0 && !line->fixed) {
       // Due to the fact that we can just deallocate instant from right of an array only more power full for index == 0.
@@ -256,19 +268,26 @@ skip_here:
 
   int shift = 0;
   if (available_prev != 0 && !line->fixed) {
+#ifdef LOGS
     printf("SLIDING LEFT\r\n");
+#endif
     int moved = slideFromLineNodeToPreviousLineNodeBeforeIndex(line, index);
+#ifdef LOGS
     printf("Moved : %d Shift %d\r\n", moved, shift);
+#endif
     assert(moved != -1);
     shift -= moved;
   }
   else if (MAX_ELEMENT_NODE - line->element_number < 1) {
     // assert(index != MAX_ELEMENT_NODE);
+#ifdef LOGS
     printf("SLIDING RIGHT\r\n");
+#endif
     slideFromLineNodeToNextLineNodeAfterIndex(line, index);
   }
-
+#ifdef LOGS
   printf("When return %d\n\r", shift);
+#endif
   return shift;
 }
 
@@ -276,22 +295,22 @@ skip_here:
  * Return idenfier for the node containing current relative index.
  * Return an index as 0 <= index <= line->element_number
  */
-LineIdentifier moduloLineIdentifier(LineNode* line, int index) {
-  while (index < 0) {
-    index += line->element_number;
+LineIdentifier moduloLineIdentifier(LineNode* line, int column) {
+  while (column < 0) {
+    column += line->element_number;
     assert(line->prev != NULL); // Index out of range
     line = line->prev;
   }
 
-  while (index > line->element_number) {
-    index -= line->element_number;
+  while (column > line->element_number) {
+    column -= line->element_number;
     assert(line->next != NULL); // Index out of range
     line = line->next;
   }
   LineIdentifier id;
   id.last_shift = 0;
   id.line = line;
-  id.relative_index = index;
+  id.relative_column = column;
 
   return id;
 }
@@ -301,57 +320,67 @@ LineIdentifier moduloLineIdentifier(LineNode* line, int index) {
  * Insert a char at index of the line node.
  * Return the new relative index for line cell.
  */
-LineIdentifier insertCharInLine(LineNode* line, Char_U8 ch, int index) {
-  LineIdentifier id = moduloLineIdentifier(line, index);
+LineIdentifier insertCharInLine(LineNode* line, Char_U8 ch, int column) {
+  LineIdentifier id = moduloLineIdentifier(line, column);
   line = id.line;
-  index = id.relative_index;
+  column = id.relative_column;
 
-  int relative_shift = allocateOneCharAtIndex(line, index);
-  printf("Shift : %d & Index : %d\n\r", relative_shift, index);
-  index = index + relative_shift;
+  int relative_shift = allocateOneCharAtIndex(line, column);
+#ifdef LOGS
+  printf("Shift : %d & Index : %d\n\r", relative_shift, column);
+#endif
+  column = column + relative_shift;
 
   assert(relative_shift <= 0);
-  assert(index <= MAX_ELEMENT_NODE);
-  assert(index >= 0);
+  assert(column <= MAX_ELEMENT_NODE);
+  assert(column >= 0);
 
-  if (index == 0) {
+  if (column == 0) {
     if (line->prev != NULL && line->prev->element_number != MAX_ELEMENT_NODE) {
       // can add previous.
+#ifdef LOGS
       printf("SHIFT PREVIOUS DETECTED\n\r");
+#endif
       assert(line->prev != NULL);
       line = line->prev;
-      index = line->element_number;
+      column = line->element_number;
     }
     else {
       // cannot add previous assert place here.
       assert(line->element_number != MAX_ELEMENT_NODE);
     }
   }
-  else if (index == MAX_ELEMENT_NODE) {
+  else if (column == MAX_ELEMENT_NODE) {
     assert(line->next != NULL);
+#ifdef LOGS
     printf("SHIFT NEXT DETECTED\n\r");
+#endif
     line = line->next;
-    index = 0;
+    column = 0;
   }
 
-  if (index == line->element_number) {
+  if (column == line->element_number) {
     // Simple happend
-    line->ch[index] = ch;
+    line->ch[column] = ch;
     line->element_number++;
+#ifdef LOGS
     printf("ADD AT THE END\r\n");
+#endif
   }
   else {
     // Insert in array
+#ifdef LOGS
     printf("INSERT IN MIDDLE\r\n");
-    assert(line->element_number - index > 0);
-    memmove(line->ch + index + 1, line->ch + index, (line->element_number - index) * sizeof(Char_U8));
-    line->ch[index] = ch;
+#endif
+    assert(line->element_number - column > 0);
+    memmove(line->ch + column + 1, line->ch + column, (line->element_number - column) * sizeof(Char_U8));
+    line->ch[column] = ch;
     line->element_number++;
   }
 
   id.last_shift = relative_shift;
   id.line = line;
-  id.relative_index = index;
+  id.relative_column = column + 1;
 
   return id;
 }
@@ -361,36 +390,45 @@ LineIdentifier insertCharInLine(LineNode* line, Char_U8 ch, int index) {
  * Insert a char at index of the line node.
  */
 LineIdentifier removeCharInLine(LineNode* line, int cursorPos) {
+#ifdef LOGS
   printf("ABSOLUTE INDEX %d\r\n", cursorPos);
   printf("ABSOLUTE LINE ELEMENT NUMBER %d\n\r", line->element_number);
+#endif
 
 
   LineIdentifier id = moduloLineIdentifier(line, cursorPos);
+  id.relative_column--;
   line = id.line;
-  cursorPos = id.relative_index - 1;
+  cursorPos = id.relative_column;
 
   if (cursorPos == -1) {
     assert(line->prev != NULL);
     line = line->prev;
     cursorPos = line->element_number;
     id.line = line;
-    id.relative_index = cursorPos;
+    id.relative_column = cursorPos;
   }
 
+#ifdef LOGS
   printf("REMOVE CHAR RELATIVE %d \r\n", cursorPos);
   printf("CURRENT LINE ELEMENT NUMBER %d\r\n", line->element_number);
+#endif
   assert(cursorPos >= 0);
   assert(cursorPos < line->element_number);
 
   if (cursorPos != line->element_number - 1) {
+#ifdef LOGS
     printf("REMOVE IN MIDDLE. Table Size %d. Element Number %d\r\n", line->current_max_element_number,
            line->element_number);
+#endif
     // printf("At move : %d, first %d, ")
     memmove(line->ch + cursorPos, line->ch + cursorPos + 1,
             (line->element_number - cursorPos - 1) * sizeof(Char_U8));
   }
   else {
+#ifdef LOGS
     printf("REMOVE ATT END\r\n");
+#endif
   }
 
   line->element_number--;
@@ -402,7 +440,9 @@ LineIdentifier removeCharInLine(LineNode* line, int cursorPos) {
 
     if (available_prev != 0 || available_next != 0) {
       assert(line->prev != NULL || line->next != NULL);
+#ifdef LOGS
       printf("FREE NODE\r\n");
+#endif
       if (line->next != NULL && line->next->element_number == 0) {
         assert(line->next->fixed == false);
         destroyCurrentLineNode(line->next);
@@ -411,12 +451,14 @@ LineIdentifier removeCharInLine(LineNode* line, int cursorPos) {
         assert(line->fixed == false);
         line = destroyCurrentLineNode(line);
         id.line = line;
-        id.relative_index = id.line->element_number;
+        id.relative_column = id.line->element_number;
       }
     }
     else {
       if (line->current_max_element_number > CACHE_SIZE + 1) {
+#ifdef LOGS
         printf("REALLOC ONLY CACHE\r\n");
+#endif
         line->current_max_element_number = min(MAX_ELEMENT_NODE, CACHE_SIZE);
         assert(line->current_max_element_number <= MAX_ELEMENT_NODE);
         line->ch = realloc(line->ch, line->current_max_element_number * sizeof(Char_U8));
@@ -424,7 +466,9 @@ LineIdentifier removeCharInLine(LineNode* line, int cursorPos) {
     }
   }
 
+#ifdef LOGS
   printf("REMOVE ENDED\r\n");
+#endif
   return id;
 }
 
@@ -575,7 +619,9 @@ int slideFromFileNodeToNextFileNodeAfterIndex(FileNode* file, int row) {
   }
 
   int moved = min(file->element_number - row, file->next->current_max_element_number - file->next->element_number);
+#ifdef LOGS
   printf("SLIDING RIGHT NUMBER %d\r\n", moved);
+#endif
   assert(file->next->element_number + moved <= MAX_ELEMENT_NODE);
 
   memmove(file->next->lines + moved, file->next->lines, file->next->element_number * sizeof(LineNode));
@@ -603,15 +649,21 @@ int slideFromFileNodeToPreviousFileNodeBeforeIndex(FileNode* file, int row) {
   if (file->prev->current_max_element_number != MAX_ELEMENT_NODE && row + 1 > file->prev->current_max_element_number -
       file->prev->element_number) {
     // If previous is not already full allocated && need more space to store
+#ifdef LOGS
     printf("Realloc previous ");
+#endif
     file->prev->current_max_element_number = min(file->prev->current_max_element_number + row + 1 + CACHE_SIZE,
                                                  MAX_ELEMENT_NODE);
     assert(file->prev->current_max_element_number <=MAX_ELEMENT_NODE);
+#ifdef LOGS
     printf(" new size %d\n\r", file->prev->current_max_element_number);
+#endif
     file->prev->lines = realloc(file->prev->lines, file->prev->current_max_element_number * sizeof(LineNode));
   }
+#ifdef LOGS
   printf("Min Of Index : %d and %d - %d  = %d  \r\n", row, file->prev->current_max_element_number,
          file->prev->element_number, file->prev->current_max_element_number - file->prev->element_number);
+#endif
 
   if (row == 0)
     return 0;
@@ -649,11 +701,14 @@ int allocateOneRowInFile(FileNode* file, int row) {
 
   if (available_here >= 1) {
     // Is size available in current cell
+#ifdef LOGS
     printf("Simple case !\n\r");
-
+#endif
 
     if (file->current_max_element_number - file->element_number < 1) {
+#ifdef LOGS
       printf("Realloc mem\n\r");
+#endif
       // Need to realloc memory ?
       file->current_max_element_number = min(file->current_max_element_number + 1 + CACHE_SIZE, MAX_ELEMENT_NODE);
       assert(file->current_max_element_number <= MAX_ELEMENT_NODE);
@@ -665,17 +720,22 @@ int allocateOneRowInFile(FileNode* file, int row) {
   }
 
   assert(available_here == 0);
+#ifdef LOGS
   printf("Hard case !\n\r");
+#endif
 
   // Current cell cannot contain the asked size.
   int available_prev = file->prev == NULL ? 0 : MAX_ELEMENT_NODE - file->prev->element_number;
   int available_next = file->next == NULL ? 0 : MAX_ELEMENT_NODE - file->next->element_number;
-
+#ifdef LOGS
   printf("AVAILABLE PREVIOUS %d | NEXT %d | CURRENT %d \r\n", available_prev, available_next, available_here);
+#endif
 
   if (available_prev + available_next + available_here < 1) {
     // Need to insert node
+#ifdef LOGS
     printf("INSERTING A NODE\r\n");
+#endif
 
     if (row == 0) {
       // Due to the fact that we can just deallocate instant from right of an array only more power full for index == 0.
@@ -692,19 +752,26 @@ int allocateOneRowInFile(FileNode* file, int row) {
 
   int shift = 0;
   if (available_prev != 0) {
+#ifdef LOGS
     printf("SLIDING LEFT\r\n");
+#endif
     int moved = slideFromFileNodeToPreviousFileNodeBeforeIndex(file, row);
+#ifdef LOGS
     printf("Moved : %d Shift %d\r\n", moved, shift);
+#endif
     assert(moved != -1);
     shift -= moved;
   }
   else if (MAX_ELEMENT_NODE - file->element_number < 1) {
     // assert(index != MAX_ELEMENT_NODE);
+#ifdef LOGS
     printf("SLIDING RIGHT\r\n");
+#endif
     slideFromFileNodeToNextFileNodeAfterIndex(file, row);
   }
-
+#ifdef LOGS
   printf("When return %d\n\r", shift);
+#endif
   return shift;
 }
 
@@ -712,7 +779,7 @@ int allocateOneRowInFile(FileNode* file, int row) {
  * Return idenfier for the node containing current relative index.
  * Return an index as 0 <= index <= line->element_number
  */
-FileIdentifier moduloFileIdentifier(FileNode* file, int row, int column) {
+FileIdentifier moduloFileIdentifier(FileNode* file, int row) {
   while (row < 0) {
     row += file->element_number;
     assert(file->prev != NULL); // Index out of range
@@ -728,8 +795,7 @@ FileIdentifier moduloFileIdentifier(FileNode* file, int row, int column) {
   FileIdentifier id;
   id.last_shift = 0;
   id.file = file;
-  id.row = row;
-  id.column = column;
+  id.relative_row = row;
 
   return id;
 }
@@ -740,12 +806,14 @@ FileIdentifier moduloFileIdentifier(FileNode* file, int row, int column) {
  * Return the new relative index for line cell.
  */
 FileIdentifier insertEmptyLineInFile(FileNode* file, int row) {
-  FileIdentifier id = moduloFileIdentifier(file, row, 0);
+  FileIdentifier id = moduloFileIdentifier(file, row);
   file = id.file;
-  row = id.row;
+  row = id.relative_row;
 
   int relative_shift = allocateOneRowInFile(file, row);
+#ifdef LOGS
   printf("Shift : %d & Index : %d\n\r", relative_shift, row);
+#endif
   row = row + relative_shift;
 
   assert(relative_shift <= 0);
@@ -755,7 +823,9 @@ FileIdentifier insertEmptyLineInFile(FileNode* file, int row) {
   if (row == 0) {
     if (file->prev != NULL && file->prev->element_number != MAX_ELEMENT_NODE) {
       // can add previous.
+#ifdef LOGS
       printf("SHIFT PREVIOUS DETECTED\n\r");
+#endif
       assert(file->prev != NULL);
       file = file->prev;
       row = file->element_number;
@@ -767,7 +837,9 @@ FileIdentifier insertEmptyLineInFile(FileNode* file, int row) {
   }
   else if (row == MAX_ELEMENT_NODE) {
     assert(file->next != NULL);
+#ifdef LOGS
     printf("SHIFT NEXT DETECTED\n\r");
+#endif
     file = file->next;
     row = 0;
   }
@@ -777,11 +849,15 @@ FileIdentifier insertEmptyLineInFile(FileNode* file, int row) {
     initEmptyLineNode(file->lines + row);
     file->lines[row].fixed = true;
     file->element_number++;
+#ifdef LOGS
     printf("ADD AT THE END\r\n");
+#endif
   }
   else {
     // Insert in array
+#ifdef LOGS
     printf("INSERT IN MIDDLE\r\n");
+#endif
     assert(file->element_number - row > 0);
     memmove(file->lines + row + 1, file->lines + row, (file->element_number - row) * sizeof(LineNode));
     initEmptyLineNode(file->lines + row);
@@ -791,7 +867,7 @@ FileIdentifier insertEmptyLineInFile(FileNode* file, int row) {
 
   id.last_shift = relative_shift;
   id.file = file;
-  id.row = row;
+  id.relative_row = row + 1;
 
   return id;
 }
@@ -801,35 +877,44 @@ FileIdentifier insertEmptyLineInFile(FileNode* file, int row) {
  * Insert a char at index of the line node.
  */
 FileIdentifier removeLineInFile(FileNode* file, int row) {
+#ifdef LOGS
   printf("ABSOLUTE INDEX %d\r\n", row);
   printf("ABSOLUTE LINE ELEMENT NUMBER %d\n\r", file->element_number);
+#endif
 
 
-  FileIdentifier id = moduloFileIdentifier(file, row, 0);
+  FileIdentifier id = moduloFileIdentifier(file, row);
+  id.relative_row--;
   file = id.file;
-  row = id.row - 1;
+  row = id.relative_row;
 
   if (row == -1) {
     assert(file->prev != NULL);
     file = file->prev;
     row = file->element_number;
     id.file = file;
-    id.row = row;
+    id.relative_row = row;
   }
 
+#ifdef LOGS
   printf("REMOVE CHAR RELATIVE %d \r\n", row);
   printf("CURRENT LINE ELEMENT NUMBER %d\r\n", file->element_number);
+#endif
   assert(row >= 0);
   assert(row < file->element_number);
 
   if (row != file->element_number - 1) {
+#ifdef LOGS
     printf("REMOVE IN MIDDLE. Table Size %d. Element Number %d\r\n", file->current_max_element_number,
            file->element_number);
+#endif
     // printf("At move : %d, first %d, ")
     memmove(file->lines + row, file->lines + row + 1, (file->element_number - row - 1) * sizeof(LineNode));
   }
   else {
+#ifdef LOGS
     printf("REMOVE ATT END\r\n");
+#endif
   }
 
   file->element_number--;
@@ -841,22 +926,27 @@ FileIdentifier removeLineInFile(FileNode* file, int row) {
 
     if (available_prev != 0 || available_next != 0) {
       assert(file->prev != NULL || file->next != NULL);
+#ifdef LOGS
       printf("FREE NODE\r\n");
+#endif
       file = destroyCurrentFileNode(file);
       id.file = file;
-      id.row = id.file->element_number;
+      id.relative_row = id.file->element_number;
     }
     else {
       if (file->current_max_element_number > CACHE_SIZE + 1) {
+#ifdef LOGS
         printf("REALLOC ONLY CACHE\r\n");
+#endif
         file->current_max_element_number = min(MAX_ELEMENT_NODE, CACHE_SIZE);
         assert(file->current_max_element_number <= MAX_ELEMENT_NODE);
         file->lines = realloc(file->lines, file->current_max_element_number * sizeof(LineNode));
       }
     }
   }
-
+#ifdef LOGS
   printf("REMOVE ENDED\r\n");
+#endif
   return id;
 }
 
@@ -885,8 +975,8 @@ void destroyFullFile(FileNode* node) {
 
 
 LineIdentifier identifierForCursor(FileNode* file, int row, int column) {
-  FileIdentifier file_id = moduloFileIdentifier(file, row, column);
-  LineIdentifier line_id = moduloLineIdentifier(file_id.file->lines + file_id.row - 1, file_id.column);
+  FileIdentifier file_id = moduloFileIdentifier(file, row);
+  LineIdentifier line_id = moduloLineIdentifier(file_id.file->lines + file_id.relative_row - 1, column);
 
   return line_id;
 }

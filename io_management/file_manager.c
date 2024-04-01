@@ -11,35 +11,36 @@ void loadFile(FileNode* file, char* fileName) {
     exit(0);
   }
 
-  int column = 0;
-  int row = 0;
-  insertEmptyLineInFile(file, row);
-  row++;
+  FileIdentifier file_id = moduloFileIdentifier(file, 0);
+  file_id = insertEmptyLineInFile(file_id.file, file_id.relative_row);
+
+  LineIdentifier line_id = moduloLineIdentifier(file_id.file->lines + file_id.relative_row - 1, 0);
+
 
   char c;
   while (fscanf(f, "%c", &c) != EOF) {
-    LineIdentifier line_id = identifierForCursor(file, row, column);
-
-
     if (iscntrl(c)) {
       if (c == '\n') {
-        insertEmptyLineInFile(file, row);
-        row++;
-        column = 0;
+        file_id = insertEmptyLineInFile(file_id.file, file_id.relative_row);
+        line_id = moduloLineIdentifier(file_id.file->lines + file_id.relative_row - 1, 0);
       }
       else if (c == 9) {
         Char_U8 ch;
         ch.t[0] = ' ';
         for (int i = 0; i < 4; i++) {
-          insertCharInLine(line_id.line, ch, line_id.relative_index);
-          column++;
+          line_id = insertCharInLine(line_id.line, ch, line_id.relative_column);
         }
+      }
+      else {
+#ifdef LOGS
+        printf("Unsupported Char loaded from file : '%d'.\r\n", c);
+#endif
+        // exit(0);
       }
     }
     else {
       Char_U8 ch = readChar_U8FromFileWithFirst(f, c);
-      insertCharInLine(line_id.line, ch, line_id.relative_index);
-      column++;
+      line_id = insertCharInLine(line_id.line, ch, line_id.relative_column);
     }
   }
 

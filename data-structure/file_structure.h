@@ -4,10 +4,10 @@
 #include "utf_8_extractor.h"
 #include <stdbool.h>
 
-#define MAX_ELEMENT_NODE 20
-#define CACHE_SIZE 10
+#define MAX_ELEMENT_NODE 100
+#define CACHE_SIZE 20
 
-#define LOGS
+// #define LOGS
 
 typedef unsigned int Size;
 
@@ -38,14 +38,16 @@ typedef struct FileNode_ {
  * Represent a cursor in the line.
  */
 typedef struct {
-  int relative_index;
+  int relative_column;
   LineNode* line;
   int last_shift;
 } LineIdentifier;
 
+/**
+ * Represent a cursor in lines contained in file.
+ */
 typedef struct {
-  int row;
-  int column;
+  int relative_row;
   FileNode* file;
   int last_shift;
 } FileIdentifier;
@@ -134,12 +136,12 @@ Char_U8 getCharAt(FileNode* file, int line, int column);
 /**
  * Return idenfier for the node containing current relative index.
  */
-LineIdentifier moduloLineIdentifier(LineNode* line, int index);
+LineIdentifier moduloLineIdentifier(LineNode* line, int column);
 
 /**
  * Insert a char at index of the line node.
  */
-LineIdentifier insertCharInLine(LineNode* line, Char_U8 ch, int index);
+LineIdentifier insertCharInLine(LineNode* line, Char_U8 ch, int column);
 
 /**
  * Insert a char at index of the line node.
@@ -155,7 +157,7 @@ void destroyFullLine(LineNode* node);
 ////// --------------------FILE-----------------------------
 
 
-FileIdentifier moduloFileIdentifier(FileNode* file, int row, int column);
+FileIdentifier moduloFileIdentifier(FileNode* file, int row);
 
 FileIdentifier insertEmptyLineInFile(FileNode* file, int row);
 
@@ -163,7 +165,14 @@ FileIdentifier removeLineInFile(FileNode* file, int row);
 
 void destroyFullFile(FileNode* node);
 
+
+
+////// -------------- COMBO LINE & FILE --------------
+
 LineIdentifier identifierForCursor(FileNode* file, int row, int column);
 
+
+// TODO implement add new line in a line.
+// TODO implement remove a line with a non empty line.
 
 #endif

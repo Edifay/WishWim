@@ -75,7 +75,7 @@ void printLine(LineNode* line, int index, bool sep) {
 
   LineIdentifier id = moduloLineIdentifier(line, index);
   line = id.line;
-  index = id.relative_index;
+  index = id.relative_column;
 
   int ava_here = MAX_ELEMENT_NODE - line->element_number;
   int ava_prev = line->prev == NULL ? 0 : MAX_ELEMENT_NODE - line->prev->element_number;

@@ -77,7 +77,7 @@ void printLine(LineNode* line, int index, bool sep) {
 
   LineIdentifier id = moduloLineIdentifier(line, index);
   line = id.line;
-  index = id.relative_index;
+  index = id.relative_column;
 
   int ava_here = MAX_ELEMENT_NODE - line->element_number;
   int ava_prev = line->prev == NULL ? 0 : MAX_ELEMENT_NODE - line->prev->element_number;
@@ -120,9 +120,9 @@ void printFile(FileNode* file, int row, int column, bool sep) {
   FileNode* temp = file;
   int row_temp = row - 1;
 
-  FileIdentifier id = moduloFileIdentifier(file, row, column);
+  FileIdentifier id = moduloFileIdentifier(file, row);
   file = id.file;
-  row = id.row;
+  row = id.relative_row;
 
   int ava_here = MAX_ELEMENT_NODE - file->element_number;
   int ava_prev = file->prev == NULL ? 0 : MAX_ELEMENT_NODE - file->prev->element_number;
@@ -228,25 +228,25 @@ int main(int argc, char** args) {
 
 
       if (c == 127) {
-        initNewWrite(line_id.line, line_id.relative_index);
-        removeCharInLine(line_id.line, line_id.relative_index);
+        initNewWrite(line_id.line, line_id.relative_column);
+        removeCharInLine(line_id.line, line_id.relative_column);
         column--;
         // printLine(line_id.line, line_id.relative_index, SEPARATOR);
         printFile(file, row, column, SEPARATOR);
       }
       else if (c == 13) {
-        initNewWrite(line_id.line, line_id.relative_index);
+        initNewWrite(line_id.line, line_id.relative_column);
         insertEmptyLineInFile(file, row);
         row++;
         column = 0;
         printFile(file, row, column, SEPARATOR);
       }
       else if (c == 9) {
-        initNewWrite(line_id.line, line_id.relative_index);
+        initNewWrite(line_id.line, line_id.relative_column);
         Char_U8 ch;
         ch.t[0] = ' ';
         for (int i = 0; i < 4; i++) {
-          insertCharInLine(line_id.line, ch, line_id.relative_index);
+          insertCharInLine(line_id.line, ch, line_id.relative_column);
           column++;
         }
         // printLine(line_id.line, line_id.relative_index, SEPARATOR);
@@ -263,10 +263,10 @@ int main(int argc, char** args) {
 
           if (c == 'C') {
             // move caret
-            if (line_id.line->element_number != line_id.relative_index || line_id.line->next != NULL) {
+            if (line_id.line->element_number != line_id.relative_column || line_id.line->next != NULL) {
               // TODO this cond is wrong. If the next cell is empty error !
               column++;
-              initNewWrite(line_id.line, line_id.relative_index);
+              initNewWrite(line_id.line, line_id.relative_column);
               // printLine(line_id.line, line_id.relative_index, SEPARATOR);
               printFile(file, row, column, SEPARATOR);
             }
@@ -275,7 +275,7 @@ int main(int argc, char** args) {
             if (column != 0) {
               // move caret
               column--;
-              initNewWrite(line_id.line, line_id.relative_index);
+              initNewWrite(line_id.line, line_id.relative_column);
               // printLine(line_id.line, line_id.relative_index, SEPARATOR);
               printFile(file, row, column, SEPARATOR);
             }
@@ -283,24 +283,24 @@ int main(int argc, char** args) {
           else if (c == 'A') {
             if (row != 1) {
               row--;
-              FileIdentifier file_id = moduloFileIdentifier(file, row, 0);
-              column = min(sizeLineNode(file_id.file->lines + file_id.row - 1), column);
-              initNewWrite(line_id.line, line_id.relative_index);
+              FileIdentifier file_id = moduloFileIdentifier(file, row);
+              column = min(sizeLineNode(file_id.file->lines + file_id.relative_row - 1), column);
+              initNewWrite(line_id.line, line_id.relative_column);
               printFile(file, row, column, SEPARATOR);
             }
           }
           else if (c == 'B') {
             if (row != sizeFileNode(file)) {
               row++;
-              FileIdentifier file_id = moduloFileIdentifier(file, row, 0);
-              column = min(sizeLineNode(file_id.file->lines + file_id.row - 1), column);
-              initNewWrite(line_id.line, line_id.relative_index);
+              FileIdentifier file_id = moduloFileIdentifier(file, row);
+              column = min(sizeLineNode(file_id.file->lines + file_id.relative_row - 1), column);
+              initNewWrite(line_id.line, line_id.relative_column);
               printFile(file, row, column, SEPARATOR);
             }
           }
           else if (c == 'F') {
-            initNewWrite(line_id.line, line_id.relative_index);
-            column += sizeLineNode(line_id.line) - line_id.relative_index;
+            initNewWrite(line_id.line, line_id.relative_column);
+            column += sizeLineNode(line_id.line) - line_id.relative_column;
             printFile(file, row, column, SEPARATOR);
           }
           else if (c == '3') {
@@ -309,8 +309,8 @@ int main(int argc, char** args) {
 
             if (c == '~') {
               printf("DEL !\r\n");
-              initNewWrite(line_id.line, line_id.relative_index + 1);
-              removeCharInLine(line_id.line, line_id.relative_index + 1);
+              initNewWrite(line_id.line, line_id.relative_column + 1);
+              removeCharInLine(line_id.line, line_id.relative_column + 1);
               // printLine(line_id.line, line_id.relative_index, SEPARATOR);
               printFile(file, row, column, SEPARATOR);
             }
@@ -331,9 +331,9 @@ int main(int argc, char** args) {
       }
     }
     else {
-      initNewWrite(line_id.line, line_id.relative_index);
+      initNewWrite(line_id.line, line_id.relative_column);
       Char_U8 ch = readChar_U8FromInput(c);
-      insertCharInLine(line_id.line, ch, line_id.relative_index);
+      insertCharInLine(line_id.line, ch, line_id.relative_column);
       column++;
       // printLine(line_id.line, line_id.relative_index, SEPARATOR);
       // printf("%d ('%c')\r\n", c, c);
