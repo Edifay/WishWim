@@ -236,9 +236,13 @@ int main(int argc, char** args) {
       }
       else if (c == 13) {
         initNewWrite(line_id.line, line_id.relative_column);
-        insertEmptyLineInFile(file, row);
-        row++;
+        FileIdentifier file_id = moduloFileIdentifier(file, row);
+        Cursor cur = insertNewLineInLine(cursorOf(file_id, line_id));
         column = 0;
+        row++;
+        /*insertEmptyLineInFile(file, row);
+        row++;
+        column = 0;*/
         printFile(file, row, column, SEPARATOR);
       }
       else if (c == 9) {

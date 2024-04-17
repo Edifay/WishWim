@@ -4,8 +4,8 @@
 #include "utf_8_extractor.h"
 #include <stdbool.h>
 
-#define MAX_ELEMENT_NODE 100
-#define CACHE_SIZE 20
+#define MAX_ELEMENT_NODE 20
+#define CACHE_SIZE 10
 
 // #define LOGS
 
@@ -51,6 +51,12 @@ typedef struct {
   FileNode* file;
   int last_shift;
 } FileIdentifier;
+
+
+typedef struct {
+  FileIdentifier file_id;
+  LineIdentifier line_id;
+} Cursor;
 
 
 /**
@@ -166,13 +172,20 @@ FileIdentifier removeLineInFile(FileNode* file, int row);
 void destroyFullFile(FileNode* node);
 
 
-
 ////// -------------- COMBO LINE & FILE --------------
 
 LineIdentifier identifierForCursor(FileNode* file, int row, int column);
 
+Cursor cursorOf(FileIdentifier file_id, LineIdentifier line_id);
+
+Cursor moduloCursor(Cursor cursor);
+
 
 // TODO implement add new line in a line.
+Cursor insertNewLineInLine(Cursor cursor);
+
+
 // TODO implement remove a line with a non empty line.
+Cursor removeLineInLine(Cursor cursor);
 
 #endif

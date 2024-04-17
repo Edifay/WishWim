@@ -156,8 +156,7 @@ int slideFromLineNodeToPreviousLineNodeBeforeIndex(LineNode* node, int index) {
     return -1;
 
 
-  if (node->prev->current_max_element_number != MAX_ELEMENT_NODE && index + 1 > node->prev->current_max_element_number
-      -
+  if (node->prev->current_max_element_number != MAX_ELEMENT_NODE && index + 1 > node->prev->current_max_element_number -
       node->prev->element_number) {
     // If previous is not already full allocated && need more space to store
 #ifdef LOGS
@@ -165,7 +164,7 @@ int slideFromLineNodeToPreviousLineNodeBeforeIndex(LineNode* node, int index) {
 #endif
     node->prev->current_max_element_number = min(node->prev->current_max_element_number + index + 1 + CACHE_SIZE,
                                                  MAX_ELEMENT_NODE);
-    assert(node->prev->current_max_element_number <=MAX_ELEMENT_NODE);
+    assert(node->prev->current_max_element_number <= MAX_ELEMENT_NODE);
 #ifdef LOGS
     printf(" new size %d\n\r", node->prev->current_max_element_number);
 #endif
@@ -217,12 +216,12 @@ int allocateOneCharAtIndex(LineNode* line, int index) {
     if (available_here >= 1) {
       // Is size available in current cell
 #ifdef LOGS
-    printf("Simple case !\n\r");
+      printf("Simple case !\n\r");
 #endif
 
       if (line->current_max_element_number - line->element_number < 1) {
 #ifdef LOGS
-      printf("Realloc mem\n\r");
+        printf("Realloc mem\n\r");
 #endif
         // Need to realloc memory ?
         line->current_max_element_number = min(line->current_max_element_number + 1 + CACHE_SIZE, MAX_ELEMENT_NODE);
@@ -654,7 +653,7 @@ int slideFromFileNodeToPreviousFileNodeBeforeIndex(FileNode* file, int row) {
 #endif
     file->prev->current_max_element_number = min(file->prev->current_max_element_number + row + 1 + CACHE_SIZE,
                                                  MAX_ELEMENT_NODE);
-    assert(file->prev->current_max_element_number <=MAX_ELEMENT_NODE);
+    assert(file->prev->current_max_element_number <= MAX_ELEMENT_NODE);
 #ifdef LOGS
     printf(" new size %d\n\r", file->prev->current_max_element_number);
 #endif
@@ -1005,3 +1004,113 @@ int sizeFileNode(FileNode* file) {
  * Return the char from the FileNode at index line, column. If file[line][column] don't exist return null.
  */
 Char_U8 getCharAt(FileNode* file, int line, int column);
+
+Cursor cursorOf(FileIdentifier file_id, LineIdentifier line_id) {
+  Cursor cursor = {file_id, line_id};
+  return cursor;
+}
+
+Cursor moduloCursor(Cursor cursor) {
+  cursor.file_id = moduloFileIdentifier(cursor.file_id.file, cursor.file_id.relative_row);
+  cursor.line_id = moduloLineIdentifier(cursor.line_id.line, cursor.line_id.relative_column);
+
+  return cursor;
+}
+
+
+Cursor insertNewLineInLine(Cursor cursor) {
+  cursor = moduloCursor(cursor);
+
+  FileIdentifier file_id = cursor.file_id;
+  LineIdentifier line_id = cursor.line_id;
+  const bool line_was_fixed = line_id.line->fixed;
+
+  FileIdentifier newFileIdForNewLine = insertEmptyLineInFile(file_id.file, file_id.relative_row);
+  LineIdentifier newLineIdForNewLine = identifierForCursor(newFileIdForNewLine.file, newFileIdForNewLine.relative_row,  0);
+  LineNode* line = newLineIdForNewLine.line + newLineIdForNewLine.relative_column;
+  assert(newLineIdForNewLine.line != NULL);
+  assert(line != NULL);
+
+  if (line_was_fixed)
+    // If the line was fixed the line may have been reallocated. So we need to re-use modulo. We admit that fixed are the src of the line.
+    line_id = identifierForCursor(file_id.file, file_id.relative_row, line_id.relative_column);
+
+  if (line_id.relative_column == 0) {
+#ifdef LOGS
+    printf("Current cursor pos is 0 check to move current node.\r\n");
+#endif
+
+    // We are not moving the node for now but juste moving the Char_U8 array.
+    line->ch = line_id.line->ch;
+    line->next = line_id.line->next;
+    line->current_max_element_number = line_id.line->current_max_element_number;
+    line->element_number = line_id.line->element_number;
+
+    if (line_id.line->fixed == false) {
+      assert(false); // This situation is not supposed to happend ! But it's implemented if needed
+      if (line_id.line->prev != NULL) {
+        line_id.line->prev->next = NULL;
+        free(line_id.line);
+      }
+    }
+    else {
+      initEmptyLineNode(line_id.line);
+      line_id.line->fixed = true;
+    }
+  }
+  else if (line_id.relative_column == line_id.line->element_number) {
+#ifdef LOGS
+    printf("Current cursor pos is max_element check to move next node.\r\n");
+#endif
+    // We are not moving the node for now but juste moving the Char_U8 array.
+    if (line_id.line->next != NULL) {
+      line->ch = line_id.line->next->ch;
+      line->next = line_id.line->next->next;
+      line->current_max_element_number = line_id.line->next->current_max_element_number;
+      line->element_number = line_id.line->next->element_number;
+
+      if (line_id.line->next->fixed == false) {
+        free(line_id.line->next);
+        line_id.line->next = NULL;
+      }
+      else {
+        initEmptyLineNode(line_id.line);
+        line_id.line->fixed = true;
+      }
+    }
+    else {
+      // Currently at the end of the line.
+      // DO NOTHING !
+    }
+  }
+  else {
+    // In the middle of a line node. Need to copy data to a new linenode.
+#ifdef LOGS
+    printf("Current cursor pos is in mid line dissociating line.\r\n");
+#endif
+
+    line->next = line_id.line->next;
+    line->element_number = line_id.line->element_number - line_id.relative_column;
+
+    line->current_max_element_number = min(line->element_number + CACHE_SIZE, MAX_ELEMENT_NODE);
+    assert(line->current_max_element_number <= MAX_ELEMENT_NODE);
+
+    line->ch = malloc(line->current_max_element_number * sizeof(Char_U8));
+    memcpy(line->ch, line_id.line->ch + line_id.relative_column, line->element_number * sizeof(Char_U8));
+
+    line_id.line->next = NULL;
+    line_id.line->element_number = line_id.relative_column;
+
+    const int old_max_element_number = line_id.line->current_max_element_number;
+    line_id.line->current_max_element_number = min(min(MAX_ELEMENT_NODE, old_max_element_number), line_id.line->element_number + CACHE_SIZE);
+    if (old_max_element_number != line_id.line->current_max_element_number) {
+      line_id.line->ch = realloc(line_id.line->ch, line_id.line->current_max_element_number * sizeof(Char_U8));
+    }
+  }
+
+  return cursorOf(newFileIdForNewLine, newLineIdForNewLine);
+}
+
+
+// TODO implement remove a line with a non empty line.
+Cursor removeLineInLine(Cursor cursor);
