@@ -14,17 +14,21 @@ void loadFile(FileNode* file, char* fileName) {
   FileIdentifier file_id = moduloFileIdentifier(file, 0);
   file_id = insertEmptyLineInFile(file_id.file, file_id.relative_row);
 
-  LineIdentifier line_id = moduloLineIdentifier(file_id.file->lines + file_id.relative_row - 1, 0);
+  LineIdentifier line_id = moduloLineIdentifier(getLineForFileIdentifier(file_id), 0);
 
 
   char c;
   while (fscanf(f, "%c", &c) != EOF) {
+    checkFileIntegrity(file);
     if (iscntrl(c)) {
       if (c == '\n') {
-        file_id = insertEmptyLineInFile(file_id.file, file_id.relative_row);
-        line_id = moduloLineIdentifier(file_id.file->lines + file_id.relative_row - 1, 0);
+        printf("Enter\r\n");
+        Cursor cur = insertNewLineInLine(cursorOf(file_id, line_id));
+        file_id = cur.file_id;
+        line_id = cur.line_id;
       }
       else if (c == 9) {
+        printf("Tab\r\n");
         Char_U8 ch;
         ch.t[0] = ' ';
         for (int i = 0; i < 4; i++) {
@@ -40,6 +44,8 @@ void loadFile(FileNode* file, char* fileName) {
     }
     else {
       Char_U8 ch = readChar_U8FromFileWithFirst(f, c);
+      printChar_U8(stdout, ch);
+      printf("\r\n");
       line_id = insertCharInLine(line_id.line, ch, line_id.relative_column);
     }
   }

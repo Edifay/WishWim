@@ -7,7 +7,7 @@
 #define MAX_ELEMENT_NODE 20
 #define CACHE_SIZE 10
 
-// #define LOGS
+#define LOGS
 
 typedef unsigned int Size;
 
@@ -154,6 +154,16 @@ LineIdentifier insertCharInLine(LineNode* line, Char_U8 ch, int column);
  */
 LineIdentifier removeCharInLine(LineNode* line, int cursorPos);
 
+Char_U8* getCharForLineIdentifier(LineIdentifier id);
+
+LineIdentifier getLastLineNode(LineNode* line);
+
+int getAbsoluteLineIndex(LineIdentifier id);
+
+bool isEmptyLine(LineNode* line);
+
+void printLineNode(LineNode* line);
+
 
 /**
  * Destroy line free all memory.
@@ -168,6 +178,12 @@ FileIdentifier moduloFileIdentifier(FileNode* file, int row);
 FileIdentifier insertEmptyLineInFile(FileNode* file, int row);
 
 FileIdentifier removeLineInFile(FileNode* file, int row);
+
+int getAbsoluteFileIndex(FileIdentifier id);
+
+LineNode* getLineForFileIdentifier(FileIdentifier id);
+
+bool checkFileIntegrity(FileNode* file);
 
 void destroyFullFile(FileNode* node);
 
@@ -186,6 +202,6 @@ Cursor insertNewLineInLine(Cursor cursor);
 
 
 // TODO implement remove a line with a non empty line.
-Cursor removeLineInLine(Cursor cursor);
+Cursor concatNeighbordsLines(Cursor cursor);
 
 #endif

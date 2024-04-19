@@ -9,7 +9,7 @@
 
 void loadFile(FileNode* file, char* fileName);
 
-void saveFile(FileNode* file, char *fileName);
+void saveFile(FileNode* file, char* fileName);
 
 
 #endif //FILE_MANAGER_H

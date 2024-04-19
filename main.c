@@ -15,7 +15,7 @@
 
 #define CTRL_KEY(k) ((k)&0x1f)
 
-#define SEPARATOR false
+#define SEPARATOR true
 
 
 void PrintAt(int x, int y, char c) {
@@ -114,7 +114,7 @@ void printLine(LineNode* line, int index, bool sep) {
 
 
 void printFile(FileNode* file, int row, int column, bool sep) {
-  write(STDOUT_FILENO, "\x1b[14;H", 6);
+  write(STDOUT_FILENO, "\x1b[13;H", 6);
 
 
   FileNode* temp = file;
@@ -124,12 +124,27 @@ void printFile(FileNode* file, int row, int column, bool sep) {
   file = id.file;
   row = id.relative_row;
 
-  int ava_here = MAX_ELEMENT_NODE - file->element_number;
-  int ava_prev = file->prev == NULL ? 0 : MAX_ELEMENT_NODE - file->prev->element_number;
-  int ava_next = file->next == NULL ? 0 : MAX_ELEMENT_NODE - file->next->element_number;
+  LineIdentifier line_id = identifierForCursor(file, row, column);
 
-  printf("PREV %d | HERE %d | NEXT %d      =>  ROW %d  & ABS ROW %d\r\n", ava_prev, ava_here, ava_next, row,
+  int ava_here = MAX_ELEMENT_NODE - line_id.line->element_number;
+  int ava_prev = line_id.line->prev == NULL ? 0 : MAX_ELEMENT_NODE - line_id.line->prev->element_number;
+  int ava_next = line_id.line->next == NULL ? 0 : MAX_ELEMENT_NODE - line_id.line->next->element_number;
+
+
+  printf("COLUMN PREV %d | HERE %d | NEXT %d      =>  INDEX %d  & ABS INDEX %d     => FIXED %s\r\n", ava_prev, ava_here,
+         ava_next, line_id.relative_column,
+         column,
+         line_id.line->fixed ? "true" : "false");
+
+
+  ava_here = MAX_ELEMENT_NODE - file->element_number;
+  ava_prev = file->prev == NULL ? 0 : MAX_ELEMENT_NODE - file->prev->element_number;
+  ava_next = file->next == NULL ? 0 : MAX_ELEMENT_NODE - file->next->element_number;
+
+
+  printf("ROW    PREV %d | HERE %d | NEXT %d      =>  ROW %d  & ABS ROW %d\r\n", ava_prev, ava_here, ava_next, row,
          row_temp);
+
 
   file = temp;
   row = row_temp;
@@ -193,17 +208,21 @@ int main(int argc, char** args) {
   if (argc >= 2) {
     printf("LOADING FILE \r\n");
     loadFile(file, args[1]);
-    clearFullScreen();
-    printFile(file, row, column, SEPARATOR);
+    printf("LOAD ENDED \r\n");
     // insert first row
   }
   else {
     insertEmptyLineInFile(file, row);
   }
+
   row++;
+  clearFullScreen();
+  printFile(file, row, column, SEPARATOR);
+
 
   char c;
   while (1) {
+    checkFileIntegrity(file);
     LineIdentifier line_id = identifierForCursor(file, row, column);
     c = '\0';
     if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) {
@@ -228,11 +247,37 @@ int main(int argc, char** args) {
 
 
       if (c == 127) {
-        initNewWrite(line_id.line, line_id.relative_column);
-        removeCharInLine(line_id.line, line_id.relative_column);
-        column--;
-        // printLine(line_id.line, line_id.relative_index, SEPARATOR);
-        printFile(file, row, column, SEPARATOR);
+        if (column == 0) {
+          initNewWrite(line_id.line, line_id.relative_column);
+          printf("CURRENT COLUMN %d\r\n", column);
+          printf("CURRENT ROW %d\r\n", row);
+
+          printf("Here concat lines !\r\n");
+
+          FileIdentifier file_id = moduloFileIdentifier(file, row);
+          Cursor cursor = concatNeighbordsLines(cursorOf(file_id, line_id));
+          printf("Return get %p\r\n", cursor.line_id.line);
+
+          row = getAbsoluteFileIndex(cursor.file_id);
+          column = getAbsoluteLineIndex(cursor.line_id);
+          printf("AFTER COLUMN %d\r\n", column);
+          printf("AFTER ROW %d\r\n", row);
+
+          printFile(file, row, column, SEPARATOR);
+        }
+        else {
+          initNewWrite(line_id.line, line_id.relative_column);
+          printf("CURRENT COLUMN %d\r\n", column);
+          printf("CURRENT ROW %d\r\n", row);
+
+          removeCharInLine(line_id.line, line_id.relative_column);
+          column--;
+          printf("AFTER COLUMN %d\r\n", column);
+          printf("AFTER ROW %d\r\n", row);
+
+          // printLine(line_id.line, line_id.relative_index, SEPARATOR);
+          printFile(file, row, column, SEPARATOR);
+        }
       }
       else if (c == 13) {
         initNewWrite(line_id.line, line_id.relative_column);
