@@ -4,8 +4,8 @@
 #include "utf_8_extractor.h"
 #include <stdbool.h>
 
-#define MAX_ELEMENT_NODE 20
-#define CACHE_SIZE 10
+#define MAX_ELEMENT_NODE 70
+#define CACHE_SIZE 20
 
 #define LOGS
 

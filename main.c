@@ -15,7 +15,7 @@
 
 #define CTRL_KEY(k) ((k)&0x1f)
 
-#define SEPARATOR true
+#define SEPARATOR false
 
 
 void PrintAt(int x, int y, char c) {
@@ -254,14 +254,16 @@ int main(int argc, char** args) {
 
           printf("Here concat lines !\r\n");
 
-          FileIdentifier file_id = moduloFileIdentifier(file, row);
-          Cursor cursor = concatNeighbordsLines(cursorOf(file_id, line_id));
-          printf("Return get %p\r\n", cursor.line_id.line);
+          if (row != 1) {
+            FileIdentifier file_id = moduloFileIdentifier(file, row);
+            Cursor cursor = concatNeighbordsLines(cursorOf(file_id, line_id));
+            printf("Return get %p\r\n", cursor.line_id.line);
 
-          row = getAbsoluteFileIndex(cursor.file_id);
-          column = getAbsoluteLineIndex(cursor.line_id);
-          printf("AFTER COLUMN %d\r\n", column);
-          printf("AFTER ROW %d\r\n", row);
+            row = getAbsoluteFileIndex(cursor.file_id);
+            column = getAbsoluteLineIndex(cursor.line_id);
+            printf("AFTER COLUMN %d\r\n", column);
+            printf("AFTER ROW %d\r\n", row);
+          }
 
           printFile(file, row, column, SEPARATOR);
         }
@@ -312,12 +314,21 @@ int main(int argc, char** args) {
 
           if (c == 'C') {
             // move caret
-            if (line_id.line->element_number != line_id.relative_column || line_id.line->next != NULL) {
+            if (line_id.line->element_number != line_id.relative_column ||  isEmptyLine(line_id.line->next) != false) {
               // TODO this cond is wrong. If the next cell is empty error !
               column++;
               initNewWrite(line_id.line, line_id.relative_column);
               // printLine(line_id.line, line_id.relative_index, SEPARATOR);
               printFile(file, row, column, SEPARATOR);
+            }
+            else if (line_id.line->element_number == line_id.relative_column && isEmptyLine(line_id.line->next) == true) {
+              FileIdentifier fileTempId = moduloFileIdentifier(file, row);
+              if (fileTempId.file->element_number != fileTempId.relative_row || fileTempId.file->next != NULL) {
+                initNewWrite(line_id.line, line_id.relative_column);
+                row++;
+                column = 0;
+                printFile(file, row, column, SEPARATOR);
+              }
             }
           }
           else if (c == 'D') {
@@ -327,6 +338,14 @@ int main(int argc, char** args) {
               initNewWrite(line_id.line, line_id.relative_column);
               // printLine(line_id.line, line_id.relative_index, SEPARATOR);
               printFile(file, row, column, SEPARATOR);
+            }
+            else {
+              if (row != 1) {
+                initNewWrite(line_id.line, line_id.relative_column);
+                row--;
+                column = sizeLineNode(getLineForFileIdentifier(moduloFileIdentifier(file, row)));
+                printFile(file, row, column, SEPARATOR);
+              }
             }
           }
           else if (c == 'A') {

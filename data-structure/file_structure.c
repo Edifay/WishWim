@@ -595,12 +595,23 @@ void initEmptyFileNode(FileNode* file) {
   file->element_number = 0;
 }
 
-void rebindFileNode(FileNode* file) {
-  for (int i = 0; i < file->element_number; i++) {
+/**
+ * length == -1 => mean that length is
+ */
+void rebindFileNode(FileNode* file, int start, int length) {
+  if (length == -1)
+    length = file->element_number - start;
+  assert(start + length <= file->element_number);
+  assert(start >= 0);
+  for (int i = start; i < start + length; i++) {
     if (file->lines[i].next != NULL) {
       file->lines[i].next->prev = file->lines + i;
     }
   }
+}
+
+void rebindFullFileNode(FileNode* file) {
+  rebindFileNode(file, 0, -1);
 }
 
 
@@ -694,7 +705,7 @@ int slideFromFileNodeToNextFileNodeAfterIndex(FileNode* file, int row) {
     LineNode* old_tab = file->next->lines;
     file->next->lines = realloc(file->next->lines, file->next->current_max_element_number * sizeof(LineNode));
     if (file->next->lines != old_tab) {
-      rebindFileNode(file->next);
+      rebindFullFileNode(file->next);
     }
   }
 
@@ -713,6 +724,8 @@ int slideFromFileNodeToNextFileNodeAfterIndex(FileNode* file, int row) {
 
   file->element_number -= moved;
   file->next->element_number += moved;
+
+  rebindFullFileNode(file->next);
   return moved;
 }
 
@@ -745,7 +758,7 @@ int slideFromFileNodeToPreviousFileNodeBeforeIndex(FileNode* file, int row) {
     LineNode* old_tab = file->prev->lines;
     file->prev->lines = realloc(file->prev->lines, file->prev->current_max_element_number * sizeof(LineNode));
     if (file->prev->lines != old_tab) {
-      rebindFileNode(file->prev);
+      rebindFullFileNode(file->prev);
     }
   }
 #ifdef LOGS
@@ -762,8 +775,12 @@ int slideFromFileNodeToPreviousFileNodeBeforeIndex(FileNode* file, int row) {
   memcpy(file->prev->lines + file->prev->element_number, file->lines, moved * sizeof(LineNode));
   memmove(file->lines, file->lines + moved, (file->element_number - moved) * sizeof(LineNode));
 
+
   file->element_number -= moved;
   file->prev->element_number += moved;
+  rebindFullFileNode(file);
+  rebindFileNode(file->prev, file->prev->element_number - moved, moved);
+
   return moved;
 }
 
@@ -803,7 +820,7 @@ int allocateOneRowInFile(FileNode* file, int row) {
       LineNode* old_tab = file->lines;
       file->lines = realloc(file->lines, file->current_max_element_number * sizeof(LineNode));
       if (file->lines != old_tab) {
-        rebindFileNode(file);
+        rebindFullFileNode(file);
       }
     }
 
@@ -954,6 +971,7 @@ FileIdentifier insertEmptyLineInFile(FileNode* file, int row) {
     assert(file->element_number - row > 0);
     memmove(file->lines + row + 1, file->lines + row, (file->element_number - row) * sizeof(LineNode));
     initEmptyLineNode(file->lines + row);
+    rebindFileNode(file, row + 1, -1);
     file->lines[row].fixed = true;
     file->element_number++;
   }
@@ -1003,6 +1021,7 @@ FileIdentifier removeLineInFile(FileNode* file, int row) {
 #endif
     // printf("At move : %d, first %d, ")
     memmove(file->lines + row, file->lines + row + 1, (file->element_number - row - 1) * sizeof(LineNode));
+    rebindFileNode(file, row, -1);
   }
   else {
 #ifdef LOGS
@@ -1036,7 +1055,7 @@ FileIdentifier removeLineInFile(FileNode* file, int row) {
         LineNode* old_tab = file->lines;
         file->lines = realloc(file->lines, file->current_max_element_number * sizeof(LineNode));
         if (file->lines != old_tab) {
-          rebindFileNode(file);
+          rebindFullFileNode(file);
         }
       }
     }
