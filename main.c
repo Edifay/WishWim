@@ -4,7 +4,7 @@
 #include "data-structure/file_structure.h"
 
 
-int maint(int argc, char** args) {
+int main(int argc, char** args) {
 
   FileNode* file = malloc(sizeof(FileNode));
   initEmptyFileNode(file);
