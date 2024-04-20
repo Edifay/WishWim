@@ -301,7 +301,8 @@ int main(int argc, char** args) {
 
           if (c == 'C') {
             // move caret
-            if (line_id.line->element_number != line_id.relative_column || isEmptyLine(line_id.line->next) != false) {
+
+            if (line_id.line->element_number != line_id.relative_column || isEmptyLine(line_id.line->next) == false) {
               // TODO this cond is wrong. If the next cell is empty error !
               column++;
               initNewWrite(line_id.line, line_id.relative_column);
