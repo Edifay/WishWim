@@ -1,35 +1,40 @@
 #include "file_manager.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <stdlib.h>
 
+Cursor initWrittableFileFromFile(char* fileName) {
+  Cursor cursor = initNewWrittableFile();
+  loadFile(cursor, fileName);
+  return cursorOf(cursor.file_id, moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), 0));
+}
 
-void loadFile(FileNode* file, char* fileName) {
+
+void loadFile(Cursor cursor, char* fileName) {
+  cursor = moduloCursor(cursor);
+  // If relative_row == 0 no line created. Use initNewWrittableFile() before.
+  assert(cursor.file_id.relative_row != 0);
+
   FILE* f = fopen(fileName, "r");
   if (f == NULL) {
     printf("Coudln't open file %s !\r\n", fileName);
     exit(0);
   }
 
-  FileIdentifier file_id = moduloFileIdentifier(file, 0);
-  file_id = insertEmptyLineInFile(file_id.file, file_id.relative_row);
-
-  LineIdentifier line_id = moduloLineIdentifier(getLineForFileIdentifier(file_id), 0);
-
+  FileNode* root = cursor.file_id.file;
 
   char c;
   while (fscanf(f, "%c", &c) != EOF) {
 #ifdef LOGS
-    checkFileIntegrity(file);
+    checkFileIntegrity(root);
 #endif
     if (iscntrl(c)) {
       if (c == '\n') {
 #ifdef LOGS
         printf("Enter\r\n");
 #endif
-        Cursor cur = insertNewLineInLine(cursorOf(file_id, line_id));
-        file_id = cur.file_id;
-        line_id = cur.line_id;
+        cursor = insertNewLineInLineC(cursor);
       }
       else if (c == 9) {
 #ifdef LOGS
@@ -38,7 +43,7 @@ void loadFile(FileNode* file, char* fileName) {
         Char_U8 ch;
         ch.t[0] = ' ';
         for (int i = 0; i < 4; i++) {
-          line_id = insertCharInLine(line_id.line, ch, line_id.relative_column);
+          cursor = insertCharInLineC(cursor, ch);
         }
       }
       else {
@@ -54,7 +59,7 @@ void loadFile(FileNode* file, char* fileName) {
       printChar_U8(stdout, ch);
       printf("\r\n");
 #endif
-      line_id = insertCharInLine(line_id.line, ch, line_id.relative_column);
+      cursor = insertCharInLineC(cursor, ch);
     }
   }
 

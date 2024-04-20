@@ -1,0 +1,1 @@
+valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./al_t $1 $2 $3

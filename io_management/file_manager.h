@@ -3,9 +3,10 @@
 
 #include "../data-structure/file_structure.h"
 
-void loadFile(FileNode* file, char* fileName);
+Cursor initWrittableFileFromFile(char *fileName);
+
+void loadFile(Cursor cursor, char* fileName);
 
 void saveFile(FileNode* file, char* fileName);
-
 
 #endif //FILE_MANAGER_H

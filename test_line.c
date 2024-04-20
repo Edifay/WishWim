@@ -73,7 +73,7 @@ void printLine(LineNode* line, int index, bool sep) {
   LineNode* temp = line;
   int index_temp = index;
 
-  LineIdentifier id = moduloLineIdentifier(line, index);
+  LineIdentifier id = moduloLineIdentifierR(line, index);
   line = id.line;
   index = id.relative_column;
 
@@ -140,7 +140,7 @@ int main(int argc, char** args) {
 
       if (c == 127) {
         initNewWrite(line, column);
-        removeCharInLine(line, column);
+        removeCharInLine(moduloLineIdentifierR(line, column));
         column--;
         printLine(line, column, SEPARATOR);
       }
@@ -171,7 +171,7 @@ int main(int argc, char** args) {
             if (c == '~') {
               printf("DEL !\r\n");
               initNewWrite(line, column + 1);
-              removeCharInLine(line, column + 1);
+              removeCharInLine(moduloLineIdentifierR(line, column + 1));
               printLine(line, column, SEPARATOR);
             }
             else {
@@ -193,7 +193,8 @@ int main(int argc, char** args) {
     else {
       initNewWrite(line, column);
       Char_U8 ch = readChar_U8FromInput(c);
-      insertCharInLine(line, ch, column++);
+      LineIdentifier line_id = moduloLineIdentifierR(line, column++);
+      insertCharInLine(line_id, ch);
       printLine(line, column, SEPARATOR);
       // printf("%d ('%c')\r\n", c, c);
     }

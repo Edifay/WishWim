@@ -40,7 +40,6 @@ typedef struct FileNode_ {
 typedef struct {
   int relative_column;
   LineNode* line;
-  int last_shift;
 } LineIdentifier;
 
 /**
@@ -49,7 +48,6 @@ typedef struct {
 typedef struct {
   int relative_row;
   FileNode* file;
-  int last_shift;
 } FileIdentifier;
 
 
@@ -58,11 +56,6 @@ typedef struct {
   LineIdentifier line_id;
 } Cursor;
 
-
-/**
- *  Init a new empty head of FileNode.
- */
-void initEmptyFileNode(FileNode* file);
 
 /**
  *  Init a new empty head of LineNode.
@@ -142,17 +135,19 @@ Char_U8 getCharAt(FileNode* file, int line, int column);
 /**
  * Return idenfier for the node containing current relative index.
  */
-LineIdentifier moduloLineIdentifier(LineNode* line, int column);
+LineIdentifier moduloLineIdentifierR(LineNode* line, int column);
+
+LineIdentifier moduloLineIdentifier(LineIdentifier file_id);
 
 /**
  * Insert a char at index of the line node.
  */
-LineIdentifier insertCharInLine(LineNode* line, Char_U8 ch, int column);
+LineIdentifier insertCharInLine(LineIdentifier line_id, Char_U8 ch);
 
 /**
  * Insert a char at index of the line node.
  */
-LineIdentifier removeCharInLine(LineNode* line, int cursorPos);
+LineIdentifier removeCharInLine(LineIdentifier line_id);
 
 Char_U8* getCharForLineIdentifier(LineIdentifier id);
 
@@ -172,12 +167,18 @@ void destroyFullLine(LineNode* node);
 
 ////// --------------------FILE-----------------------------
 
+/**
+ *  Init a new empty head of FileNode.
+ */
+void initEmptyFileNode(FileNode* file);
 
-FileIdentifier moduloFileIdentifier(FileNode* file, int row);
+FileIdentifier moduloFileIdentifierR(FileNode* file, int row);
 
-FileIdentifier insertEmptyLineInFile(FileNode* file, int row);
+FileIdentifier moduloFileIdentifier(FileIdentifier file_id);
 
-FileIdentifier removeLineInFile(FileNode* file, int row);
+FileIdentifier insertEmptyLineInFile(FileIdentifier file_id);
+
+FileIdentifier removeLineInFile(FileIdentifier file_id);
 
 int getAbsoluteFileIndex(FileIdentifier id);
 
@@ -185,23 +186,27 @@ LineNode* getLineForFileIdentifier(FileIdentifier id);
 
 bool checkFileIntegrity(FileNode* file);
 
+bool isEmptyFile(FileNode* file);
+
 void destroyFullFile(FileNode* node);
 
 
 ////// -------------- COMBO LINE & FILE --------------
 
-LineIdentifier identifierForCursor(FileNode* file, int row, int column);
+Cursor initNewWrittableFile();
 
-Cursor cursorOf(FileIdentifier file_id, LineIdentifier line_id);
+Cursor moduloCursorR(FileNode* file, int row, int column);
 
 Cursor moduloCursor(Cursor cursor);
 
+Cursor cursorOf(FileIdentifier file_id, LineIdentifier line_id);
 
-// TODO implement add new line in a line.
-Cursor insertNewLineInLine(Cursor cursor);
+Cursor insertCharInLineC(Cursor cursor, Char_U8 ch);
 
+Cursor removeCharInLineC(Cursor cursor);
 
-// TODO implement remove a line with a non empty line.
-Cursor concatNeighbordsLines(Cursor cursor);
+Cursor insertNewLineInLineC(Cursor cursor);
+
+Cursor concatNeighbordsLinesC(Cursor cursor);
 
 #endif
