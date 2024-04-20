@@ -1,7 +1,3 @@
-//
-// Created by arnaud on 31/03/24.
-//
-
 #ifndef FILE_MANAGER_H
 #define FILE_MANAGER_H
 

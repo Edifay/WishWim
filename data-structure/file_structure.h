@@ -4,10 +4,10 @@
 #include "utf_8_extractor.h"
 #include <stdbool.h>
 
-#define MAX_ELEMENT_NODE 70
-#define CACHE_SIZE 20
+#define MAX_ELEMENT_NODE 1000
+#define CACHE_SIZE 120
 
-#define LOGS
+// #define LOGS
 
 typedef unsigned int Size;
 

@@ -509,16 +509,12 @@ LineIdentifier getLastLineNode(LineNode* line) {
 
 int getAbsoluteLineIndex(LineIdentifier id) {
   assert(id.line != NULL);
-  printf("IN ABSOLUTE INDEX \r\n");
 
-  printf("INITIAL %p\r\n", id.line);
   int abs = id.relative_column;
   id.line = id.line->prev;
-  printf("AFTER GET PREV %p\r\n", id.line);
+
   while (id.line != NULL) {
-    printf("IN WHILE\r\n");
     abs += id.line->element_number;
-    printf("AFTER GETTING ELEMENT\r\n");
     id.line = id.line->prev;
   }
 
@@ -1275,7 +1271,9 @@ Cursor insertNewLineInLine(Cursor cursor) {
     else {
       // Currently at the end of the line.
       // DO NOTHING !
+#ifdef LOGS
       printf("Nothing to do ?\r\n");
+#endif
     }
   }
   else {
@@ -1342,13 +1340,8 @@ Cursor concatNeighbordsLines(Cursor cursor) {
     FileIdentifier newLineId = removeLineInFile(file_id.file, file_id.relative_row);
     LineIdentifier lastNode = getLastLineNode(getLineForFileIdentifier(newLineId));
 
-    printf("Previous node : %p, current node %p\r\n", tmp_node, getLineForFileIdentifier(newLineId));
-
     if (getLineForFileIdentifier(newLineId)->next != NULL)
-      printf("FirstNodeLine : %p | next : %p| next.prev : %p\r\n", getLineForFileIdentifier(newLineId),
-             getLineForFileIdentifier(newLineId)->next, getLineForFileIdentifier(newLineId)->next->prev);
-    printf("Last Node : %p\r\n", lastNode.line);
-    assert(lastNode.line != NULL);
+      assert(lastNode.line != NULL);
 
     return cursorOf(newLineId, lastNode);
   }

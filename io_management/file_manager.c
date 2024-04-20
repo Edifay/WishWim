@@ -19,16 +19,22 @@ void loadFile(FileNode* file, char* fileName) {
 
   char c;
   while (fscanf(f, "%c", &c) != EOF) {
+#ifdef LOGS
     checkFileIntegrity(file);
+#endif
     if (iscntrl(c)) {
       if (c == '\n') {
+#ifdef LOGS
         printf("Enter\r\n");
+#endif
         Cursor cur = insertNewLineInLine(cursorOf(file_id, line_id));
         file_id = cur.file_id;
         line_id = cur.line_id;
       }
       else if (c == 9) {
+#ifdef LOGS
         printf("Tab\r\n");
+#endif
         Char_U8 ch;
         ch.t[0] = ' ';
         for (int i = 0; i < 4; i++) {
@@ -44,8 +50,10 @@ void loadFile(FileNode* file, char* fileName) {
     }
     else {
       Char_U8 ch = readChar_U8FromFileWithFirst(f, c);
+#ifdef LOGS
       printChar_U8(stdout, ch);
       printf("\r\n");
+#endif
       line_id = insertCharInLine(line_id.line, ch, line_id.relative_column);
     }
   }
@@ -55,9 +63,15 @@ void loadFile(FileNode* file, char* fileName) {
 
 void saveFile(FileNode* file, char* fileName) {
   FILE* f = fopen(fileName, "w");
-
+  bool first = true;
   while (file != NULL) {
     for (int i = 0; i < file->element_number; i++) {
+      if (!first) {
+        fprintf(f, "\n");
+      }
+      else {
+        first = false;
+      }
       LineNode* line = file->lines + i;
       while (line != NULL) {
         for (int j = 0; j < line->element_number; j++) {
@@ -65,7 +79,6 @@ void saveFile(FileNode* file, char* fileName) {
         }
         line = line->next;
       }
-      fprintf(f, "\n");
     }
     file = file->next;
   }
