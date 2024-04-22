@@ -53,8 +53,7 @@ void disableRawMode() {
 }
 
 void enableRawMode() {
-  if (tcgetattr(STDIN_FILENO, &orig_termios) == -1)
-    die("tcgetattr");
+  if (tcgetattr(STDIN_FILENO, &orig_termios) == -1) die("tcgetattr");
   atexit(disableRawMode);
 
   struct termios raw = orig_termios;
@@ -65,8 +64,7 @@ void enableRawMode() {
   raw.c_cc[VMIN] = 0;
   raw.c_cc[VTIME] = 1;
 
-  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1)
-    die("tcsetattr");
+  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) die("tcsetattr");
 }
 
 void printLine(LineNode* line, int index, bool sep) {
@@ -84,8 +82,7 @@ void printLine(LineNode* line, int index, bool sep) {
   int ava_prev = line->prev == NULL ? 0 : MAX_ELEMENT_NODE - line->prev->element_number;
   int ava_next = line->next == NULL ? 0 : MAX_ELEMENT_NODE - line->next->element_number;
 
-  printf("PREV %d | HERE %d | NEXT %d      =>  INDEX %d  & ABS INDEX %d\r\n", ava_prev, ava_here, ava_next, index,
-         index_temp);
+  printf("PREV %d | HERE %d | NEXT %d      =>  INDEX %d  & ABS INDEX %d\r\n", ava_prev, ava_here, ava_next, index, index_temp);
 
   line = temp;
   index = index_temp;
@@ -99,8 +96,7 @@ void printLine(LineNode* line, int index, bool sep) {
     }
 
     internal_index += line->element_number;
-    if (sep)
-      printf("|");
+    if (sep) printf("|");
     if (index > internal_index && sep) {
       index++;
       internal_index++;
@@ -127,12 +123,7 @@ void printFile(FileNode* file, Cursor cursor, bool sep) {
   //        cursor.line_id.relative_column
   // );
 
-  printf("CUR =   FILE NODE => ABS : %d - REL : %d    |     LINE NODE => ABS : %d - REL : %d\r\n",
-         cursor.file_id.absolute_row,
-         cursor.file_id.relative_row,
-         cursor.line_id.absolute_column,
-         cursor.line_id.relative_column
-  );
+  printf("CUR =   FILE NODE => ABS : %d - REL : %d    |     LINE NODE => ABS : %d - REL : %d\r\n", cursor.file_id.absolute_row, cursor.file_id.relative_row, cursor.line_id.absolute_column, cursor.line_id.relative_column);
 
   FileNode* temp = file;
   int row_temp = row - 1;
@@ -148,10 +139,7 @@ void printFile(FileNode* file, Cursor cursor, bool sep) {
   int ava_next = line_id.line->next == NULL ? 0 : MAX_ELEMENT_NODE - line_id.line->next->element_number;
 
 
-  printf("COLUMN PREV %d | HERE %d | NEXT %d      =>  INDEX %d  & ABS INDEX %d     => FIXED %s\r\n", ava_prev, ava_here,
-         ava_next, line_id.relative_column,
-         column,
-         line_id.line->fixed ? "true" : "false");
+  printf("COLUMN PREV %d | HERE %d | NEXT %d      =>  INDEX %d  & ABS INDEX %d     => FIXED %s\r\n", ava_prev, ava_here, ava_next, line_id.relative_column, column, line_id.line->fixed ? "true" : "false");
 
 
   ava_here = MAX_ELEMENT_NODE - file->element_number;
@@ -159,8 +147,7 @@ void printFile(FileNode* file, Cursor cursor, bool sep) {
   ava_next = file->next == NULL ? 0 : MAX_ELEMENT_NODE - file->next->element_number;
 
 
-  printf("ROW    PREV %d | HERE %d | NEXT %d      =>  ROW %d  & ABS ROW %d\r\n", ava_prev, ava_here, ava_next, row,
-         row_temp);
+  printf("ROW    PREV %d | HERE %d | NEXT %d      =>  ROW %d  & ABS ROW %d\r\n", ava_prev, ava_here, ava_next, row, row_temp);
 
 
   file = temp;
@@ -190,8 +177,7 @@ void printFile(FileNode* file, Cursor cursor, bool sep) {
         }
 
         internal_index += line->element_number;
-        if (sep)
-          printf("|");
+        if (sep) printf("|");
         if (column > internal_index && sep && current_row_index == row) {
           column++;
           internal_index++;
@@ -253,8 +239,7 @@ int main(int argc, char** args) {
       saveFile(root, args[1]);
     }
 
-    if (c == 0)
-      continue;
+    if (c == 0) continue;
 
     if (iscntrl(c)) {
       // printf("%d\r\n", c);
@@ -283,12 +268,10 @@ int main(int argc, char** args) {
         printFile(root, cursor, SEPARATOR);
       }
       else if (c == '\x1b') {
-        if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN)
-          die("read");
+        if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
         printf("%c", c);
         if (c == 'O') {
-          if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN)
-            die("read");
+          if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
 
           if (c == 'C') {
             // move right
@@ -322,8 +305,7 @@ int main(int argc, char** args) {
             printFile(root, cursor, SEPARATOR);
           }
           else if (c == '3') {
-            if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN)
-              die("read");
+            if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
 
             if (c == '~') {
               printf("DEL !\r\n");

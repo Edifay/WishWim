@@ -3,7 +3,7 @@
 
 #include "../data-structure/file_structure.h"
 
-Cursor initWrittableFileFromFile(char *fileName);
+Cursor initWrittableFileFromFile(char* fileName);
 
 void loadFile(Cursor cursor, char* fileName);
 

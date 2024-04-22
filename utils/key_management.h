@@ -1,0 +1,26 @@
+#ifndef KEY_MANAGEMENT_H
+#define KEY_MANAGEMENT_H
+
+#endif //KEY_MANAGEMENT_H
+
+// KEY_BIND
+
+#define KEY_SUPPR 330
+
+
+#define KEY_MAJ_RIGHT 402
+#define KEY_MAJ_LEFT 393
+#define KEY_MAJ_UP 337
+#define KEY_MAJ_DOWN 336
+#define KEY_CTRL_RIGHT 567
+#define KEY_CTRL_LEFT 552
+#define KEY_CTRL_DOWN 532
+#define KEY_CTRL_UP 533
+#define KEY_CTRL_MAJ_RIGHT 568
+#define KEY_CTRL_MAJ_LEFT 553
+
+
+// MOUSE BIND
+
+#define BEGIN_MOUSE_LISTEN 588
+#define MOUSE_IN_OUT 589

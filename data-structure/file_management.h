@@ -22,6 +22,9 @@ Cursor skipLeftInvisibleChar(Cursor cursor);
 Cursor moveToNextWord(Cursor cursor);
 Cursor moveToPreviousWord(Cursor cursor);
 
+bool isCursorPreviousThanOther(Cursor cursor, Cursor other);
+
+bool isCursorBetweenOthers(Cursor cursor, Cursor cur1, Cursor cur2);
 
 bool areCursorEqual(Cursor cur1, Cursor cur2);
 

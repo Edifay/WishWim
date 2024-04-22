@@ -14,12 +14,9 @@ void printChar_U8(FILE* f, Char_U8 ch) {
  * Return on how many bytes is coded this Char_U8.
  */
 int sizeChar_U8(Char_U8 ch) {
-  if ((ch.t[0] >> 7 & 0b1) == 0)
-    return 1;
-  if ((ch.t[0] >> 5 & 0b1) == 0)
-    return 2;
-  if ((ch.t[0] >> 4 & 0b1) == 0)
-    return 3;
+  if ((ch.t[0] >> 7 & 0b1) == 0) return 1;
+  if ((ch.t[0] >> 5 & 0b1) == 0) return 2;
+  if ((ch.t[0] >> 4 & 0b1) == 0) return 3;
   return 4;
 }
 
@@ -155,12 +152,10 @@ bool isInvisible(Char_U8 ch) {
 bool areChar_U8Equals(Char_U8 ch1, Char_U8 ch2) {
   int size1 = sizeChar_U8(ch1);
   int size2 = sizeChar_U8(ch2);
-  if (size1 != size2)
-    return false;
+  if (size1 != size2) return false;
 
   for (int i = 0; i < size1; i++) {
-    if (ch1.t[i] != ch2.t[i])
-      return false;
+    if (ch1.t[i] != ch2.t[i]) return false;
   }
 
   return true;

@@ -50,8 +50,7 @@ void disableRawMode() {
 }
 
 void enableRawMode() {
-  if (tcgetattr(STDIN_FILENO, &orig_termios) == -1)
-    die("tcgetattr");
+  if (tcgetattr(STDIN_FILENO, &orig_termios) == -1) die("tcgetattr");
   atexit(disableRawMode);
 
   struct termios raw = orig_termios;
@@ -62,8 +61,7 @@ void enableRawMode() {
   raw.c_cc[VMIN] = 0;
   raw.c_cc[VTIME] = 1;
 
-  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1)
-    die("tcsetattr");
+  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) die("tcsetattr");
 }
 
 void printLine(LineNode* line, int index, bool sep) {
@@ -81,8 +79,7 @@ void printLine(LineNode* line, int index, bool sep) {
   int ava_prev = line->prev == NULL ? 0 : MAX_ELEMENT_NODE - line->prev->element_number;
   int ava_next = line->next == NULL ? 0 : MAX_ELEMENT_NODE - line->next->element_number;
 
-  printf("PREV %d | HERE %d | NEXT %d      =>  INDEX %d  & ABS INDEX %d\r\n", ava_prev, ava_here, ava_next, index,
-         index_temp);
+  printf("PREV %d | HERE %d | NEXT %d      =>  INDEX %d  & ABS INDEX %d\r\n", ava_prev, ava_here, ava_next, index, index_temp);
 
   line = temp;
   index = index_temp;
@@ -96,8 +93,7 @@ void printLine(LineNode* line, int index, bool sep) {
     }
 
     internal_index += line->element_number;
-    if (sep)
-      printf("|");
+    if (sep) printf("|");
     if (index > internal_index && sep) {
       index++;
       internal_index++;
@@ -132,8 +128,7 @@ int main(int argc, char** args) {
       break;
     }
 
-    if (c == 0)
-      continue;
+    if (c == 0) continue;
 
     if (iscntrl(c)) {
       // printf("%d\r\n", c);
@@ -145,12 +140,10 @@ int main(int argc, char** args) {
         printLine(line, column, SEPARATOR);
       }
       else if (c == '\x1b') {
-        if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN)
-          die("read");
+        if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
 
         if (c == '[') {
-          if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN)
-            die("read");
+          if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
 
           if (c == 'C') {
             // move caret
@@ -165,8 +158,7 @@ int main(int argc, char** args) {
             printLine(line, column, SEPARATOR);
           }
           else if (c == '3') {
-            if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN)
-              die("read");
+            if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
 
             if (c == '~') {
               printf("DEL !\r\n");

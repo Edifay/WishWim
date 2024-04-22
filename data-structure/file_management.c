@@ -1,7 +1,10 @@
 #include "file_management.h"
+
+#include <assert.h>
+
 #include "../utils/tools.h"
 
-////// -------------- CURSOR MANAGEMENT --------------
+//// -------------- CURSOR MANAGEMENT --------------
 
 Cursor moveRight(Cursor cursor) {
   if (cursor.line_id.line->element_number != cursor.line_id.relative_column || isEmptyLine(cursor.line_id.line->next) ==
@@ -145,12 +148,13 @@ Cursor moveToPreviousWord(Cursor cursor) {
 
   Char_U8 repeated;
   if (cursor.line_id.absolute_column != 0) {
-    repeated = getCharForLineIdentifier(moveLeft(cursor).line_id);
+    repeated = getCharForLineIdentifier(cursor.line_id);
   }
 
   bool canWorkWithLetter = true;
   while (cursor.line_id.absolute_column != 0 && (
-           (canWorkWithLetter = isALetter(getCharForLineIdentifier(cursor.line_id)) && canWorkWithLetter) || areChar_U8Equals(
+           (canWorkWithLetter = isALetter(getCharForLineIdentifier(cursor.line_id)) && canWorkWithLetter) ||
+           areChar_U8Equals(
              getCharForLineIdentifier(cursor.line_id), repeated))) {
     cursor = moveLeft(cursor);
   }
@@ -160,6 +164,37 @@ Cursor moveToPreviousWord(Cursor cursor) {
   }
 
   return cursor;
+}
+
+bool isCursorPreviousThanOther(Cursor cursor, Cursor other) {
+  if (cursor.file_id.absolute_row < other.file_id.absolute_row)
+    return true;
+  if (cursor.file_id.absolute_row > other.file_id.absolute_row)
+    return false;
+  assert(cursor.file_id.absolute_row == other.file_id.absolute_row);
+
+  return cursor.line_id.absolute_column <= other.line_id.absolute_column;
+}
+
+bool isCursorBetweenOthers(Cursor cursor, Cursor cur1, Cursor cur2) {
+  if (isCursorPreviousThanOther(cur1, cur2) == false) {
+    Cursor tmp = cur1;
+    cur1 = cur2;
+    cur2 = tmp;
+  }
+
+  int row = cursor.file_id.absolute_row;
+  int column = cursor.line_id.absolute_column;
+
+  int row_start = cur1.file_id.absolute_row;
+  int column_start = cur1.line_id.absolute_column;
+
+  int row_end = cur2.file_id.absolute_row;
+  int column_end = cur2.line_id.absolute_column;
+
+
+  return (row_start < row || (row_start == row && column_start < column))
+         && (row < row_end || (row == row_end && column <= column_end));
 }
 
 

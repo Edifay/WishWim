@@ -8,15 +8,18 @@
 #include "data-structure/file_management.h"
 #include "data-structure/file_structure.h"
 #include "io_management/file_manager.h"
+#include "utils/key_management.h"
 
 #define CTRL_KEY(k) ((k)&0x1f)
 #define SCROLL_SPEED 3
 
 Cursor createFile(int argc, char** args);
 
-void printFile(Cursor cursor, int screen_x, int screen_y);
+void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y);
 
 void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y);
+
+bool isCursorDisabled(Cursor cursor);
 
 int main(int argc, char** args) {
   setlocale(LC_ALL, "");
@@ -28,6 +31,9 @@ int main(int argc, char** args) {
   int screen_x = 1;
   int screen_y = 1;
 
+  Cursor select_cursor;
+  select_cursor.file_id.absolute_row = -1;
+
   initscr();
   raw();
   keypad(stdscr, TRUE);
@@ -36,8 +42,9 @@ int main(int argc, char** args) {
   noecho();
   curs_set(0);
 
-  printFile(cursor, screen_x, screen_y);
+  printFile(cursor, select_cursor, screen_x, screen_y);
   refresh();
+
 
   Cursor old_cur = cursor;
   MEVENT m_event;
@@ -46,11 +53,10 @@ int main(int argc, char** args) {
 
     int c = getch();
     switch (c) {
-
       // ---------------------- NCURSES THINGS ----------------------
 
-      case 588 /*BEGIN MOUSE LISTEN*/:
-      case 589 /*MOUSE IN-OUT*/:
+      case BEGIN_MOUSE_LISTEN:
+      case MOUSE_IN_OUT:
       case KEY_RESIZE:
         break;
 
@@ -68,14 +74,12 @@ int main(int argc, char** args) {
           if (m_event.bstate & BUTTON4_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
             // Move Up
             screen_y -= SCROLL_SPEED;
-            if (screen_y < 1)
-              screen_y = 1;
+            if (screen_y < 1) screen_y = 1;
           }
           else if (m_event.bstate & BUTTON4_PRESSED && m_event.bstate & BUTTON_SHIFT) {
             // Move Left
             screen_x -= SCROLL_SPEED;
-            if (screen_x < 1)
-              screen_x = 1;
+            if (screen_x < 1) screen_x = 1;
           }
 
           if (m_event.bstate & BUTTON5_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
@@ -104,30 +108,40 @@ int main(int argc, char** args) {
       case KEY_DOWN:
         cursor = moveDown(cursor);
         break;
-      case 402/*KEY_MAJ_RIGHT*/: // TODO implement selection
+      case KEY_MAJ_RIGHT: // TODO implement selection
 
         break;
-      case 393 /*KEY_MAJ_LEFT*/:
+      case KEY_MAJ_LEFT:
 
         break;
-      case 337/*KEY_MAJ_UP*/:
+      case KEY_MAJ_UP:
 
         break;
-      case 336/*KEY_MAJ_UP*/:
+      case KEY_MAJ_DOWN:
 
         break;
-      case 567 /*KEY_CTRL_RIGHT*/:
+      case KEY_CTRL_RIGHT:
         cursor = moveToNextWord(cursor);
         break;
-      case 552 /*KEY_CTRL_LEFT*/:
+      case KEY_CTRL_LEFT:
         cursor = moveToPreviousWord(cursor);
         break;
-      case 568 /*KEY_CTRL_MAJ_RIGHT*/:
+      case KEY_CTRL_DOWN:
 
         break;
-      case 553 /*KEY_CTRL_MAJ_LEFT*/:
+      case KEY_CTRL_UP:
 
         break;
+      case KEY_CTRL_MAJ_RIGHT:
+        select_cursor = cursor;
+        cursor = moveToNextWord(cursor);
+        break;
+      case KEY_CTRL_MAJ_LEFT:
+        select_cursor = cursor;
+        cursor = moveToPreviousWord(cursor);
+        break;
+
+
       // ---------------------- FILE INPUT ----------------------
 
       case '\n':
@@ -137,10 +151,10 @@ int main(int argc, char** args) {
       case KEY_BACKSPACE:
         cursor = deleteCharAtCursor(cursor);
         break;
-      case 330 /*KEY_SUPPR*/:
+      case KEY_SUPPR:
         cursor = supprCharAtCursor(cursor);
         break;
-      case '\t' /*TAB*/:
+      case '\t':
         cursor = insertCharInLineC(cursor, readChar_U8FromInput(' '));
         cursor = insertCharInLineC(cursor, readChar_U8FromInput(' '));
         break;
@@ -157,11 +171,10 @@ int main(int argc, char** args) {
         saveFile(root, args[1]);
         break;
       default:
-         // printf("%d\r\n", c);
+        // printf("%d\r\n", c);
         if (iscntrl(c)) {
           printf("Unsupported touch %d\r\n", c);
-          if (argc >= 2)
-            saveFile(root, args[1]);
+          if (argc >= 2) saveFile(root, args[1]);
           // exit(0);
           goto end;
         }
@@ -176,7 +189,7 @@ int main(int argc, char** args) {
       old_cur = cursor;
       moveScreenToMatchCursor(cursor, &screen_x, &screen_y);
     }
-    printFile(cursor, screen_x, screen_y);
+    printFile(cursor, select_cursor, screen_x, screen_y);
     refresh();
   }
 
@@ -204,8 +217,7 @@ void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y) {
 
   if (cursor.line_id.absolute_column - (*screen_x + COLS - 8) >= 0) {
     *screen_x = cursor.line_id.absolute_column - COLS + 8;
-    if (*screen_x < 1)
-      *screen_x = 1;
+    if (*screen_x < 1) *screen_x = 1;
   }
   else if (cursor.line_id.absolute_column - 5 < *screen_x) {
     *screen_x = cursor.line_id.absolute_column - 5;
@@ -216,38 +228,60 @@ void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y) {
 }
 
 
-void printFile(Cursor cursor, int screen_x, int screen_y) {
+void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) {
   move(0, 0);
   FileIdentifier file_cur = cursor.file_id;
+
+  // print text
   for (int row = screen_y; row < screen_y + LINES; row++) {
+    // getting the row to print.
     file_cur = tryToReachAbsRow(file_cur, row);
+
+    // if the row is couldn't be reached.
     if (file_cur.absolute_row != row) {
       printw("~\n");
+      continue;
     }
-    else {
-      LineIdentifier begin_screen_line_cur = tryToReachAbsColumn(
-        moduloLineIdentifierR(getLineForFileIdentifier(file_cur), 0), screen_x);
-      LineIdentifier end_screen_line_cur = tryToReachAbsColumn(begin_screen_line_cur, screen_x + COLS - 3);
-      int column = screen_x;
-      while (end_screen_line_cur.absolute_column >= column) {
-        printChar_U8ToNcurses(getCharForLineIdentifier(begin_screen_line_cur));
-        begin_screen_line_cur.relative_column++;
-        begin_screen_line_cur.absolute_column++;
-        column++;
-      }
-      if (end_screen_line_cur.relative_column != end_screen_line_cur.line->element_number || isEmptyLine(
-            end_screen_line_cur.line->next) == false) {
-        attron(A_BOLD|A_UNDERLINE|A_DIM);
-        printw(">");
-        attroff(A_BOLD|A_UNDERLINE|A_DIM);
-      }
-      printw("\n");
+
+    LineIdentifier begin_screen_line_cur = tryToReachAbsColumn(
+      moduloLineIdentifierR(getLineForFileIdentifier(file_cur), 0), screen_x);
+    LineIdentifier end_screen_line_cur = tryToReachAbsColumn(begin_screen_line_cur, screen_x + COLS - 3);
+
+
+    int column = screen_x;
+    while (end_screen_line_cur.absolute_column >= column) {
+      // determine if the char is selected or not.
+      bool selected_style = isCursorDisabled(select_cursor) == false
+                            && isCursorBetweenOthers(cursorOf(file_cur, begin_screen_line_cur), select_cursor, cursor);
+
+      if (selected_style)
+        attron(A_STANDOUT|A_DIM);
+
+      printChar_U8ToNcurses(getCharForLineIdentifier(begin_screen_line_cur));
+
+      if (selected_style)
+        attroff(A_STANDOUT|A_DIM);
+
+      // move to next column
+      begin_screen_line_cur.relative_column++;
+      begin_screen_line_cur.absolute_column++;
+      column++;
     }
+
+    // If the line is not fully display show >
+    if (hasElementAfterLine(end_screen_line_cur)) {
+      attron(A_BOLD|A_UNDERLINE|A_DIM);
+      printw(">");
+      attroff(A_BOLD|A_UNDERLINE|A_DIM);
+    }
+
+    printw("\n");
   }
 
-  if (cursor.file_id.absolute_row >= screen_y && cursor.file_id.absolute_row < screen_y + LINES && cursor.line_id.
-      absolute_column >= screen_x - 1 && cursor.line_id.absolute_column <= screen_x + COLS - 3
-  ) {
+  // Check if cursor is in the screen and print it.
+  if (cursor.file_id.absolute_row >= screen_y && cursor.file_id.absolute_row < screen_y + LINES
+      && cursor.line_id.absolute_column >= screen_x - 1 && cursor.line_id.absolute_column <= screen_x + COLS - 3) {
+
 
     move(cursor.file_id.absolute_row - screen_y, cursor.line_id.absolute_column - screen_x + 1);
     chgat(1, A_STANDOUT, 0, NULL);
@@ -260,4 +294,8 @@ Cursor createFile(int argc, char** args) {
     return initWrittableFileFromFile(args[1]);
   }
   return initNewWrittableFile();
+}
+
+bool isCursorDisabled(Cursor cursor) {
+  return cursor.file_id.absolute_row == -1;
 }
