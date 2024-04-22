@@ -537,6 +537,10 @@ bool isEmptyLine(LineNode* line) {
   return true;
 }
 
+bool hasElementAfterLine(LineIdentifier line_id) {
+  return line_id.relative_column != line_id.line->element_number || isEmptyLine(line_id.line->next) == false;
+}
+
 
 void printLineNode(LineNode* line) {
   for (int i = 0; i < line->element_number; i++) {
@@ -601,6 +605,10 @@ void destroyFullLine(LineNode* node) {
     free(tmp->ch);
     if (tmp->fixed == false)
       free(tmp);
+    else {
+      initEmptyLineNode(tmp);
+      tmp->fixed = true;
+    }
   }
 }
 
@@ -1196,6 +1204,10 @@ bool isEmptyFile(FileNode* file) {
   return true;
 }
 
+bool hasElementAfterFile(FileIdentifier file_id) {
+  return file_id.relative_row != file_id.file->element_number || isEmptyFile(file_id.file->next) == false;
+}
+
 FileIdentifier tryToReachAbsRow(FileIdentifier file_id, int abs_row) {
   if (file_id.absolute_row == abs_row) {
     return file_id;
@@ -1315,6 +1327,14 @@ Cursor insertCharInLineC(Cursor cursor, Char_U8 ch) {
 
 Cursor removeCharInLineC(Cursor cursor) {
   cursor.line_id = removeCharInLine(cursor.line_id);
+  return cursor;
+}
+
+Cursor removeLineInFileC(Cursor cursor) {
+  destroyFullLine(getLineForFileIdentifier(cursor.file_id));
+  FileIdentifier file_id_after_del = removeLineInFile(cursor.file_id);
+  cursor.file_id = tryToReachAbsRow(file_id_after_del, file_id_after_del.absolute_row + 1);
+  cursor.line_id = getLastLineNode(getLineForFileIdentifier(cursor.file_id));
   return cursor;
 }
 
@@ -1463,7 +1483,7 @@ Cursor concatNeighbordsLinesC(Cursor cursor) {
   initEmptyLineNode(newNode);
   newNode->ch = line_id.line->ch;
   newNode->next = line_id.line->next;
-  if(newNode->next != NULL)
+  if (newNode->next != NULL)
     newNode->next->prev = newNode;
   newNode->fixed = false;
   newNode->element_number = line_id.line->element_number;
@@ -1473,13 +1493,8 @@ Cursor concatNeighbordsLinesC(Cursor cursor) {
   LineIdentifier lastNode = getLastLineNode(getLineForFileIdentifier(newLineId));
 
 
-  printf("Preivous call !\n\r");
-  checkFileIntegrity(tryToReachAbsRow(cursor.file_id, 0).file);
-  printf("After call !\n\r");
-
   if (lastNode.line->element_number == 0) {
     // Just copy the data of newNode to this node.
-    printf("Just copying\n");
     assert(lastNode.line->element_number == 0);
     free(lastNode.line->ch);
     lastNode.line->ch = newNode->ch;
@@ -1489,99 +1504,9 @@ Cursor concatNeighbordsLinesC(Cursor cursor) {
     free(newNode);
   }
   else {
-    printf("happ new cell\n");
     lastNode.line->next = newNode;
     newNode->prev = lastNode.line;
   }
 
   return cursorOf(newLineId, lastNode);
-}
-
-
-////// -------------- CURSOR MANAGEMENT --------------
-
-Cursor moveRight(Cursor cursor) {
-  if (cursor.line_id.line->element_number != cursor.line_id.relative_column || isEmptyLine(cursor.line_id.line->next) ==
-      false) {
-    cursor.line_id.relative_column++;
-    cursor.line_id.absolute_column++;
-    cursor = moduloCursor(cursor); // TODO check to remove.
-  }
-  else if (cursor.line_id.line->element_number == cursor.line_id.relative_column && isEmptyLine(
-             cursor.line_id.line->next) == true) {
-    if (cursor.file_id.file->element_number != cursor.file_id.relative_row || isEmptyFile(cursor.file_id.file->next) ==
-        false) {
-      cursor.file_id.relative_row++;
-      cursor.file_id.absolute_row++;
-      cursor = cursorOf(cursor.file_id, moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), 0));
-    }
-  }
-  return cursor;
-}
-
-Cursor moveLeft(Cursor cursor) {
-  if (cursor.line_id.relative_column != 0) {
-    cursor.line_id.relative_column--;
-    cursor.line_id.absolute_column--;
-    cursor = moduloCursor(cursor);
-  }
-  else {
-    if (cursor.file_id.file->prev != NULL || cursor.file_id.relative_row != 1) {
-      cursor.file_id.relative_row--;
-      cursor.file_id.absolute_row--;
-      cursor = cursorOf(cursor.file_id,
-                        moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id),
-                                              sizeLineNode(getLineForFileIdentifier(cursor.file_id))));
-    }
-  }
-  return cursor;
-}
-
-Cursor moveUp(Cursor cursor) {
-  if (cursor.file_id.file->prev != NULL || cursor.file_id.relative_row != 1) {
-    cursor.file_id.relative_row--;
-    cursor.file_id.absolute_row--;
-    int col = min(sizeLineNode(getLineForFileIdentifier(cursor.file_id)), getAbsoluteLineIndex(cursor.line_id));
-    cursor = cursorOf(cursor.file_id, moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), col));
-  }
-  return cursor;
-}
-
-Cursor moveDown(Cursor cursor) {
-  if (cursor.file_id.relative_row != cursor.file_id.file->element_number || isEmptyFile(
-        cursor.file_id.file->next) == false) {
-    cursor.file_id.relative_row++;
-    cursor.file_id.absolute_row++;
-    int col = min(sizeLineNode(getLineForFileIdentifier(cursor.file_id)), getAbsoluteLineIndex(cursor.line_id));
-    cursor.line_id = moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), col);
-    cursor = moduloCursor(cursor);
-  }
-  return cursor;
-}
-
-Cursor deleteCharAtCursor(Cursor cursor) {
-  if (cursor.line_id.absolute_column == 0) {
-    if (cursor.file_id.absolute_row != 1) {
-      cursor = concatNeighbordsLinesC(cursor);
-    }
-  }
-  else {
-    cursor = removeCharInLineC(cursor);
-  }
-  return cursor;
-}
-
-Cursor supprCharAtCursor(Cursor cursor) {
-  Cursor old_cur = cursor;
-  cursor = moveRight(cursor);
-  if (old_cur.file_id.absolute_row != cursor.file_id.absolute_row || old_cur.line_id.absolute_column !=
-      cursor.line_id.absolute_column) {
-    cursor = deleteCharAtCursor(cursor);
-  }
-  return cursor;
-}
-
-
-bool areCursorEqual(Cursor cur1, Cursor cur2) {
-  return cur1.file_id.absolute_row == cur2.file_id.absolute_row && cur1.line_id.absolute_column == cur2.line_id.absolute_column;
 }

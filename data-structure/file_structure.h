@@ -4,8 +4,8 @@
 #include "utf_8_extractor.h"
 #include <stdbool.h>
 
-#define MAX_ELEMENT_NODE 1000
-#define CACHE_SIZE 120
+#define MAX_ELEMENT_NODE 50
+#define CACHE_SIZE 25
 
 // #define LOGS
 
@@ -39,6 +39,7 @@ typedef struct FileNode_ {
  */
 typedef struct {
   int relative_column;
+  int absolute_column;
   LineNode* line;
 } LineIdentifier;
 
@@ -47,6 +48,7 @@ typedef struct {
  */
 typedef struct {
   int relative_row;
+  int absolute_row;
   FileNode* file;
 } FileIdentifier;
 
@@ -86,7 +88,7 @@ int sizeLineNode(LineNode* line);
 /**
  * Return the char from the FileNode at index line, column. If file[line][column] don't exist return null.
  */
-Char_U8 getCharAt(FileNode* file, int line, int column);
+Char_U8 getCharAt(FileNode* file, int row, int column);
 
 
 /**
@@ -137,7 +139,7 @@ Char_U8 getCharAt(FileNode* file, int line, int column);
  */
 LineIdentifier moduloLineIdentifierR(LineNode* line, int column);
 
-LineIdentifier moduloLineIdentifier(LineIdentifier file_id);
+LineIdentifier moduloLineIdentifier(LineIdentifier line_id);
 
 /**
  * Insert a char at index of the line node.
@@ -149,7 +151,7 @@ LineIdentifier insertCharInLine(LineIdentifier line_id, Char_U8 ch);
  */
 LineIdentifier removeCharInLine(LineIdentifier line_id);
 
-Char_U8* getCharForLineIdentifier(LineIdentifier id);
+Char_U8 getCharForLineIdentifier(LineIdentifier id);
 
 LineIdentifier getLastLineNode(LineNode* line);
 
@@ -157,8 +159,12 @@ int getAbsoluteLineIndex(LineIdentifier id);
 
 bool isEmptyLine(LineNode* line);
 
+bool hasElementAfterLine(LineIdentifier line_id);
+
 void printLineNode(LineNode* line);
 
+// TODO implement this function
+LineIdentifier tryToReachAbsColumn(LineIdentifier line_id, int abs_column);
 
 /**
  * Destroy line free all memory.
@@ -188,6 +194,11 @@ bool checkFileIntegrity(FileNode* file);
 
 bool isEmptyFile(FileNode* file);
 
+bool hasElementAfterFile(FileIdentifier file_id);
+
+// TODO implement this function
+FileIdentifier tryToReachAbsRow(FileIdentifier file_id, int row);
+
 void destroyFullFile(FileNode* node);
 
 
@@ -204,6 +215,8 @@ Cursor cursorOf(FileIdentifier file_id, LineIdentifier line_id);
 Cursor insertCharInLineC(Cursor cursor, Char_U8 ch);
 
 Cursor removeCharInLineC(Cursor cursor);
+
+Cursor removeLineInFileC(Cursor cursor);
 
 Cursor insertNewLineInLineC(Cursor cursor);
 

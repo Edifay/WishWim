@@ -46,7 +46,7 @@ Char_U8 readChar_U8FromFile(FILE* f) {
 /**
  * Return the first Char_U8 from FILE with first c.
  */
-Char_U8 readChar_U8FromFileWithFirst(FILE *f, char c) {
+Char_U8 readChar_U8FromFileWithFirst(FILE* f, char c) {
   Char_U8 ch;
   ch.t[0] = c;
   int size = sizeChar_U8(ch);
@@ -137,4 +137,31 @@ void testUnitUtf8Extractor() {
   printf("Char : ");
   printChar_U8(stdout, ch);
   printf("\n");
+}
+
+
+bool isBetween(Char_U8 ch, char begin, char end) {
+  return ch.t[0] >= begin && ch.t[0] <= end;
+}
+
+bool isALetter(Char_U8 ch) {
+  return isBetween(ch, 'a', 'z') || isBetween(ch, 'A', 'Z') || ch.t[0] == '_';
+}
+
+bool isInvisible(Char_U8 ch) {
+  return ch.t[0] == ' ' || ch.t[0] == '\t';
+}
+
+bool areChar_U8Equals(Char_U8 ch1, Char_U8 ch2) {
+  int size1 = sizeChar_U8(ch1);
+  int size2 = sizeChar_U8(ch2);
+  if (size1 != size2)
+    return false;
+
+  for (int i = 0; i < size1; i++) {
+    if (ch1.t[i] != ch2.t[i])
+      return false;
+  }
+
+  return true;
 }

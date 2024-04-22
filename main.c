@@ -5,10 +5,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "data-structure/file_management.h"
 #include "data-structure/file_structure.h"
 #include "io_management/file_manager.h"
 
 #define CTRL_KEY(k) ((k)&0x1f)
+#define SCROLL_SPEED 3
 
 Cursor createFile(int argc, char** args);
 
@@ -32,20 +34,28 @@ int main(int argc, char** args) {
   mousemask(ALL_MOUSE_EVENTS, NULL);
   mouseinterval(0);
   noecho();
+  curs_set(0);
 
   printFile(cursor, screen_x, screen_y);
   refresh();
 
   Cursor old_cur = cursor;
   MEVENT m_event;
-  while (1) {
+  while (true) {
     checkFileIntegrity(root);
 
     int c = getch();
     switch (c) {
+
+      // ---------------------- NCURSES THINGS ----------------------
+
       case 588 /*BEGIN MOUSE LISTEN*/:
       case 589 /*MOUSE IN-OUT*/:
+      case KEY_RESIZE:
         break;
+
+      // ---------------------- MOUSE ----------------------
+
       case KEY_MOUSE:
         if (getmouse(&m_event) == OK) {
           if (m_event.bstate & BUTTON1_PRESSED) {
@@ -57,39 +67,31 @@ int main(int argc, char** args) {
 
           if (m_event.bstate & BUTTON4_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
             // Move Up
-            screen_y -= 2;
+            screen_y -= SCROLL_SPEED;
             if (screen_y < 1)
               screen_y = 1;
           }
           else if (m_event.bstate & BUTTON4_PRESSED && m_event.bstate & BUTTON_SHIFT) {
             // Move Left
-            screen_x -= 2;
+            screen_x -= SCROLL_SPEED;
             if (screen_x < 1)
               screen_x = 1;
           }
 
           if (m_event.bstate & BUTTON5_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
             // Move Down
-            screen_y += 2;
+            screen_y += SCROLL_SPEED;
           }
           else if (m_event.bstate & BUTTON5_PRESSED && m_event.bstate & BUTTON_SHIFT) {
             // Move Right
-            screen_x += 2;
+            screen_x += SCROLL_SPEED;
           }
         }
         break;
-      case 402/*KEY_MAJ_RIGHT*/:
 
-        break;
-      case 567 /*KEY_CTRL_RIGHT*/:
+      // ---------------------- MOVEMENT ----------------------
 
-        break;
-      case KEY_RESIZE:
-        break;
-      case '\n':
-      case KEY_ENTER:
-        cursor = insertNewLineInLineC(cursor);
-        break;
+
       case KEY_RIGHT:
         cursor = moveRight(cursor);
         break;
@@ -102,10 +104,40 @@ int main(int argc, char** args) {
       case KEY_DOWN:
         cursor = moveDown(cursor);
         break;
+      case 402/*KEY_MAJ_RIGHT*/: // TODO implement selection
+
+        break;
+      case 393 /*KEY_MAJ_LEFT*/:
+
+        break;
+      case 337/*KEY_MAJ_UP*/:
+
+        break;
+      case 336/*KEY_MAJ_UP*/:
+
+        break;
+      case 567 /*KEY_CTRL_RIGHT*/:
+        cursor = moveToNextWord(cursor);
+        break;
+      case 552 /*KEY_CTRL_LEFT*/:
+        cursor = moveToPreviousWord(cursor);
+        break;
+      case 568 /*KEY_CTRL_MAJ_RIGHT*/:
+
+        break;
+      case 553 /*KEY_CTRL_MAJ_LEFT*/:
+
+        break;
+      // ---------------------- FILE INPUT ----------------------
+
+      case '\n':
+      case KEY_ENTER:
+        cursor = insertNewLineInLineC(cursor);
+        break;
       case KEY_BACKSPACE:
         cursor = deleteCharAtCursor(cursor);
         break;
-      case 330/*KEY_SUPPR*/:
+      case 330 /*KEY_SUPPR*/:
         cursor = supprCharAtCursor(cursor);
         break;
       case '\t' /*TAB*/:
@@ -114,6 +146,9 @@ int main(int argc, char** args) {
         break;
       case CTRL_KEY('q'):
         goto end;
+      case CTRL_KEY('d'):
+        cursor = deleteLineAtCursor(cursor);
+        break;
       case CTRL_KEY('s'):
         if (argc < 2) {
           printf("\r\nNo opened file\r\n");
@@ -121,13 +156,13 @@ int main(int argc, char** args) {
         }
         saveFile(root, args[1]);
         break;
-      case 0:
-        break;
       default:
-        // printf("%d\r\n", c);
+         // printf("%d\r\n", c);
         if (iscntrl(c)) {
           printf("Unsupported touch %d\r\n", c);
-          exit(0);
+          if (argc >= 2)
+            saveFile(root, args[1]);
+          // exit(0);
           goto end;
         }
         else {
@@ -183,8 +218,9 @@ void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y) {
 
 void printFile(Cursor cursor, int screen_x, int screen_y) {
   move(0, 0);
+  FileIdentifier file_cur = cursor.file_id;
   for (int row = screen_y; row < screen_y + LINES; row++) {
-    FileIdentifier file_cur = tryToReachAbsRow(cursor.file_id, row);
+    file_cur = tryToReachAbsRow(file_cur, row);
     if (file_cur.absolute_row != row) {
       printw("~\n");
     }
@@ -201,21 +237,20 @@ void printFile(Cursor cursor, int screen_x, int screen_y) {
       }
       if (end_screen_line_cur.relative_column != end_screen_line_cur.line->element_number || isEmptyLine(
             end_screen_line_cur.line->next) == false) {
+        attron(A_BOLD|A_UNDERLINE|A_DIM);
         printw(">");
+        attroff(A_BOLD|A_UNDERLINE|A_DIM);
       }
       printw("\n");
     }
   }
 
-  move(cursor.file_id.absolute_row - screen_y, cursor.line_id.absolute_column - screen_x + 1);
-
-  if (cursor.file_id.absolute_row < screen_y || cursor.file_id.absolute_row >= screen_y + LINES
-      || cursor.line_id.absolute_column < screen_x - 1 || cursor.line_id.absolute_column > screen_x + COLS - 3
+  if (cursor.file_id.absolute_row >= screen_y && cursor.file_id.absolute_row < screen_y + LINES && cursor.line_id.
+      absolute_column >= screen_x - 1 && cursor.line_id.absolute_column <= screen_x + COLS - 3
   ) {
-    curs_set(0);
-  }
-  else {
-    curs_set(2);
+
+    move(cursor.file_id.absolute_row - screen_y, cursor.line_id.absolute_column - screen_x + 1);
+    chgat(1, A_STANDOUT, 0, NULL);
   }
 }
 

@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "data-structure/file_management.h"
 #include "data-structure/file_structure.h"
 #include "io_management/file_manager.h"
 
