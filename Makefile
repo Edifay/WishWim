@@ -23,7 +23,7 @@ test_file: test_file.o $(modules)
 	$(CC) $(CFLAGS) $^ -o $@
 
 al_t: main.o $(modules)
-	$(CC) $(CFLAGS) $^ -o $@ -lncurses
+	$(CC) $(CFLAGS) $^ -o $@ -lncursesw
 
 clean:
 	rm -rf *.o | rm -rf $(executable) $(modules)
