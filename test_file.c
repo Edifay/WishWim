@@ -1,4 +1,4 @@
-#include "data-structure/utf_8_extractor.h"
+#include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <termios.h>
@@ -12,11 +12,12 @@
 #include "data-structure/file_management.h"
 #include "data-structure/file_structure.h"
 #include "io_management/file_manager.h"
+#include "data-structure/utf_8_extractor.h"
 
 
 #define CTRL_KEY(k) ((k)&0x1f)
 
-#define SEPARATOR false
+#define SEPARATOR true
 
 
 void PrintAt(int x, int y, char c) {
@@ -123,7 +124,8 @@ void printFile(FileNode* file, Cursor cursor, bool sep) {
   //        cursor.line_id.relative_column
   // );
 
-  printf("CUR =   FILE NODE => ABS : %d - REL : %d    |     LINE NODE => ABS : %d - REL : %d\r\n", cursor.file_id.absolute_row, cursor.file_id.relative_row, cursor.line_id.absolute_column, cursor.line_id.relative_column);
+  printf("CUR =   FILE NODE => ABS : %d - REL : %d    |     LINE NODE => ABS : %d - REL : %d\r\n", cursor.file_id.absolute_row, cursor.file_id.relative_row,
+         cursor.line_id.absolute_column, cursor.line_id.relative_column);
 
   FileNode* temp = file;
   int row_temp = row - 1;
@@ -139,7 +141,8 @@ void printFile(FileNode* file, Cursor cursor, bool sep) {
   int ava_next = line_id.line->next == NULL ? 0 : MAX_ELEMENT_NODE - line_id.line->next->element_number;
 
 
-  printf("COLUMN PREV %d | HERE %d | NEXT %d      =>  INDEX %d  & ABS INDEX %d     => FIXED %s\r\n", ava_prev, ava_here, ava_next, line_id.relative_column, column, line_id.line->fixed ? "true" : "false");
+  printf("COLUMN PREV %d | HERE %d | NEXT %d      =>  INDEX %d  & ABS INDEX %d     => FIXED %s\r\n", ava_prev, ava_here, ava_next, line_id.relative_column, column,
+         line_id.line->fixed ? "true" : "false");
 
 
   ava_here = MAX_ELEMENT_NODE - file->element_number;
@@ -223,7 +226,7 @@ int main(int argc, char** args) {
 
   char c;
   while (1) {
-    checkFileIntegrity(root);
+    assert(checkFileIntegrity(root) == true);
     c = '\0';
     if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) {
       die("read");
@@ -270,7 +273,7 @@ int main(int argc, char** args) {
       else if (c == '\x1b') {
         if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
         printf("%c", c);
-        if (c == 'O') {
+        if (c == '[') {
           if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
 
           if (c == 'C') {

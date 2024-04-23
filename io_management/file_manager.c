@@ -27,7 +27,7 @@ void loadFile(Cursor cursor, char* fileName) {
   char c;
   while (fscanf(f, "%c", &c) != EOF) {
 #ifdef LOGS
-    checkFileIntegrity(root);
+    assert(checkFileIntegrity(root) == true);
 #endif
     if (iscntrl(c)) {
       if (c == '\n') {

@@ -907,7 +907,7 @@ int allocateOneRowInFile(FileNode* file, int row) {
     printf("INSERTING A NODE\r\n");
 #endif
 
-    if (row == 0) {
+    if (row == 0 && file->prev != NULL /*AVOID move previous for root FileNode*/) {
       // Due to the fact that we can just deallocate instant from right of an array only more power full for index == 0.
       insertFileNodeBefore(file);
       available_prev = MAX_ELEMENT_NODE;
@@ -989,6 +989,7 @@ FileIdentifier insertEmptyLineInFile(FileIdentifier file_id) {
   int row = line_id.relative_row;
 
   int relative_shift = allocateOneRowInFile(file, row);
+
 #ifdef LOGS
   printf("Shift : %d & Index : %d\n\r", relative_shift, row);
 #endif
@@ -1040,9 +1041,9 @@ FileIdentifier insertEmptyLineInFile(FileIdentifier file_id) {
     assert(file->element_number - row > 0);
     memmove(file->lines + row + 1, file->lines + row, (file->element_number - row) * sizeof(LineNode));
     initEmptyLineNode(file->lines + row);
-    rebindFileNode(file, row + 1, -1);
     file->lines[row].fixed = true;
     file->element_number++;
+    rebindFileNode(file, row + 1, -1);
   }
 
   line_id.file = file;
@@ -1085,7 +1086,7 @@ FileIdentifier removeLineInFile(FileIdentifier file_id) {
 #endif
     // printf("At move : %d, first %d, ")
     memmove(file->lines + row, file->lines + row + 1, (file->element_number - row - 1) * sizeof(LineNode));
-    rebindFileNode(file, row, -1);
+    rebindFileNode(file, row, file->element_number - 1 - row);
   }
   else {
 #ifdef LOGS
@@ -1157,7 +1158,7 @@ bool checkFileIntegrity(FileNode* file) {
     for (int i = 0; i < file->element_number; i++) {
       LineNode* line = file->lines + i;
       if (line != NULL) {
-        assert(line->prev == NULL);
+        // assert(line->prev == NULL);
         if (line->prev != NULL)
           return false;
       }
@@ -1178,7 +1179,7 @@ bool checkFileIntegrity(FileNode* file) {
             else
               printf("None");
             printf("\r\n");
-            assert(line->next->prev == line);
+            // assert(line->next->prev == line);
             return false;
           }
         }
@@ -1186,7 +1187,7 @@ bool checkFileIntegrity(FileNode* file) {
       }
     }
     if (file->next != NULL) {
-      assert(file->next->prev == file);
+      // assert(file->next->prev == file);
       if (file->next->prev != file)
         return false;
     }

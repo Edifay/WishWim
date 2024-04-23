@@ -1,7 +1,12 @@
 #ifndef KEY_MANAGEMENT_H
 #define KEY_MANAGEMENT_H
+#include <ncurses.h>
 
 #endif //KEY_MANAGEMENT_H
+
+typedef long long time_val;
+
+#define TIME_BETWEEN_EVENT 200 /*ms*/
 
 // KEY_BIND
 
@@ -24,3 +29,5 @@
 
 #define BEGIN_MOUSE_LISTEN 588
 #define MOUSE_IN_OUT 589
+
+void detectComplexEvents(MEVENT* event);

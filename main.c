@@ -57,7 +57,7 @@ int main(int argc, char** args) {
   MEVENT m_event;
   bool button1_pressed = false;
   while (true) {
-    checkFileIntegrity(root);
+    assert(checkFileIntegrity(root) == true);
 
     int c = getch();
     switch (c) {
@@ -72,6 +72,8 @@ int main(int argc, char** args) {
 
       case KEY_MOUSE:
         if (getmouse(&m_event) == OK) {
+          detectComplexEvents(&m_event);
+
           // ---------- MOVE CURSOR ------------
 
           if (button1_pressed) {
@@ -88,13 +90,19 @@ int main(int argc, char** args) {
             }
           }
 
-
           if (m_event.bstate & BUTTON1_PRESSED) {
             FileIdentifier new_file_id = tryToReachAbsRow(cursor.file_id, screen_y + m_event.y);
             LineIdentifier new_line_id = tryToReachAbsColumn(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), screen_x + m_event.x - 1);
             cursor = cursorOf(new_file_id, new_line_id);
             button1_pressed = true;
             select_cursor = disableCursor(select_cursor);
+          }
+
+          if (m_event.bstate & BUTTON1_DOUBLE_CLICKED /*TODO implement event*/) {
+            if (cursor.line_id.absolute_column != 0 && isInvisible(getCharForLineIdentifier(cursor.line_id)) == false)
+              cursor = moveToPreviousWord(cursor);
+            select_cursor = cursor;
+            cursor = moveToNextWord(cursor);
           }
 
           if (m_event.bstate & BUTTON1_RELEASED) {
@@ -183,12 +191,15 @@ int main(int argc, char** args) {
 
       case '\n':
       case KEY_ENTER:
+        select_cursor = disableCursor(select_cursor);
         cursor = insertNewLineInLineC(cursor);
         break;
       case KEY_BACKSPACE:
+        select_cursor = disableCursor(select_cursor);
         cursor = deleteCharAtCursor(cursor);
         break;
       case KEY_SUPPR:
+        select_cursor = disableCursor(select_cursor);
         cursor = supprCharAtCursor(cursor);
         break;
       case '\t':
