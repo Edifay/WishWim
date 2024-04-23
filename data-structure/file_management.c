@@ -129,7 +129,7 @@ Cursor moveToNextWord(Cursor cursor) {
   Cursor tmp_cur;
   bool canWorkWithLetter = true;
   while (hasElementAfterLine(cursor.line_id) && (
-           (canWorkWithLetter = isALetter(getCharForLineIdentifier((tmp_cur = moveRight(cursor)).line_id)) &&
+           (canWorkWithLetter = isAWordLetter(getCharForLineIdentifier((tmp_cur = moveRight(cursor)).line_id)) &&
                                 canWorkWithLetter) || areChar_U8Equals(getCharForLineIdentifier(tmp_cur.line_id),
                                                                        repeated))) {
     cursor = tmp_cur;
@@ -153,7 +153,7 @@ Cursor moveToPreviousWord(Cursor cursor) {
 
   bool canWorkWithLetter = true;
   while (cursor.line_id.absolute_column != 0 && (
-           (canWorkWithLetter = isALetter(getCharForLineIdentifier(cursor.line_id)) && canWorkWithLetter) ||
+           (canWorkWithLetter = isAWordLetter(getCharForLineIdentifier(cursor.line_id)) && canWorkWithLetter) ||
            areChar_U8Equals(
              getCharForLineIdentifier(cursor.line_id), repeated))) {
     cursor = moveLeft(cursor);

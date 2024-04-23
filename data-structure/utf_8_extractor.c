@@ -141,8 +141,9 @@ bool isBetween(Char_U8 ch, char begin, char end) {
   return ch.t[0] >= begin && ch.t[0] <= end;
 }
 
-bool isALetter(Char_U8 ch) {
-  return isBetween(ch, 'a', 'z') || isBetween(ch, 'A', 'Z') || ch.t[0] == '_';
+bool isAWordLetter(Char_U8 ch) {
+  return isBetween(ch, 'a', 'z') || isBetween(ch, 'A', 'Z') || ch.t[0] == '_'
+         || isBetween(ch, '0', '9');
 }
 
 bool isInvisible(Char_U8 ch) {

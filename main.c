@@ -21,6 +21,8 @@ void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y);
 
 bool isCursorDisabled(Cursor cursor);
 
+Cursor disableCursor(Cursor cursor);
+
 int main(int argc, char** args) {
   setlocale(LC_ALL, "");
 
@@ -31,16 +33,19 @@ int main(int argc, char** args) {
   int screen_x = 1;
   int screen_y = 1;
 
-  Cursor select_cursor;
-  select_cursor.file_id.absolute_row = -1;
+  Cursor select_cursor = disableCursor(cursor);
 
   initscr();
   raw();
   keypad(stdscr, TRUE);
-  mousemask(ALL_MOUSE_EVENTS, NULL);
   mouseinterval(0);
+  mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
   noecho();
   curs_set(0);
+
+  printf("\033[?1003h"); // enable mouse tracking
+  fflush(stdout);
+
 
   printFile(cursor, select_cursor, screen_x, screen_y);
   refresh();
@@ -48,6 +53,7 @@ int main(int argc, char** args) {
 
   Cursor old_cur = cursor;
   MEVENT m_event;
+  bool button1_pressed = false;
   while (true) {
     checkFileIntegrity(root);
 
@@ -64,13 +70,36 @@ int main(int argc, char** args) {
 
       case KEY_MOUSE:
         if (getmouse(&m_event) == OK) {
-          if (m_event.bstate & BUTTON1_PRESSED) {
+          // ---------- MOVE CURSOR ------------
+
+          if (button1_pressed) {
+            // printf("Move detected !\n");
             FileIdentifier new_file_id = tryToReachAbsRow(cursor.file_id, screen_y + m_event.y);
-            LineIdentifier new_line_id = tryToReachAbsColumn(
-              moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), screen_x + m_event.x - 1);
-            cursor = cursorOf(new_file_id, new_line_id);
+            LineIdentifier new_line_id = tryToReachAbsColumn(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), screen_x + m_event.x - 1);
+
+            if (isCursorDisabled(select_cursor) == false) {
+              cursor = cursorOf(new_file_id, new_line_id);
+            }
+            else if (areCursorEqual(cursor, cursorOf(new_file_id, new_line_id)) == false) {
+              select_cursor = cursor;
+              cursor = cursorOf(new_file_id, new_line_id);
+            }
           }
 
+
+          if (m_event.bstate & BUTTON1_PRESSED) {
+            FileIdentifier new_file_id = tryToReachAbsRow(cursor.file_id, screen_y + m_event.y);
+            LineIdentifier new_line_id = tryToReachAbsColumn(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), screen_x + m_event.x - 1);
+            cursor = cursorOf(new_file_id, new_line_id);
+            button1_pressed = true;
+            select_cursor = disableCursor(select_cursor);
+          }
+
+          if (m_event.bstate & BUTTON1_RELEASED) {
+            button1_pressed = false;
+          }
+
+          // ---------- SCROLL ------------
           if (m_event.bstate & BUTTON4_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
             // Move Up
             screen_y -= SCROLL_SPEED;
@@ -98,15 +127,19 @@ int main(int argc, char** args) {
 
       case KEY_RIGHT:
         cursor = moveRight(cursor);
+        select_cursor = disableCursor(select_cursor);
         break;
       case KEY_LEFT:
         cursor = moveLeft(cursor);
+        select_cursor = disableCursor(select_cursor);
         break;
       case KEY_UP:
         cursor = moveUp(cursor);
+        select_cursor = disableCursor(select_cursor);
         break;
       case KEY_DOWN:
         cursor = moveDown(cursor);
+        select_cursor = disableCursor(select_cursor);
         break;
       case KEY_MAJ_RIGHT: // TODO implement selection
 
@@ -122,9 +155,11 @@ int main(int argc, char** args) {
         break;
       case KEY_CTRL_RIGHT:
         cursor = moveToNextWord(cursor);
+        select_cursor = disableCursor(select_cursor);
         break;
       case KEY_CTRL_LEFT:
         cursor = moveToPreviousWord(cursor);
+        select_cursor = disableCursor(select_cursor);
         break;
       case KEY_CTRL_DOWN:
 
@@ -189,11 +224,15 @@ int main(int argc, char** args) {
       old_cur = cursor;
       moveScreenToMatchCursor(cursor, &screen_x, &screen_y);
     }
+
     printFile(cursor, select_cursor, screen_x, screen_y);
     refresh();
   }
 
 end:
+
+  printf("\033[?1003l\n"); // Disable mouse movement events, as l = low
+  fflush(stdout);
 
   endwin();
   destroyFullFile(root);
@@ -281,8 +320,6 @@ void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) 
   // Check if cursor is in the screen and print it.
   if (cursor.file_id.absolute_row >= screen_y && cursor.file_id.absolute_row < screen_y + LINES
       && cursor.line_id.absolute_column >= screen_x - 1 && cursor.line_id.absolute_column <= screen_x + COLS - 3) {
-
-
     move(cursor.file_id.absolute_row - screen_y, cursor.line_id.absolute_column - screen_x + 1);
     chgat(1, A_STANDOUT, 0, NULL);
   }
@@ -298,4 +335,9 @@ Cursor createFile(int argc, char** args) {
 
 bool isCursorDisabled(Cursor cursor) {
   return cursor.file_id.absolute_row == -1;
+}
+
+Cursor disableCursor(Cursor cursor) {
+  cursor.file_id.absolute_row = -1;
+  return cursor;
 }

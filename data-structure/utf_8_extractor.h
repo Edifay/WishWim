@@ -56,7 +56,7 @@ void testUnitUtf8Extractor();
 
 bool isBetween(Char_U8 ch, char begin, char end);
 
-bool isALetter(Char_U8 ch);
+bool isAWordLetter(Char_U8 ch);
 
 bool isInvisible(Char_U8 ch);
 
