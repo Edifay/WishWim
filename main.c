@@ -23,11 +23,13 @@ bool isCursorDisabled(Cursor cursor);
 
 Cursor disableCursor(Cursor cursor);
 
+FileNode* root = NULL;
+
 int main(int argc, char** args) {
   setlocale(LC_ALL, "");
 
   Cursor cursor = createFile(argc, args);
-  FileNode* root = cursor.file_id.file;
+  root = cursor.file_id.file;
   assert(root->prev == NULL);
 
   int screen_x = 1;
