@@ -1356,6 +1356,8 @@ Cursor insertNewLineInLineC(Cursor cursor) {
   assert(newLine->current_max_element_number == 0);
   assert(newLine->ch == NULL);
 
+  // file_id may have been reallocated.
+  file_id = tryToReachAbsRow(newFileIdForNewLine, file_id.absolute_row);
   if (line_was_fixed) {
     // If the line was fixed the line may have been reallocated. So we need to re-use modulo. We admit that fixed are the src of the line.
     line_id = moduloCursorR(file_id.file, file_id.relative_row, line_id.relative_column).line_id;
