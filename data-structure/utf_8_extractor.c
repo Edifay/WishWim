@@ -142,8 +142,17 @@ bool isBetween(Char_U8 ch, char begin, char end) {
 }
 
 bool isAWordLetter(Char_U8 ch) {
-  return isBetween(ch, 'a', 'z') || isBetween(ch, 'A', 'Z') || ch.t[0] == '_'
-         || isBetween(ch, '0', '9');
+  return
+      isBetween(ch, 'a', 'z')
+      || isBetween(ch, 'A', 'Z')
+      || isBetween(ch, '0', '9')
+      || areChar_U8Equals(ch, readChar_U8FromCharArray("_"))
+      || areChar_U8Equals(ch, readChar_U8FromCharArray("ç"))
+      || areChar_U8Equals(ch, readChar_U8FromCharArray("é"))
+      || areChar_U8Equals(ch, readChar_U8FromCharArray("è"))
+      || areChar_U8Equals(ch, readChar_U8FromCharArray("à"))
+      || areChar_U8Equals(ch, readChar_U8FromCharArray("û"))
+      || areChar_U8Equals(ch, readChar_U8FromCharArray("ê"));
 }
 
 bool isInvisible(Char_U8 ch) {

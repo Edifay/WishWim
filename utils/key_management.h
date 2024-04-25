@@ -20,9 +20,11 @@ typedef long long time_val;
 #define KEY_CTRL_RIGHT 567
 #define KEY_CTRL_LEFT 552
 #define KEY_CTRL_DOWN 532
-#define KEY_CTRL_UP 533
+#define KEY_CTRL_UP 573
 #define KEY_CTRL_MAJ_RIGHT 568
 #define KEY_CTRL_MAJ_LEFT 553
+#define KEY_CTRL_MAJ_DOWN 533
+#define KEY_CTRL_MAJ_UP 574
 
 
 // MOUSE BIND

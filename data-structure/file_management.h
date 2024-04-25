@@ -30,7 +30,7 @@ bool areCursorEqual(Cursor cur1, Cursor cur2);
 
 
 ////// -------------- SELECTION MANAGEMENT --------------
-// TODO Implement selection.
+// TODO Implement selection delete.
 
 
 #endif //FILE_MANAGEMENT_H
