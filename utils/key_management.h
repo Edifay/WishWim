@@ -11,7 +11,8 @@ typedef long long time_val;
 // KEY_BIND
 
 #define KEY_SUPPR 330
-
+#define KEY_TAB '\t'
+#define KEY_CTRL_MAJ_SLASH 31
 
 #define KEY_MAJ_RIGHT 402
 #define KEY_MAJ_LEFT 393

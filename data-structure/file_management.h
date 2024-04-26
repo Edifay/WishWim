@@ -1,5 +1,6 @@
 #ifndef FILE_MANAGEMENT_H
 #define FILE_MANAGEMENT_H
+
 #include "file_structure.h"
 
 
@@ -18,19 +19,24 @@ Cursor deleteLineAtCursor(Cursor cursor);
 Cursor skipRightInvisibleChar(Cursor cursor);
 Cursor skipLeftInvisibleChar(Cursor cursor);
 
-
 Cursor moveToNextWord(Cursor cursor);
 Cursor moveToPreviousWord(Cursor cursor);
 
-bool isCursorPreviousThanOther(Cursor cursor, Cursor other);
-
-bool isCursorBetweenOthers(Cursor cursor, Cursor cur1, Cursor cur2);
-
-bool areCursorEqual(Cursor cur1, Cursor cur2);
-
-
 ////// -------------- SELECTION MANAGEMENT --------------
-// TODO Implement selection delete.
 
+
+bool isCursorPreviousThanOther(Cursor cursor, Cursor other);
+bool isCursorBetweenOthers(Cursor cursor, Cursor cur1, Cursor cur2);
+bool areCursorEqual(Cursor cur1, Cursor cur2);
+bool isCursorDisabled(Cursor cursor);
+
+Cursor disableCursor(Cursor cursor);
+
+void setSelectCursorOn(Cursor cursor, Cursor* select_cursor);
+void setSelectCursorOff(Cursor* select_cursor);
+
+void deleteSelection(Cursor* cursor, Cursor* seleelect_cursor);
+
+// TODO implement clipboard management.
 
 #endif //FILE_MANAGEMENT_H

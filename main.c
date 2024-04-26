@@ -19,17 +19,9 @@ void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y);
 
 void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y);
 
-bool isCursorDisabled(Cursor cursor);
-
-Cursor disableCursor(Cursor cursor);
 
 FileNode* root = NULL;
 
-void setSelectCursorOn(Cursor cursor, Cursor* select_cursor);
-
-void setSelectCursorOff(Cursor* select_cursor) {
-  *select_cursor = disableCursor(*select_cursor);
-}
 
 int main(int argc, char** args) {
   setlocale(LC_ALL, "");
@@ -47,11 +39,11 @@ int main(int argc, char** args) {
   raw();
   keypad(stdscr, TRUE);
   mouseinterval(0);
-  mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
+  // mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
   noecho();
   curs_set(0);
 
-  printf("\033[?1003h"); // enable mouse tracking
+  // printf("\033[?1003h"); // enable mouse tracking
   fflush(stdout);
 
 
@@ -80,7 +72,7 @@ int main(int argc, char** args) {
         if (getmouse(&m_event) == OK) {
           detectComplexEvents(&m_event);
 
-          // ---------- MOVE CURSOR ------------
+          // ---------- CURSOR ACTION ------------
 
           if (m_event.bstate & BUTTON1_RELEASED) {
             button1_pressed = false;
@@ -204,41 +196,54 @@ int main(int argc, char** args) {
         // Do something with this.
         break;
 
-      // ---------------------- FILE INPUT ----------------------
+      // ---------------------- FILE MANAGEMENT ----------------------
 
-      case '\n':
-      case KEY_ENTER:
-        setSelectCursorOff(&select_cursor);
-        cursor = insertNewLineInLineC(cursor);
-        break;
-      case KEY_BACKSPACE:
-        setSelectCursorOff(&select_cursor);
-        cursor = deleteCharAtCursor(cursor);
-        break;
-      case KEY_SUPPR:
-        setSelectCursorOff(&select_cursor);
-        cursor = supprCharAtCursor(cursor);
-        break;
-      case '\t':
-        setSelectCursorOff(&select_cursor);
-        cursor = insertCharInLineC(cursor, readChar_U8FromInput(' '));
-        cursor = insertCharInLineC(cursor, readChar_U8FromInput(' '));
-        break;
+
       case CTRL_KEY('q'):
         goto end;
-      case CTRL_KEY('d'):
-        setSelectCursorOff(&select_cursor);
-        cursor = deleteLineAtCursor(cursor);
-        break;
       case CTRL_KEY('s'):
         if (argc < 2) {
           printf("\r\nNo opened file\r\n");
           exit(0);
         }
-        saveFile(root, args[1]);
+      saveFile(root, args[1]);
+      break;
+
+
+      // ---------------------- FILE EDITING ----------------------
+
+      case '\n':
+      case KEY_ENTER:
+        deleteSelection(&cursor, &select_cursor);
+        cursor = insertNewLineInLineC(cursor);
         break;
+      case KEY_BACKSPACE:
+        if (isCursorDisabled(select_cursor))
+          cursor = deleteCharAtCursor(cursor);
+        else
+          deleteSelection(&cursor, &select_cursor);
+        break;
+      case KEY_SUPPR:
+        if (isCursorDisabled(select_cursor))
+          cursor = supprCharAtCursor(cursor);
+        else
+          deleteSelection(&cursor, &select_cursor);
+        break;
+      case KEY_TAB:
+        deleteSelection(&cursor, &select_cursor);
+        cursor = insertCharInLineC(cursor, readChar_U8FromInput(' '));
+        cursor = insertCharInLineC(cursor, readChar_U8FromInput(' '));
+        break;
+      case CTRL_KEY('d'):
+        if (isCursorDisabled(select_cursor))
+          cursor = deleteLineAtCursor(cursor);
+        else
+          deleteSelection(&cursor, &select_cursor);
+        break;
+
       default:
         // printf("%d\r\n", c);
+        // exit(0);
         if (iscntrl(c)) {
           printf("Unsupported touch %d\r\n", c);
           if (argc >= 2) saveFile(root, args[1]);
@@ -246,9 +251,8 @@ int main(int argc, char** args) {
           goto end;
         }
         else {
-          setSelectCursorOff(&select_cursor);
-          Char_U8 ch = readChar_U8FromInput(c);
-          cursor = insertCharInLineC(cursor, ch);
+          deleteSelection(&cursor, &select_cursor);
+          cursor = insertCharInLineC(cursor, readChar_U8FromInput(c));
         }
         break;
     }
@@ -377,19 +381,4 @@ Cursor createFile(int argc, char** args) {
     return initWrittableFileFromFile(args[1]);
   }
   return initNewWrittableFile();
-}
-
-bool isCursorDisabled(Cursor cursor) {
-  return cursor.file_id.absolute_row == -1;
-}
-
-Cursor disableCursor(Cursor cursor) {
-  cursor.file_id.absolute_row = -1;
-  return cursor;
-}
-
-void setSelectCursorOn(Cursor cursor, Cursor* select_cursor) {
-  if (isCursorDisabled(*select_cursor) == true) {
-    *select_cursor = cursor;
-  }
 }

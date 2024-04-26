@@ -163,8 +163,9 @@ bool hasElementAfterLine(LineIdentifier line_id);
 
 void printLineNode(LineNode* line);
 
-// TODO implement this function
 LineIdentifier tryToReachAbsColumn(LineIdentifier line_id, int abs_column);
+
+void deleteLinePart(LineIdentifier line_id, int length);
 
 /**
  * Destroy line free all memory.
@@ -196,8 +197,9 @@ bool isEmptyFile(FileNode* file);
 
 bool hasElementAfterFile(FileIdentifier file_id);
 
-// TODO implement this function
 FileIdentifier tryToReachAbsRow(FileIdentifier file_id, int row);
+
+void deleteFilePart(FileIdentifier file_id, int length);
 
 void destroyFullFile(FileNode* node);
 

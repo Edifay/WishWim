@@ -589,6 +589,54 @@ LineIdentifier tryToReachAbsColumn(LineIdentifier line_id, int abs_column) {
 }
 
 
+void deleteLinePart(LineIdentifier line_id, int length) {
+  line_id = moduloLineIdentifier(line_id);
+
+  int current_removed = 0;
+  while (current_removed < length) {
+    // If it's the line end go to next.
+    if (line_id.relative_column == line_id.line->element_number) {
+      line_id.line = line_id.line->next;
+      assert(line_id.line != NULL);
+      line_id.relative_column = 0;
+    }
+
+    // If the id is the begin of a node and If the node can be completely removed. We can improve perf.
+    if (line_id.relative_column == 0 && line_id.line->element_number <= length - current_removed) {
+      current_removed += line_id.line->element_number;
+      if (line_id.line->fixed == false) {
+        // If the node can be cleared.
+        line_id.line = destroyCurrentLineNode(line_id.line);
+        line_id.relative_column = line_id.line->element_number;
+      }
+      else {
+        // If the node is fixed.
+        // assert(false);
+        line_id.line->element_number = 0;
+        line_id.line->current_max_element_number = 0;
+        free(line_id.line->ch);
+        line_id.line->ch = NULL;
+      }
+    }
+    else {
+      // Need to delete a part of the node.
+      int atDelete = min(length - current_removed, line_id.line->element_number - line_id.relative_column);
+      memmove(line_id.line->ch + line_id.relative_column, line_id.line->ch + line_id.relative_column + atDelete,
+              (line_id.line->element_number - line_id.relative_column - atDelete) * sizeof(Char_U8));
+      line_id.line->element_number -= atDelete;
+      current_removed += atDelete;
+
+      // Realloc line.ch if too much unused mem.
+      if (line_id.line->current_max_element_number > line_id.line->element_number + CACHE_SIZE) {
+        line_id.line->ch = realloc(line_id.line->ch, (line_id.line->element_number + CACHE_SIZE) * sizeof(Char_U8));
+        line_id.line->current_max_element_number = line_id.line->element_number + CACHE_SIZE;
+        assert(line_id.line->current_max_element_number <= MAX_ELEMENT_NODE);
+      }
+    }
+  }
+}
+
+
 /**
  * Destroy line free all memory.
  * Will check Node before.
@@ -613,11 +661,15 @@ void destroyFullLine(LineNode* node) {
 }
 
 /**
+ *
  * Destroy line letting this current node.
  */
 void destroyChildLine(LineNode* node) {
   assert(node != NULL);
   free(node->ch);
+  node->ch = NULL;
+  node->current_max_element_number = 0;
+  node->element_number = 0;
   node = node->next;
 
   while (node != NULL) {
@@ -625,8 +677,12 @@ void destroyChildLine(LineNode* node) {
     node = node->next;
 
     free(tmp->ch);
-    if (node->fixed == false)
+    if (tmp->fixed == false)
       free(tmp);
+    else {
+      initEmptyLineNode(tmp);
+      tmp->fixed = true;
+    }
   }
 }
 
@@ -737,7 +793,7 @@ FileNode* destroyCurrentFileNode(FileNode* file) {
   assert(file->next == NULL || file->next->prev == file->prev);
 
   for (int i = 0; i < file->element_number; i++) {
-    destroyChildLine(file->lines + i);
+    destroyFullLine(file->lines + i);
   }
   free(file->lines);
   free(file);
@@ -1249,6 +1305,69 @@ FileIdentifier tryToReachAbsRow(FileIdentifier file_id, int abs_row) {
   return moduloFileIdentifier(file_id);
 }
 
+
+void deleteFilePart(FileIdentifier file_id, int length) {
+  file_id = moduloFileIdentifier(file_id);
+
+  int current_removed = 0;
+  while (current_removed < length) {
+    // If it's the line end go to next.
+    if (file_id.relative_row == file_id.file->element_number) {
+      file_id.file = file_id.file->next;
+      file_id.relative_row = 0;
+      assert(file_id.file != NULL);
+    }
+
+    // If the id is the begin of a node and If the node can be completely removed. We can improve perf.
+    if (file_id.relative_row == 0 && file_id.file->element_number <= length - current_removed) {
+      current_removed += file_id.file->element_number;
+      printf("Full line node need to free\r\n");
+      if (file_id.file->prev != NULL) {
+        printf("Is not root.\r\n");
+        // If the node can be cleared.
+        file_id.file = destroyCurrentFileNode(file_id.file);
+        file_id.relative_row = file_id.file->element_number;
+      }
+      else {
+        // If the node is fixed.
+        // assert(false);
+        printf("Is root\r\n");
+        file_id.file->element_number = 0;
+        file_id.file->current_max_element_number = 0;
+        for (int i = 0; i < file_id.file->element_number; i++) {
+          destroyFullLine(file_id.file->lines + i);
+        }
+        free(file_id.file->lines);
+        file_id.file->lines = NULL;
+      }
+    }
+    else {
+
+
+      // Need to delete a part of the node.
+      int atDelete = min(length - current_removed, file_id.file->element_number - file_id.relative_row);
+      for (int i = file_id.relative_row; i < file_id.relative_row + atDelete; i++) {
+        destroyFullLine(file_id.file->lines + i);
+      }
+      memmove(file_id.file->lines + file_id.relative_row, file_id.file->lines + file_id.relative_row + atDelete,
+              (file_id.file->element_number - file_id.relative_row - atDelete) * sizeof(LineNode));
+      file_id.file->element_number -= atDelete;
+      current_removed += atDelete;
+
+
+      // Realloc file.lines if too much unused mem.
+      if (file_id.file->current_max_element_number > file_id.file->element_number + CACHE_SIZE) {
+        file_id.file->lines = realloc(file_id.file->lines, (file_id.file->element_number + CACHE_SIZE) * sizeof(LineNode));
+        file_id.file->current_max_element_number = file_id.file->element_number + CACHE_SIZE;
+        assert(file_id.file->current_max_element_number <= MAX_ELEMENT_NODE);
+        assert(file_id.file->element_number <= file_id.file->current_max_element_number);
+      }
+
+      rebindFileNode(file_id.file, 0, file_id.file->element_number);
+    }
+  }
+}
+
 /**
  * Destroy line free all memory.
  * Will check Node before.
@@ -1316,7 +1435,16 @@ Cursor cursorOf(FileIdentifier file_id, LineIdentifier line_id) {
 
 Cursor moduloCursor(Cursor cursor) {
   cursor.file_id = moduloFileIdentifier(cursor.file_id);
-  cursor.line_id = moduloLineIdentifier(cursor.line_id);
+  if (cursor.line_id.absolute_column <= MAX_ELEMENT_NODE) {
+    // The node have a big chance to be fixed
+    // So the risk that the line_id could have been reallocated is high.
+    cursor.line_id = moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), cursor.line_id.absolute_column);
+  }
+  else {
+    // If the node is not fixed use classic modulo.
+    // Less risk better performance.
+    cursor.line_id = moduloLineIdentifier(cursor.line_id);
+  }
 
   return cursor;
 }
@@ -1450,7 +1578,7 @@ Cursor insertNewLineInLineC(Cursor cursor) {
   return cursorOf(newFileIdForNewLine, newLineId);
 }
 
-
+#include "../utils/debug.h"
 /**
  *
  * Dumb implementation of concat.
@@ -1495,21 +1623,24 @@ Cursor concatNeighbordsLinesC(Cursor cursor) {
   FileIdentifier newLineId = removeLineInFile(file_id);
   LineIdentifier lastNode = getLastLineNode(getLineForFileIdentifier(newLineId));
 
-
   if (lastNode.line->element_number == 0) {
     // Just copy the data of newNode to this node.
+    // printf("First case\r\n");
     assert(lastNode.line->element_number == 0);
     free(lastNode.line->ch);
     lastNode.line->ch = newNode->ch;
     lastNode.line->next = newNode->next;
     lastNode.line->element_number = newNode->element_number;
-    lastNode.line->current_max_element_number = newNode->element_number;
+    lastNode.line->current_max_element_number = newNode->current_max_element_number;
+    if (lastNode.line->next != NULL)
+      lastNode.line->next->prev = lastNode.line;
     free(newNode);
   }
   else {
     lastNode.line->next = newNode;
     newNode->prev = lastNode.line;
   }
+
 
   return cursorOf(newLineId, lastNode);
 }

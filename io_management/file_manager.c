@@ -11,7 +11,7 @@ Cursor initWrittableFileFromFile(char* fileName) {
 }
 
 
-void loadFile(Cursor cursor, char* fileName) {
+bool loadFile(Cursor cursor, char* fileName) {
   cursor = moduloCursor(cursor);
   // If relative_row == 0 no line created. Use initNewWrittableFile() before.
   assert(cursor.file_id.relative_row != 0);
@@ -19,7 +19,7 @@ void loadFile(Cursor cursor, char* fileName) {
   FILE* f = fopen(fileName, "r");
   if (f == NULL) {
     printf("Coudln't open file %s !\r\n", fileName);
-    exit(0);
+    return false;
   }
 
   FileNode* root = cursor.file_id.file;
@@ -64,6 +64,8 @@ void loadFile(Cursor cursor, char* fileName) {
   }
 
   fclose(f);
+
+  return true;
 }
 
 void saveFile(FileNode* file, char* fileName) {

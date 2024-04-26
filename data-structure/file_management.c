@@ -1,14 +1,17 @@
 #include "file_management.h"
 
 #include <assert.h>
-
+#include <limits.h>
+#include <stdlib.h>
 #include "../utils/tools.h"
 
 //// -------------- CURSOR MANAGEMENT --------------
 
 Cursor moveRight(Cursor cursor) {
-  if (cursor.line_id.line->element_number != cursor.line_id.relative_column || isEmptyLine(cursor.line_id.line->next) ==
-      false) {
+  if (
+    cursor.line_id.line->element_number != cursor.line_id.relative_column
+    || isEmptyLine(cursor.line_id.line->next) ==
+    false) {
     cursor.line_id.relative_column++;
     cursor.line_id.absolute_column++;
     cursor = moduloCursor(cursor);
@@ -166,6 +169,8 @@ Cursor moveToPreviousWord(Cursor cursor) {
   return cursor;
 }
 
+////// -------------- SELECTION MANAGEMENT --------------
+
 bool isCursorPreviousThanOther(Cursor cursor, Cursor other) {
   if (cursor.file_id.absolute_row < other.file_id.absolute_row)
     return true;
@@ -193,7 +198,7 @@ bool isCursorBetweenOthers(Cursor cursor, Cursor cur1, Cursor cur2) {
   int column_end = cur2.line_id.absolute_column;
 
 
-  return (row_start < row || (row_start == row && column_start < column))
+  return (row_start < row || (row_start == row && column_start <= column))
          && (row < row_end || (row == row_end && column <= column_end));
 }
 
@@ -201,4 +206,52 @@ bool isCursorBetweenOthers(Cursor cursor, Cursor cur1, Cursor cur2) {
 bool areCursorEqual(Cursor cur1, Cursor cur2) {
   return cur1.file_id.absolute_row == cur2.file_id.absolute_row && cur1.line_id.absolute_column == cur2.line_id.
          absolute_column;
+}
+
+
+bool isCursorDisabled(Cursor cursor) {
+  return cursor.file_id.absolute_row == -1;
+}
+
+Cursor disableCursor(Cursor cursor) {
+  cursor.file_id.absolute_row = -1;
+  return cursor;
+}
+
+void setSelectCursorOn(Cursor cursor, Cursor* select_cursor) {
+  if (isCursorDisabled(*select_cursor) == true) {
+    *select_cursor = cursor;
+  }
+}
+
+void setSelectCursorOff(Cursor* select_cursor) {
+  *select_cursor = disableCursor(*select_cursor);
+}
+
+void deleteSelection(Cursor* cursor, Cursor* select_cursor) {
+  if (isCursorDisabled(*select_cursor) == true) {
+    return;
+  }
+
+  if (isCursorPreviousThanOther(*select_cursor, *cursor)) {
+    Cursor tmp = *select_cursor;
+    *select_cursor = *cursor;
+    *cursor = tmp;
+  }
+
+  assert(isCursorPreviousThanOther(*cursor, *select_cursor));
+
+  if (cursor->file_id.absolute_row == select_cursor->file_id.absolute_row) {
+    // Need to delete part of a line.
+    deleteLinePart(cursor->line_id, select_cursor->line_id.absolute_column - cursor->line_id.absolute_column);
+  }
+  else {
+    deleteLinePart(cursor->line_id, tryToReachAbsColumn(cursor->line_id, INT_MAX).absolute_column - cursor->line_id.absolute_column);
+    deleteLinePart(tryToReachAbsColumn(select_cursor->line_id, 0), select_cursor->line_id.absolute_column);
+    deleteFilePart(tryToReachAbsRow(cursor->file_id, cursor->file_id.absolute_row), select_cursor->file_id.absolute_row - cursor->file_id.absolute_row - 1);
+    *cursor = moduloCursor(*cursor);
+    *cursor = supprCharAtCursor(*cursor);
+  }
+
+  *select_cursor = disableCursor(*select_cursor);
 }

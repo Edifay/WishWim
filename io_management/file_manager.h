@@ -5,7 +5,7 @@
 
 Cursor initWrittableFileFromFile(char* fileName);
 
-void loadFile(Cursor cursor, char* fileName);
+bool loadFile(Cursor cursor, char* fileName);
 
 void saveFile(FileNode* file, char* fileName);
 
