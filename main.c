@@ -39,11 +39,11 @@ int main(int argc, char** args) {
   raw();
   keypad(stdscr, TRUE);
   mouseinterval(0);
-  // mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
+  mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
   noecho();
   curs_set(0);
 
-  // printf("\033[?1003h"); // enable mouse tracking
+  printf("\033[?1003h"); // enable mouse tracking
   fflush(stdout);
 
 
