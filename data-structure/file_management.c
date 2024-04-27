@@ -198,7 +198,7 @@ bool isCursorBetweenOthers(Cursor cursor, Cursor cur1, Cursor cur2) {
   int column_end = cur2.line_id.absolute_column;
 
 
-  return (row_start < row || (row_start == row && column_start <= column))
+  return (row_start < row || (row_start == row && column_start < column))
          && (row < row_end || (row == row_end && column <= column_end));
 }
 

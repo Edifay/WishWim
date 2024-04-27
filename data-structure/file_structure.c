@@ -1321,9 +1321,7 @@ void deleteFilePart(FileIdentifier file_id, int length) {
     // If the id is the begin of a node and If the node can be completely removed. We can improve perf.
     if (file_id.relative_row == 0 && file_id.file->element_number <= length - current_removed) {
       current_removed += file_id.file->element_number;
-      printf("Full line node need to free\r\n");
       if (file_id.file->prev != NULL) {
-        printf("Is not root.\r\n");
         // If the node can be cleared.
         file_id.file = destroyCurrentFileNode(file_id.file);
         file_id.relative_row = file_id.file->element_number;
@@ -1331,7 +1329,6 @@ void deleteFilePart(FileIdentifier file_id, int length) {
       else {
         // If the node is fixed.
         // assert(false);
-        printf("Is root\r\n");
         file_id.file->element_number = 0;
         file_id.file->current_max_element_number = 0;
         for (int i = 0; i < file_id.file->element_number; i++) {

@@ -37,6 +37,4 @@ void setSelectCursorOff(Cursor* select_cursor);
 
 void deleteSelection(Cursor* cursor, Cursor* seleelect_cursor);
 
-// TODO implement clipboard management.
-
 #endif //FILE_MANAGEMENT_H

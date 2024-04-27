@@ -8,6 +8,7 @@
 #include "data-structure/file_management.h"
 #include "data-structure/file_structure.h"
 #include "io_management/file_manager.h"
+#include "utils/clipboard_manager.h"
 #include "utils/key_management.h"
 
 #define CTRL_KEY(k) ((k)&0x1f)
@@ -198,7 +199,17 @@ int main(int argc, char** args) {
 
       // ---------------------- FILE MANAGEMENT ----------------------
 
-
+      case CTRL_KEY('c'):
+        saveToClipBoard(cursor, select_cursor);
+        break;
+      case CTRL_KEY('x'):
+        saveToClipBoard(cursor, select_cursor);
+        deleteSelection(&cursor, &select_cursor);
+        break;
+      case CTRL_KEY('v'):
+        deleteSelection(&cursor, &select_cursor);
+        cursor = loadFromClipBoard(cursor);
+        break;
       case CTRL_KEY('q'):
         goto end;
       case CTRL_KEY('s'):
@@ -206,8 +217,8 @@ int main(int argc, char** args) {
           printf("\r\nNo opened file\r\n");
           exit(0);
         }
-      saveFile(root, args[1]);
-      break;
+        saveFile(root, args[1]);
+        break;
 
 
       // ---------------------- FILE EDITING ----------------------
