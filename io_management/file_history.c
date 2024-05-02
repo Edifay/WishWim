@@ -15,9 +15,9 @@ void createDir() {
 void getLastFilePosition(char* fileName, int* row, int* column) {
   createDir();
 
-  int path_len = 20 /* Size of str can contain int */ + strlen(getenv("HOME")) + strlen(FILE_HISTORY_PATH);
+  int path_len = 60 /* Size of str can contain int */ + strlen(getenv("HOME")) + strlen(FILE_HISTORY_PATH);
   char path[path_len + 10];
-  sprintf(path, "%s%s%d", getenv("HOME"), FILE_HISTORY_PATH, hashFileName(fileName));
+  sprintf(path, "%s%s%lld", getenv("HOME"), FILE_HISTORY_PATH, hashFileName(fileName));
 
   FILE* f = fopen(path, "r");
 
@@ -37,7 +37,7 @@ void setlastFilePosition(char* fileName, int row, int column) {
 
   int path_len = 20 /* Size of str can contain int */ + strlen(getenv("HOME")) + strlen(FILE_HISTORY_PATH);
   char path[path_len + 10];
-  sprintf(path, "%s%s%d", getenv("HOME"), FILE_HISTORY_PATH, hashFileName(fileName));
+  sprintf(path, "%s%s%lld", getenv("HOME"), FILE_HISTORY_PATH, hashFileName(fileName));
 
   FILE* f = fopen(path, "w");
 
@@ -51,15 +51,17 @@ void setlastFilePosition(char* fileName, int row, int column) {
   fclose(f);
 }
 
-int hashFileName(char* fileName) {
-  int length = strlen(fileName);
-  int value = pow(length, 6);
 
-  for (int i = 0; i < length; i++) {
-    value += i * i * fileName[i];
+unsigned long long hashFileName(char* fileName) {
+  int length = strlen(getenv("PWD")) + strlen(fileName);
+  unsigned long long value = pow(length, 4);
+
+  char newStr[length + 10];
+  sprintf(newStr, "%s/%s", getenv("PWD"), fileName);
+
+  for (int i = 0; i < length + 1 /* +1 for slash added*/; i++) {
+    value += i * i * i * i * newStr[i];
   }
 
-  if (value < 0)
-    return -value;
   return value;
 }

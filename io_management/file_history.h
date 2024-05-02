@@ -8,6 +8,6 @@ void getLastFilePosition(char* fileName, int* row, int* column);
 
 void setlastFilePosition(char* fileName, int row, int column);
 
-int hashFileName(char* fileName);
+unsigned long long hashFileName(char* fileName);
 
 #endif //FILE_HISTORY_H
