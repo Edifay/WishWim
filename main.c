@@ -1,12 +1,15 @@
 #include <assert.h>
 #include <ctype.h>
+#include <errno.h>
 #include <locale.h>
 #include <ncurses.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "data-structure/file_management.h"
 #include "data-structure/file_structure.h"
+#include "io_management/file_history.h"
 #include "io_management/file_manager.h"
 #include "utils/clipboard_manager.h"
 #include "utils/key_management.h"
@@ -20,6 +23,9 @@ void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y);
 
 void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y);
 
+void centerCursor(Cursor cursor, int* screen_x, int* screen_y);
+
+void fetchSavedCursorPosition(int argc, char** args, Cursor* cursor);
 
 FileNode* root = NULL;
 
@@ -43,14 +49,14 @@ int main(int argc, char** args) {
   mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
   noecho();
   curs_set(0);
-
   printf("\033[?1003h"); // enable mouse tracking
   fflush(stdout);
 
+  fetchSavedCursorPosition(argc, args, &cursor);
+  centerCursor(cursor, &screen_x, &screen_y);
 
   printFile(cursor, select_cursor, screen_x, screen_y);
   refresh();
-
 
   Cursor old_cur = cursor;
   MEVENT m_event;
@@ -223,6 +229,13 @@ int main(int argc, char** args) {
 
       // ---------------------- FILE EDITING ----------------------
 
+
+      case KEY_CTRL_DELETE:
+        cursor = moveToPreviousWord(cursor);
+        setSelectCursorOn(cursor, &select_cursor);
+        cursor = moveToNextWord(cursor);
+        deleteSelection(&cursor, &select_cursor);
+        break;
       case '\n':
       case KEY_ENTER:
         deleteSelection(&cursor, &select_cursor);
@@ -279,6 +292,10 @@ int main(int argc, char** args) {
 
 end:
 
+  if (argc >= 2) {
+    setlastFilePosition(args[1], cursor.file_id.absolute_row, cursor.line_id.absolute_column);
+  }
+
   printf("\033[?1003l\n"); // Disable mouse movement events, as l = low
   fflush(stdout);
 
@@ -316,6 +333,14 @@ void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y) {
   }
 }
 
+void centerCursor(Cursor cursor, int* screen_x, int* screen_y) {
+  *screen_x = cursor.line_id.absolute_column - (COLS / 2);
+  *screen_y = cursor.file_id.absolute_row - (LINES / 2);
+  if (*screen_x < 1)
+    *screen_x = 1;
+  if (*screen_y < 1)
+    *screen_y = 1;
+}
 
 void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) {
   move(0, 0);
@@ -392,4 +417,16 @@ Cursor createFile(int argc, char** args) {
     return initWrittableFileFromFile(args[1]);
   }
   return initNewWrittableFile();
+}
+
+void fetchSavedCursorPosition(int argc, char** args, Cursor* cursor) {
+  if (argc >= 2) {
+    int loaded_row;
+    int loaded_column;
+
+    getLastFilePosition(args[1], &loaded_row, &loaded_column);
+
+    cursor->file_id = tryToReachAbsRow(cursor->file_id, loaded_row);
+    cursor->line_id = tryToReachAbsColumn(moduloLineIdentifierR(getLineForFileIdentifier(cursor->file_id), 0), loaded_column);
+  }
 }
