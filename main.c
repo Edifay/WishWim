@@ -1,11 +1,9 @@
 #include <assert.h>
 #include <ctype.h>
-#include <errno.h>
 #include <locale.h>
 #include <ncurses.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include <wchar.h>
 
 #include "data-structure/file_management.h"
 #include "data-structure/file_structure.h"
@@ -25,10 +23,16 @@ void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y);
 
 void centerCursor(Cursor cursor, int* screen_x, int* screen_y);
 
-void fetchSavedCursorPosition(int argc, char** args, Cursor* cursor);
+void fetchSavedCursorPosition(int argc, char** args, Cursor* cursor, int* screen_x, int* screen_y);
+
+int getScreenXForCursor(Cursor cursor, int screen_x);
+
+LineIdentifier getLineIdForScreenX(LineIdentifier line_id, int screen_x, int x_click);
 
 FileNode* root = NULL;
 
+/* Unix call, use 'man wcwidth' to see explication. */
+int wcwidth(const wint_t wc);
 
 int main(int argc, char** args) {
   setlocale(LC_ALL, "");
@@ -52,8 +56,8 @@ int main(int argc, char** args) {
   printf("\033[?1003h"); // enable mouse tracking
   fflush(stdout);
 
-  fetchSavedCursorPosition(argc, args, &cursor);
-  centerCursor(cursor, &screen_x, &screen_y);
+  fetchSavedCursorPosition(argc, args, &cursor, &screen_x, &screen_y);
+  // centerCursor(cursor, &screen_x, &screen_y);
 
   printFile(cursor, select_cursor, screen_x, screen_y);
   refresh();
@@ -88,7 +92,7 @@ int main(int argc, char** args) {
           if (button1_pressed) {
             // printf("Drag detected !\n");
             FileIdentifier new_file_id = tryToReachAbsRow(cursor.file_id, screen_y + m_event.y);
-            LineIdentifier new_line_id = tryToReachAbsColumn(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), screen_x + m_event.x - 1);
+            LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), screen_x, m_event.x);
 
             if (isCursorDisabled(select_cursor) == false) {
               cursor = cursorOf(new_file_id, new_line_id);
@@ -101,7 +105,7 @@ int main(int argc, char** args) {
 
           if (m_event.bstate & BUTTON1_PRESSED) {
             FileIdentifier new_file_id = tryToReachAbsRow(cursor.file_id, screen_y + m_event.y);
-            LineIdentifier new_line_id = tryToReachAbsColumn(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), screen_x + m_event.x - 1);
+            LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), screen_x, m_event.x);
             cursor = cursorOf(new_file_id, new_line_id);
             button1_pressed = true;
             setSelectCursorOff(&select_cursor);
@@ -293,7 +297,7 @@ int main(int argc, char** args) {
 end:
 
   if (argc >= 2) {
-    setlastFilePosition(args[1], cursor.file_id.absolute_row, cursor.line_id.absolute_column);
+    setlastFilePosition(args[1], cursor.file_id.absolute_row, cursor.line_id.absolute_column, screen_x, screen_y);
   }
 
   printf("\033[?1003l\n"); // Disable mouse movement events, as l = low
@@ -321,12 +325,14 @@ void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y) {
     if (*screen_y < 1) *screen_y = 1;
   }
 
-  if (cursor.line_id.absolute_column - (*screen_x + COLS - 8) >= 0) {
-    *screen_x = cursor.line_id.absolute_column - COLS + 8;
+  int screen_x_wide_char = getScreenXForCursor(cursor, *screen_x) + *screen_x;
+  if (screen_x_wide_char - (*screen_x + COLS - 8) >= 0) {
+    *screen_x = screen_x_wide_char - COLS + 8;
+    //*screen_x += 1;
     if (*screen_x < 1) *screen_x = 1;
   }
-  else if (cursor.line_id.absolute_column - 5 < *screen_x) {
-    *screen_x = cursor.line_id.absolute_column - 5;
+  else if (screen_x_wide_char - 5 < *screen_x) {
+    *screen_x = screen_x_wide_char - 5;
     if (*screen_x < 1) {
       *screen_x = 1;
     }
@@ -334,12 +340,62 @@ void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y) {
 }
 
 void centerCursor(Cursor cursor, int* screen_x, int* screen_y) {
-  *screen_x = cursor.line_id.absolute_column - (COLS / 2);
+  // center for y, but right for x.
+  *screen_x = cursor.line_id.absolute_column - (COLS /*/ 2*/);
   *screen_y = cursor.file_id.absolute_row - (LINES / 2);
+
   if (*screen_x < 1)
     *screen_x = 1;
   if (*screen_y < 1)
     *screen_y = 1;
+
+  // To match right for x.
+  moveScreenToMatchCursor(cursor, screen_x, screen_y);
+}
+
+
+int getScreenXForCursor(Cursor cursor, int screen_x) {
+  Cursor initial = cursor;
+  Cursor old_cursor = cursor;
+  int atAdd = 0;
+
+  if (cursor.line_id.absolute_column != 0 && charPrintSize(getCharForLineIdentifier(cursor.line_id)) == 2) {
+    atAdd++;
+  }
+  cursor = moveLeft(cursor);
+
+
+  while (screen_x <= cursor.line_id.absolute_column && areCursorEqual(cursor, old_cursor) == false && cursor.file_id.absolute_row == old_cursor.file_id.absolute_row) {
+    assert(cursor.line_id.absolute_column != 0);
+    if (charPrintSize(getCharForLineIdentifier(cursor.line_id)) == 2) {
+      atAdd++;
+    }
+
+    old_cursor = cursor;
+    cursor = moveLeft(cursor);
+  }
+
+  return initial.line_id.absolute_column - screen_x + 1 + atAdd;
+}
+
+LineIdentifier getLineIdForScreenX(LineIdentifier line_id, int screen_x, int x_click) {
+  line_id = tryToReachAbsColumn(line_id, screen_x - 1);
+
+  int current_column = 0;
+  int x_el = 0;
+
+  while (hasElementAfterLine(line_id) == true && current_column <= x_click) {
+    line_id = tryToReachAbsColumn(line_id, line_id.absolute_column + 1);
+    int size = charPrintSize(getCharForLineIdentifier(line_id));
+    if (size <= 0) size = 1; // TODO handle non UTF_8 char.
+    current_column += size;
+    x_el++;
+  }
+
+  if (x_click > current_column)
+    x_el++;
+
+  return tryToReachAbsColumn(line_id, screen_x + x_el - 2);
 }
 
 void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) {
@@ -363,7 +419,7 @@ void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) 
 
 
     int column = screen_x;
-    while (end_screen_line_cur.absolute_column >= column) {
+    while (end_screen_line_cur.absolute_column >= screen_x && begin_screen_line_cur.absolute_column <= end_screen_line_cur.absolute_column && screen_x + COLS - 3 >= column) {
       // determine if the char is selected or not.
       bool selected_style = isCursorDisabled(select_cursor) == false
                             && isCursorBetweenOthers(cursorOf(file_cur, begin_screen_line_cur), select_cursor, cursor);
@@ -371,7 +427,16 @@ void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) 
       if (selected_style)
         attron(A_STANDOUT|A_DIM);
 
-      printChar_U8ToNcurses(getCharForLineIdentifier(begin_screen_line_cur));
+      Char_U8 ch = getCharForLineIdentifier(begin_screen_line_cur);
+
+      int size = charPrintSize(ch);
+      if (size != 1 && size != 2) {
+        printf("The file is not UTF_8 file detected !\r\n");
+        printf("Char with size : %d was found\n\r", size);
+        exit(0);
+      }
+
+      printChar_U8ToNcurses(ch);
 
       if (selected_style)
         attroff(A_STANDOUT|A_DIM);
@@ -379,7 +444,7 @@ void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) 
       // move to next column
       begin_screen_line_cur.relative_column++;
       begin_screen_line_cur.absolute_column++;
-      column++;
+      column += size;
     }
 
     // show empty line selected.
@@ -406,8 +471,16 @@ void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) 
   // Check if cursor is in the screen and print it.
   if (cursor.file_id.absolute_row >= screen_y && cursor.file_id.absolute_row < screen_y + LINES
       && cursor.line_id.absolute_column >= screen_x - 1 && cursor.line_id.absolute_column <= screen_x + COLS - 3) {
-    move(cursor.file_id.absolute_row - screen_y, cursor.line_id.absolute_column - screen_x + 1);
-    chgat(1, A_STANDOUT, 0, NULL);
+    int x = getScreenXForCursor(cursor, screen_x);
+    move(cursor.file_id.absolute_row - screen_y, x);
+
+    char size = 1;
+    if (hasElementAfterLine(cursor.line_id) == true) {
+      Cursor tmp = moveRight(cursor);
+      size = charPrintSize(getCharForLineIdentifier(tmp.line_id));
+    }
+
+    chgat(size, A_STANDOUT, 0, NULL);
   }
 }
 
@@ -419,14 +492,16 @@ Cursor createFile(int argc, char** args) {
   return initNewWrittableFile();
 }
 
-void fetchSavedCursorPosition(int argc, char** args, Cursor* cursor) {
+void fetchSavedCursorPosition(int argc, char** args, Cursor* cursor, int* screen_x, int* screen_y) {
   if (argc >= 2) {
     int loaded_row;
     int loaded_column;
 
-    getLastFilePosition(args[1], &loaded_row, &loaded_column);
+    getLastFilePosition(args[1], &loaded_row, &loaded_column, screen_x, screen_y);
 
     cursor->file_id = tryToReachAbsRow(cursor->file_id, loaded_row);
     cursor->line_id = tryToReachAbsColumn(moduloLineIdentifierR(getLineForFileIdentifier(cursor->file_id), 0), loaded_column);
+
+    // TODO may check for screen_x and screen_y to be not too far from code.
   }
 }

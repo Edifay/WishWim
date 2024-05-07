@@ -1,5 +1,12 @@
 #include "utf_8_extractor.h"
 
+#include <stdlib.h>
+#include <wchar.h>
+#include <__stddef_wchar_t.h>
+
+/* Unix call, use 'man wcwidth' to see explication. */
+int wcwidth(const wint_t wc);
+
 /**
  * Print the Char_U8 to the file.
  */
@@ -134,6 +141,13 @@ void testUnitUtf8Extractor() {
   printf("Char : ");
   printChar_U8(stdout, ch);
   printf("\n");
+}
+
+
+int charPrintSize(Char_U8 ch) {
+  wchar_t wc;
+  mbtowc(&wc, ch.t, 4);
+  return wcwidth(wc);
 }
 
 
