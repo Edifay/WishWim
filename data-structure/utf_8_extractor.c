@@ -145,6 +145,9 @@ void testUnitUtf8Extractor() {
 
 
 int charPrintSize(Char_U8 ch) {
+  if (sizeChar_U8(ch) == 1) // If char is ascii avoid convert and call wcwidth we can instant return size 1. Will not work with control char from ascii.
+    return 1;
+
   wchar_t wc;
   mbtowc(&wc, ch.t, 4);
   return wcwidth(wc);

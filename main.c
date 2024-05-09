@@ -15,7 +15,7 @@
 #define CTRL_KEY(k) ((k)&0x1f)
 #define SCROLL_SPEED 3
 
-Cursor createFile(int argc, char** args);
+Cursor createRoot(int argc, char** args);
 
 void printChar_U8ToNcurses(Char_U8 ch);
 
@@ -29,6 +29,8 @@ int getScreenXForCursor(Cursor cursor, int screen_x);
 
 LineIdentifier getLineIdForScreenX(LineIdentifier line_id, int screen_x, int x_click);
 
+void setDesiredColumn(Cursor cursor, int* desired_column);
+
 FileNode* root = NULL;
 
 /* Unix call, use 'man wcwidth' to see explication. */
@@ -36,15 +38,6 @@ int wcwidth(const wint_t wc);
 
 int main(int argc, char** args) {
   setlocale(LC_ALL, "");
-
-  Cursor cursor = createFile(argc, args);
-  root = cursor.file_id.file;
-  assert(root->prev == NULL);
-
-  int screen_x = 1;
-  int screen_y = 1;
-
-  Cursor select_cursor = disableCursor(cursor);
 
   initscr();
   raw();
@@ -56,8 +49,16 @@ int main(int argc, char** args) {
   printf("\033[?1003h"); // enable mouse tracking
   fflush(stdout);
 
+  Cursor cursor = createRoot(argc, args);
+
+  root = cursor.file_id.file;
+  assert(root->prev == NULL);
+
+  int screen_x = 1;
+  int screen_y = 1;
+
   fetchSavedCursorPosition(argc, args, &cursor, &screen_x, &screen_y);
-  // centerCursor(cursor, &screen_x, &screen_y);
+  Cursor select_cursor = disableCursor(cursor);
 
   printFile(cursor, select_cursor, screen_x, screen_y);
   refresh();
@@ -65,7 +66,7 @@ int main(int argc, char** args) {
   int desired_column = cursor.line_id.absolute_column; // Used on line change to try to reach column.
   Cursor old_cur = cursor;
   MEVENT m_event;
-  bool button1_pressed = false;
+  bool button1_down = false;
   while (true) {
     assert(checkFileIntegrity(root) == true);
 
@@ -84,13 +85,19 @@ int main(int argc, char** args) {
         if (getmouse(&m_event) == OK) {
           detectComplexEvents(&m_event);
 
+          // Avoid refreshing when it's just mouse movement with no change.
+          if (m_event.bstate == 268435456 /*No event state*/ && button1_down == false) {
+            continue;
+          }
+
           // ---------- CURSOR ACTION ------------
 
           if (m_event.bstate & BUTTON1_RELEASED) {
-            button1_pressed = false;
+            button1_down = false;
           }
 
-          if (button1_pressed) {
+          if (button1_down) {
+            setDesiredColumn(cursor, &desired_column);
             // printf("Drag detected !\n");
             FileIdentifier new_file_id = tryToReachAbsRow(cursor.file_id, screen_y + m_event.y);
             LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), screen_x, m_event.x);
@@ -105,11 +112,12 @@ int main(int argc, char** args) {
           }
 
           if (m_event.bstate & BUTTON1_PRESSED) {
+            setDesiredColumn(cursor, &desired_column);
             setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_RIGHT);
             FileIdentifier new_file_id = tryToReachAbsRow(cursor.file_id, screen_y + m_event.y);
             LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), screen_x, m_event.x);
             cursor = cursorOf(new_file_id, new_line_id);
-            button1_pressed = true;
+            button1_down = true;
           }
 
           if (m_event.bstate & BUTTON1_DOUBLE_CLICKED) {
@@ -147,11 +155,13 @@ int main(int argc, char** args) {
         if (isCursorDisabled(select_cursor))
           cursor = moveRight(cursor);
         setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_RIGHT);
+        setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_LEFT:
         if (isCursorDisabled(select_cursor))
           cursor = moveLeft(cursor);
         setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_LEFT);
+        setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_UP:
         cursor = moveUp(cursor, desired_column);
@@ -164,10 +174,12 @@ int main(int argc, char** args) {
       case KEY_MAJ_RIGHT:
         setSelectCursorOn(cursor, &select_cursor);
         cursor = moveRight(cursor);
+        setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_MAJ_LEFT:
         setSelectCursorOn(cursor, &select_cursor);
         cursor = moveLeft(cursor);
+        setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_MAJ_UP:
         setSelectCursorOn(cursor, &select_cursor);
@@ -178,12 +190,14 @@ int main(int argc, char** args) {
         cursor = moveDown(cursor, desired_column);
         break;
       case KEY_CTRL_RIGHT:
-        cursor = moveToNextWord(cursor);
         setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_RIGHT);
+        cursor = moveToNextWord(cursor);
+        setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_CTRL_LEFT:
-        cursor = moveToPreviousWord(cursor);
         setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_LEFT);
+        cursor = moveToPreviousWord(cursor);
+        setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_CTRL_DOWN:
         selectWord(&cursor, &select_cursor);
@@ -194,10 +208,12 @@ int main(int argc, char** args) {
       case KEY_CTRL_MAJ_RIGHT:
         setSelectCursorOn(cursor, &select_cursor);
         cursor = moveToNextWord(cursor);
+        setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_CTRL_MAJ_LEFT:
         setSelectCursorOn(cursor, &select_cursor);
         cursor = moveToPreviousWord(cursor);
+        setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_CTRL_MAJ_DOWN:
         // Do something with this.
@@ -238,35 +254,42 @@ int main(int argc, char** args) {
         setSelectCursorOn(cursor, &select_cursor);
         cursor = moveToNextWord(cursor);
         deleteSelection(&cursor, &select_cursor);
+        setDesiredColumn(cursor, &desired_column);
         break;
       case '\n':
       case KEY_ENTER:
         deleteSelection(&cursor, &select_cursor);
         cursor = insertNewLineInLineC(cursor);
+        setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_BACKSPACE:
         if (isCursorDisabled(select_cursor))
           cursor = deleteCharAtCursor(cursor);
         else
           deleteSelection(&cursor, &select_cursor);
+        setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_SUPPR:
         if (isCursorDisabled(select_cursor))
           cursor = supprCharAtCursor(cursor);
         else
           deleteSelection(&cursor, &select_cursor);
+        setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_TAB:
         deleteSelection(&cursor, &select_cursor);
         cursor = insertCharInLineC(cursor, readChar_U8FromInput(' '));
         cursor = insertCharInLineC(cursor, readChar_U8FromInput(' '));
+        setDesiredColumn(cursor, &desired_column);
         break;
       case CTRL_KEY('d'):
         if (isCursorDisabled(select_cursor))
           cursor = deleteLineAtCursor(cursor);
         else
           deleteSelection(&cursor, &select_cursor);
+        setDesiredColumn(cursor, &desired_column);
         break;
+
 
       default:
         // printf("%d\r\n", c);
@@ -280,6 +303,7 @@ int main(int argc, char** args) {
         else {
           deleteSelection(&cursor, &select_cursor);
           cursor = insertCharInLineC(cursor, readChar_U8FromInput(c));
+          setDesiredColumn(cursor, &desired_column);
         }
         break;
     }
@@ -336,21 +360,27 @@ void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) 
 
     int column = screen_x;
     while (end_screen_line_cur.absolute_column >= screen_x && begin_screen_line_cur.absolute_column <= end_screen_line_cur.absolute_column && screen_x + COLS - 3 >= column) {
+      Char_U8 ch = getCharForLineIdentifier(begin_screen_line_cur);
+
+      int size = charPrintSize(ch);
+      // If the char is detected as not printable char.
+      if (size == 0 || size == -1) {
+        ch = readChar_U8FromCharArray("�");
+        size = 1;
+      }
+
+      // If a char of size 2 is at the end of the line replace it by '_' to avoid line overflow.
+      if (size == 2 && screen_x + COLS - 4 < column) {
+        ch = readChar_U8FromCharArray("_");
+        size = 1;
+      }
+
       // determine if the char is selected or not.
       bool selected_style = isCursorDisabled(select_cursor) == false
                             && isCursorBetweenOthers(cursorOf(file_cur, begin_screen_line_cur), select_cursor, cursor);
 
       if (selected_style)
         attron(A_STANDOUT|A_DIM);
-
-      Char_U8 ch = getCharForLineIdentifier(begin_screen_line_cur);
-
-      int size = charPrintSize(ch);
-      if (size != 1 && size != 2) {
-        printf("The file is not UTF_8 file detected !\r\n");
-        printf("Char with size : %d was found\n\r", size);
-        exit(0);
-      }
 
       printChar_U8ToNcurses(ch);
 
@@ -364,7 +394,7 @@ void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) 
     }
 
     // show empty line selected.
-    if (begin_screen_line_cur.absolute_column == end_screen_line_cur.absolute_column && begin_screen_line_cur.line->element_number == 0) {
+    if (begin_screen_line_cur.absolute_column == end_screen_line_cur.absolute_column && hasElementAfterLine(end_screen_line_cur) == false) {
       if (isCursorDisabled(select_cursor) == false
           && isCursorBetweenOthers(cursorOf(file_cur, begin_screen_line_cur), select_cursor, cursor)) {
         // if line selected
@@ -384,7 +414,7 @@ void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) 
     printw("\n");
   }
 
-  // Check if cursor is in the screen and print it.
+  // Check if cursor is in the screen and print it if needed.
   if (cursor.file_id.absolute_row >= screen_y && cursor.file_id.absolute_row < screen_y + LINES
       && cursor.line_id.absolute_column >= screen_x - 1 && cursor.line_id.absolute_column <= screen_x + COLS - 3) {
     int x = getScreenXForCursor(cursor, screen_x);
@@ -392,6 +422,7 @@ void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) 
 
     char size = 1;
     if (hasElementAfterLine(cursor.line_id) == true) {
+      // Check the size of the the char which is under cursor.
       Cursor tmp = moveRight(cursor);
       size = charPrintSize(getCharForLineIdentifier(tmp.line_id));
     }
@@ -437,7 +468,7 @@ void centerCursorOnScreen(Cursor cursor, int* screen_x, int* screen_y) {
   moveScreenToMatchCursor(cursor, screen_x, screen_y);
 }
 
-Cursor createFile(int argc, char** args) {
+Cursor createRoot(int argc, char** args) {
   if (argc >= 2) {
     return initWrittableFileFromFile(args[1]);
   }
@@ -487,4 +518,8 @@ LineIdentifier getLineIdForScreenX(LineIdentifier line_id, int screen_x, int x_c
     x_el++;
 
   return tryToReachAbsColumn(line_id, screen_x + x_el - 2);
+}
+
+void setDesiredColumn(Cursor cursor, int* desired_column) {
+  *desired_column = cursor.line_id.absolute_column;
 }

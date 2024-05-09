@@ -1581,7 +1581,7 @@ Cursor insertNewLineInLineC(Cursor cursor) {
   return cursorOf(newFileIdForNewLine, newLineId);
 }
 
-#include "../utils/debug.h"
+
 /**
  *
  * Dumb implementation of concat.
