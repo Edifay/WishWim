@@ -541,6 +541,10 @@ bool hasElementAfterLine(LineIdentifier line_id) {
   return line_id.relative_column != line_id.line->element_number || isEmptyLine(line_id.line->next) == false;
 }
 
+bool hasElementBeforeLine(LineIdentifier line_id) {
+  return line_id.absolute_column != 0;
+}
+
 
 void printLineNode(LineNode* line) {
   for (int i = 0; i < line->element_number; i++) {
@@ -1265,6 +1269,10 @@ bool hasElementAfterFile(FileIdentifier file_id) {
   return file_id.relative_row != file_id.file->element_number || isEmptyFile(file_id.file->next) == false;
 }
 
+bool hasElementBeforeFile(FileIdentifier file_id) {
+  return file_id.absolute_row != 1;
+}
+
 FileIdentifier tryToReachAbsRow(FileIdentifier file_id, int abs_row) {
   if (file_id.absolute_row == abs_row) {
     return file_id;
@@ -1339,8 +1347,6 @@ void deleteFilePart(FileIdentifier file_id, int length) {
       }
     }
     else {
-
-
       // Need to delete a part of the node.
       int atDelete = min(length - current_removed, file_id.file->element_number - file_id.relative_row);
       for (int i = file_id.relative_row; i < file_id.relative_row + atDelete; i++) {

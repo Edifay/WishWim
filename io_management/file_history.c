@@ -74,3 +74,17 @@ unsigned long long hashFileName(char* fileName) {
 
   return value;
 }
+
+void fetchSavedCursorPosition(int argc, char** args, Cursor* cursor, int* screen_x, int* screen_y) {
+  if (argc >= 2) {
+    int loaded_row;
+    int loaded_column;
+
+    getLastFilePosition(args[1], &loaded_row, &loaded_column, screen_x, screen_y);
+
+    cursor->file_id = tryToReachAbsRow(cursor->file_id, loaded_row);
+    cursor->line_id = tryToReachAbsColumn(moduloLineIdentifierR(getLineForFileIdentifier(cursor->file_id), 0), loaded_column);
+
+    // TODO may check for screen_x and screen_y to be not too far from code.
+  }
+}

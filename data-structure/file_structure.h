@@ -161,6 +161,8 @@ bool isEmptyLine(LineNode* line);
 
 bool hasElementAfterLine(LineIdentifier line_id);
 
+bool hasElementBeforeLine(LineIdentifier line_id);
+
 void printLineNode(LineNode* line);
 
 LineIdentifier tryToReachAbsColumn(LineIdentifier line_id, int abs_column);
@@ -196,6 +198,8 @@ bool checkFileIntegrity(FileNode* file);
 bool isEmptyFile(FileNode* file);
 
 bool hasElementAfterFile(FileIdentifier file_id);
+
+bool hasElementBeforeFile(FileIdentifier file_id);
 
 FileIdentifier tryToReachAbsRow(FileIdentifier file_id, int row);
 

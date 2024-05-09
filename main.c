@@ -17,13 +17,13 @@
 
 Cursor createFile(int argc, char** args);
 
+void printChar_U8ToNcurses(Char_U8 ch);
+
 void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y);
 
 void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y);
 
-void centerCursor(Cursor cursor, int* screen_x, int* screen_y);
-
-void fetchSavedCursorPosition(int argc, char** args, Cursor* cursor, int* screen_x, int* screen_y);
+void centerCursorOnScreen(Cursor cursor, int* screen_x, int* screen_y);
 
 int getScreenXForCursor(Cursor cursor, int screen_x);
 
@@ -62,6 +62,7 @@ int main(int argc, char** args) {
   printFile(cursor, select_cursor, screen_x, screen_y);
   refresh();
 
+  int desired_column = cursor.line_id.absolute_column; // Used on line change to try to reach column.
   Cursor old_cur = cursor;
   MEVENT m_event;
   bool button1_pressed = false;
@@ -104,19 +105,15 @@ int main(int argc, char** args) {
           }
 
           if (m_event.bstate & BUTTON1_PRESSED) {
+            setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_RIGHT);
             FileIdentifier new_file_id = tryToReachAbsRow(cursor.file_id, screen_y + m_event.y);
             LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), screen_x, m_event.x);
             cursor = cursorOf(new_file_id, new_line_id);
             button1_pressed = true;
-            setSelectCursorOff(&select_cursor);
           }
 
           if (m_event.bstate & BUTTON1_DOUBLE_CLICKED) {
-            if (cursor.line_id.absolute_column != 0 && isInvisible(getCharForLineIdentifier(cursor.line_id)) == false) {
-              cursor = moveToPreviousWord(cursor);
-            }
-            setSelectCursorOn(cursor, &select_cursor);
-            cursor = moveToNextWord(cursor);
+            selectWord(&cursor, &select_cursor);
           }
 
 
@@ -147,20 +144,22 @@ int main(int argc, char** args) {
 
 
       case KEY_RIGHT:
-        cursor = moveRight(cursor);
-        setSelectCursorOff(&select_cursor);
+        if (isCursorDisabled(select_cursor))
+          cursor = moveRight(cursor);
+        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_RIGHT);
         break;
       case KEY_LEFT:
-        cursor = moveLeft(cursor);
-        setSelectCursorOff(&select_cursor);
+        if (isCursorDisabled(select_cursor))
+          cursor = moveLeft(cursor);
+        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_LEFT);
         break;
       case KEY_UP:
-        cursor = moveUp(cursor);
-        setSelectCursorOff(&select_cursor);
+        cursor = moveUp(cursor, desired_column);
+        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_LEFT);
         break;
       case KEY_DOWN:
-        cursor = moveDown(cursor);
-        setSelectCursorOff(&select_cursor);
+        cursor = moveDown(cursor, desired_column);
+        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_RIGHT);
         break;
       case KEY_MAJ_RIGHT:
         setSelectCursorOn(cursor, &select_cursor);
@@ -172,25 +171,25 @@ int main(int argc, char** args) {
         break;
       case KEY_MAJ_UP:
         setSelectCursorOn(cursor, &select_cursor);
-        cursor = moveUp(cursor);
+        cursor = moveUp(cursor, desired_column);
         break;
       case KEY_MAJ_DOWN:
         setSelectCursorOn(cursor, &select_cursor);
-        cursor = moveDown(cursor);
+        cursor = moveDown(cursor, desired_column);
         break;
       case KEY_CTRL_RIGHT:
         cursor = moveToNextWord(cursor);
-        setSelectCursorOff(&select_cursor);
+        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_RIGHT);
         break;
       case KEY_CTRL_LEFT:
         cursor = moveToPreviousWord(cursor);
-        setSelectCursorOff(&select_cursor);
+        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_LEFT);
         break;
       case KEY_CTRL_DOWN:
-        // Do something with this.
+        selectWord(&cursor, &select_cursor);
         break;
       case KEY_CTRL_UP:
-        // Do something with this.
+        selectWord(&cursor, &select_cursor);
         break;
       case KEY_CTRL_MAJ_RIGHT:
         setSelectCursorOn(cursor, &select_cursor);
@@ -296,12 +295,12 @@ int main(int argc, char** args) {
 
 end:
 
+  printf("\033[?1003l\n"); // Disable mouse movement events, as l = low
+  fflush(stdout);
+
   if (argc >= 2) {
     setlastFilePosition(args[1], cursor.file_id.absolute_row, cursor.line_id.absolute_column, screen_x, screen_y);
   }
-
-  printf("\033[?1003l\n"); // Disable mouse movement events, as l = low
-  fflush(stdout);
 
   endwin();
   destroyFullFile(root);
@@ -313,89 +312,6 @@ void printChar_U8ToNcurses(Char_U8 ch) {
   for (int i = 0; i < size; i++) {
     printw("%c", ch.t[i]);
   }
-}
-
-void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y) {
-  if (cursor.file_id.absolute_row - (*screen_y + LINES) + 1 >= 0) {
-    *screen_y = cursor.file_id.absolute_row - LINES + 2;
-    if (*screen_y < 1) *screen_y = 1;
-  }
-  else if (cursor.file_id.absolute_row < *screen_y + 1) {
-    *screen_y = cursor.file_id.absolute_row - 1;
-    if (*screen_y < 1) *screen_y = 1;
-  }
-
-  int screen_x_wide_char = getScreenXForCursor(cursor, *screen_x) + *screen_x;
-  if (screen_x_wide_char - (*screen_x + COLS - 8) >= 0) {
-    *screen_x = screen_x_wide_char - COLS + 8;
-    //*screen_x += 1;
-    if (*screen_x < 1) *screen_x = 1;
-  }
-  else if (screen_x_wide_char - 5 < *screen_x) {
-    *screen_x = screen_x_wide_char - 5;
-    if (*screen_x < 1) {
-      *screen_x = 1;
-    }
-  }
-}
-
-void centerCursor(Cursor cursor, int* screen_x, int* screen_y) {
-  // center for y, but right for x.
-  *screen_x = cursor.line_id.absolute_column - (COLS /*/ 2*/);
-  *screen_y = cursor.file_id.absolute_row - (LINES / 2);
-
-  if (*screen_x < 1)
-    *screen_x = 1;
-  if (*screen_y < 1)
-    *screen_y = 1;
-
-  // To match right for x.
-  moveScreenToMatchCursor(cursor, screen_x, screen_y);
-}
-
-
-int getScreenXForCursor(Cursor cursor, int screen_x) {
-  Cursor initial = cursor;
-  Cursor old_cursor = cursor;
-  int atAdd = 0;
-
-  if (cursor.line_id.absolute_column != 0 && charPrintSize(getCharForLineIdentifier(cursor.line_id)) == 2) {
-    atAdd++;
-  }
-  cursor = moveLeft(cursor);
-
-
-  while (screen_x <= cursor.line_id.absolute_column && areCursorEqual(cursor, old_cursor) == false && cursor.file_id.absolute_row == old_cursor.file_id.absolute_row) {
-    assert(cursor.line_id.absolute_column != 0);
-    if (charPrintSize(getCharForLineIdentifier(cursor.line_id)) == 2) {
-      atAdd++;
-    }
-
-    old_cursor = cursor;
-    cursor = moveLeft(cursor);
-  }
-
-  return initial.line_id.absolute_column - screen_x + 1 + atAdd;
-}
-
-LineIdentifier getLineIdForScreenX(LineIdentifier line_id, int screen_x, int x_click) {
-  line_id = tryToReachAbsColumn(line_id, screen_x - 1);
-
-  int current_column = 0;
-  int x_el = 0;
-
-  while (hasElementAfterLine(line_id) == true && current_column <= x_click) {
-    line_id = tryToReachAbsColumn(line_id, line_id.absolute_column + 1);
-    int size = charPrintSize(getCharForLineIdentifier(line_id));
-    if (size <= 0) size = 1; // TODO handle non UTF_8 char.
-    current_column += size;
-    x_el++;
-  }
-
-  if (x_click > current_column)
-    x_el++;
-
-  return tryToReachAbsColumn(line_id, screen_x + x_el - 2);
 }
 
 void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) {
@@ -484,6 +400,42 @@ void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) 
   }
 }
 
+void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y) {
+  if (cursor.file_id.absolute_row - (*screen_y + LINES) + 1 >= 0) {
+    *screen_y = cursor.file_id.absolute_row - LINES + 2;
+    if (*screen_y < 1) *screen_y = 1;
+  }
+  else if (cursor.file_id.absolute_row < *screen_y + 1) {
+    *screen_y = cursor.file_id.absolute_row - 1;
+    if (*screen_y < 1) *screen_y = 1;
+  }
+
+  int screen_x_wide_char = getScreenXForCursor(cursor, *screen_x) + *screen_x;
+  if (screen_x_wide_char - (*screen_x + COLS - 8) >= 0) {
+    *screen_x = screen_x_wide_char - COLS + 8;
+    if (*screen_x < 1) *screen_x = 1;
+  }
+  else if (screen_x_wide_char - 5 < *screen_x) {
+    *screen_x = screen_x_wide_char - 5;
+    if (*screen_x < 1) {
+      *screen_x = 1;
+    }
+  }
+}
+
+void centerCursorOnScreen(Cursor cursor, int* screen_x, int* screen_y) {
+  // center for y, but right for x.
+  *screen_x = cursor.line_id.absolute_column - (COLS /*/ 2*/);
+  *screen_y = cursor.file_id.absolute_row - (LINES / 2);
+
+  if (*screen_x < 1)
+    *screen_x = 1;
+  if (*screen_y < 1)
+    *screen_y = 1;
+
+  // To match right for x.
+  moveScreenToMatchCursor(cursor, screen_x, screen_y);
+}
 
 Cursor createFile(int argc, char** args) {
   if (argc >= 2) {
@@ -492,16 +444,47 @@ Cursor createFile(int argc, char** args) {
   return initNewWrittableFile();
 }
 
-void fetchSavedCursorPosition(int argc, char** args, Cursor* cursor, int* screen_x, int* screen_y) {
-  if (argc >= 2) {
-    int loaded_row;
-    int loaded_column;
 
-    getLastFilePosition(args[1], &loaded_row, &loaded_column, screen_x, screen_y);
+int getScreenXForCursor(Cursor cursor, int screen_x) {
+  Cursor initial = cursor;
+  Cursor old_cursor = cursor;
+  int atAdd = 0;
 
-    cursor->file_id = tryToReachAbsRow(cursor->file_id, loaded_row);
-    cursor->line_id = tryToReachAbsColumn(moduloLineIdentifierR(getLineForFileIdentifier(cursor->file_id), 0), loaded_column);
-
-    // TODO may check for screen_x and screen_y to be not too far from code.
+  if (cursor.line_id.absolute_column != 0 && charPrintSize(getCharForLineIdentifier(cursor.line_id)) == 2) {
+    atAdd++;
   }
+  cursor = moveLeft(cursor);
+
+
+  while (screen_x <= cursor.line_id.absolute_column && areCursorEqual(cursor, old_cursor) == false && cursor.file_id.absolute_row == old_cursor.file_id.absolute_row) {
+    assert(cursor.line_id.absolute_column != 0);
+    if (charPrintSize(getCharForLineIdentifier(cursor.line_id)) == 2) {
+      atAdd++;
+    }
+
+    old_cursor = cursor;
+    cursor = moveLeft(cursor);
+  }
+
+  return initial.line_id.absolute_column - screen_x + 1 + atAdd;
+}
+
+LineIdentifier getLineIdForScreenX(LineIdentifier line_id, int screen_x, int x_click) {
+  line_id = tryToReachAbsColumn(line_id, screen_x - 1);
+
+  int current_column = 0;
+  int x_el = 0;
+
+  while (hasElementAfterLine(line_id) == true && current_column <= x_click) {
+    line_id = tryToReachAbsColumn(line_id, line_id.absolute_column + 1);
+    int size = charPrintSize(getCharForLineIdentifier(line_id));
+    if (size <= 0) size = 1; // TODO handle non UTF_8 char.
+    current_column += size;
+    x_el++;
+  }
+
+  if (x_click >= current_column)
+    x_el++;
+
+  return tryToReachAbsColumn(line_id, screen_x + x_el - 2);
 }

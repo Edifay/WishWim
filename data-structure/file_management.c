@@ -8,63 +8,54 @@
 //// -------------- CURSOR MANAGEMENT --------------
 
 Cursor moveRight(Cursor cursor) {
-  if (
-    cursor.line_id.line->element_number != cursor.line_id.relative_column
-    || isEmptyLine(cursor.line_id.line->next) ==
-    false) {
+  if (hasElementAfterLine(cursor.line_id)) {
     cursor.line_id.relative_column++;
     cursor.line_id.absolute_column++;
     cursor = moduloCursor(cursor);
   }
-  else if (cursor.line_id.line->element_number == cursor.line_id.relative_column && isEmptyLine(
-             cursor.line_id.line->next) == true) {
-    if (cursor.file_id.file->element_number != cursor.file_id.relative_row || isEmptyFile(cursor.file_id.file->next) ==
-        false) {
-      cursor.file_id.relative_row++;
-      cursor.file_id.absolute_row++;
-      cursor = cursorOf(cursor.file_id, moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), 0));
-    }
+  else if (hasElementAfterFile(cursor.file_id)) {
+    // If cursor is at the end of the line try to go on next line.
+    cursor.file_id.relative_row++;
+    cursor.file_id.absolute_row++;
+    cursor = cursorOf(cursor.file_id, moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), 0));
   }
+
   return cursor;
 }
 
 Cursor moveLeft(Cursor cursor) {
-  if (cursor.line_id.relative_column != 0) {
+  if (hasElementBeforeLine(cursor.line_id)) {
     cursor.line_id.relative_column--;
     cursor.line_id.absolute_column--;
     cursor = moduloCursor(cursor);
   }
-  else {
-    if (cursor.file_id.file->prev != NULL || cursor.file_id.relative_row != 1) {
-      cursor.file_id.relative_row--;
-      cursor.file_id.absolute_row--;
-      cursor = cursorOf(cursor.file_id,
-                        moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id),
-                                              sizeLineNode(getLineForFileIdentifier(cursor.file_id))));
-    }
-  }
-  return cursor;
-}
-
-Cursor moveUp(Cursor cursor) {
-  if (cursor.file_id.file->prev != NULL || cursor.file_id.relative_row != 1) {
+  else if (hasElementBeforeFile(cursor.file_id)) {
+    // If the cursor is at the begin of the line try to reach previous line.
     cursor.file_id.relative_row--;
     cursor.file_id.absolute_row--;
-    int col = min(sizeLineNode(getLineForFileIdentifier(cursor.file_id)), getAbsoluteLineIndex(cursor.line_id));
-    cursor = cursorOf(cursor.file_id, moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), col));
+    cursor = cursorOf(cursor.file_id, moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), sizeLineNode(getLineForFileIdentifier(cursor.file_id))));
   }
+
   return cursor;
 }
 
-Cursor moveDown(Cursor cursor) {
-  if (cursor.file_id.relative_row != cursor.file_id.file->element_number || isEmptyFile(
-        cursor.file_id.file->next) == false) {
+Cursor moveUp(Cursor cursor, int desiredColumn) {
+  if (hasElementBeforeFile(cursor.file_id)) {
+    cursor.file_id.relative_row--;
+    cursor.file_id.absolute_row--;
+    cursor = cursorOf(cursor.file_id, tryToReachAbsColumn(moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), 0), desiredColumn));
+  }
+
+  return cursor;
+}
+
+Cursor moveDown(Cursor cursor, int desiredColumn) {
+  if (hasElementAfterFile(cursor.file_id)) {
     cursor.file_id.relative_row++;
     cursor.file_id.absolute_row++;
-    int col = min(sizeLineNode(getLineForFileIdentifier(cursor.file_id)), getAbsoluteLineIndex(cursor.line_id));
-    cursor.line_id = moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), col);
-    cursor = moduloCursor(cursor);
+    cursor = cursorOf(cursor.file_id, tryToReachAbsColumn(moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), 0), desiredColumn));
   }
+
   return cursor;
 }
 
@@ -104,8 +95,7 @@ Cursor deleteLineAtCursor(Cursor cursor) {
 
 Cursor skipRightInvisibleChar(Cursor cursor) {
   Cursor tmp_cur;
-  while (hasElementAfterLine(cursor.line_id) && isInvisible(
-           getCharForLineIdentifier((tmp_cur = moveRight(cursor)).line_id))) {
+  while (hasElementAfterLine(cursor.line_id) && isInvisible(getCharForLineIdentifier((tmp_cur = moveRight(cursor)).line_id))) {
     cursor = tmp_cur;
   }
 
@@ -224,8 +214,32 @@ void setSelectCursorOn(Cursor cursor, Cursor* select_cursor) {
   }
 }
 
-void setSelectCursorOff(Cursor* select_cursor) {
+void setSelectCursorOff(Cursor* cursor, Cursor* select_cursor, SELECT_OFF_STYLE style) {
+  if (isCursorDisabled(*select_cursor) == true)
+    return;
+
+
+  if (style == SELECT_OFF_RIGHT && isCursorPreviousThanOther(*cursor, *select_cursor)) {
+    Cursor tmp = *cursor;
+    *cursor = *select_cursor;
+    *select_cursor = tmp;
+  }
+  else if (style == SELECT_OFF_LEFT && isCursorPreviousThanOther(*select_cursor, *cursor)) {
+    Cursor tmp = *cursor;
+    *cursor = *select_cursor;
+    *select_cursor = tmp;
+  }
+
   *select_cursor = disableCursor(*select_cursor);
+}
+
+
+void selectWord(Cursor* cursor, Cursor* select_cursor) {
+  if (cursor->line_id.absolute_column != 0 && isAWordLetter(getCharForLineIdentifier(cursor->line_id)) == true) {
+    *cursor = moveToPreviousWord(*cursor);
+  }
+  setSelectCursorOn(*cursor, select_cursor);
+  *cursor = moveToNextWord(*cursor);
 }
 
 void deleteSelection(Cursor* cursor, Cursor* select_cursor) {

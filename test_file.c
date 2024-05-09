@@ -291,13 +291,13 @@ int main(int argc, char** args) {
           else if (c == 'A') {
             // move up
             initNewWrite();
-            cursor = moveUp(cursor);
+            cursor = moveUp(cursor, cursor.line_id.absolute_column);
             printFile(root, cursor, SEPARATOR);
           }
           else if (c == 'B') {
             // move down
             initNewWrite();
-            cursor = moveDown(cursor);
+            cursor = moveDown(cursor, cursor.line_id.absolute_column);
             printFile(root, cursor, SEPARATOR);
           }
           else if (c == 'F') {

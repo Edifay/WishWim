@@ -4,12 +4,18 @@
 #include "file_structure.h"
 
 
+typedef enum {
+  SELECT_OFF_RIGHT,
+  SELECT_OFF_LEFT
+} SELECT_OFF_STYLE;
+
+
 ////// -------------- CURSOR ACTIONS --------------
 
 Cursor moveRight(Cursor cursor);
 Cursor moveLeft(Cursor cursor);
-Cursor moveUp(Cursor cursor);
-Cursor moveDown(Cursor cursor);
+Cursor moveUp(Cursor cursor, int desiredColumn);
+Cursor moveDown(Cursor cursor, int desiredColumn);
 
 Cursor deleteCharAtCursor(Cursor cursor);
 Cursor supprCharAtCursor(Cursor cursor);
@@ -33,8 +39,10 @@ bool isCursorDisabled(Cursor cursor);
 Cursor disableCursor(Cursor cursor);
 
 void setSelectCursorOn(Cursor cursor, Cursor* select_cursor);
-void setSelectCursorOff(Cursor* select_cursor);
+void setSelectCursorOff(Cursor* cursor, Cursor* select_cursor, SELECT_OFF_STYLE style);
 
-void deleteSelection(Cursor* cursor, Cursor* seleelect_cursor);
+void selectWord(Cursor* cursor, Cursor* select_cursor);
+
+void deleteSelection(Cursor* cursor, Cursor* select_cursor);
 
 #endif //FILE_MANAGEMENT_H
