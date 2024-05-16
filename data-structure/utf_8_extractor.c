@@ -109,6 +109,28 @@ Char_U8 readChar_U8FromCharArray(char* array) {
   return ch;
 }
 
+
+/**
+ * Return the first Char_U8 of char* starting with c.
+ */
+Char_U8 readChar_U8FromCharArrayWithFirst(char* array, char c) {
+  // TODO becareful, wrong formed arrays may produce seg fault.
+  Char_U8 ch;
+  ch.t[0] = c;
+  int size = sizeChar_U8(ch);
+
+  for (char i = 1; i < size; i++) {
+    // scan end of the char
+    ch.t[i] = array[i];
+  }
+
+  for (char i = size; i < 4; i++) {
+    // optional, fill the rest of the Char_U8 with 0
+    ch.t[i] = 0;
+  }
+  return ch;
+}
+
 /**
  * Print in the file the bits.
  */

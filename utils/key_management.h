@@ -4,7 +4,6 @@
 
 #endif //KEY_MANAGEMENT_H
 
-typedef long long time_val;
 
 #define TIME_BETWEEN_EVENT 200 /*ms*/
 

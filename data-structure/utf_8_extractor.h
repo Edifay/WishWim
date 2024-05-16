@@ -26,7 +26,7 @@ Char_U8 readChar_U8FromFile(FILE* f);
 /**
  * Return the first Char_U8 from FILE with first c.
  */
-Char_U8 readChar_U8FromFileWithFirst(FILE *f, char c);
+Char_U8 readChar_U8FromFileWithFirst(FILE* f, char c);
 
 
 /**
@@ -38,6 +38,12 @@ Char_U8 readChar_U8FromInput(char c);
  * Return the first Char_U8 of char*.
  */
 Char_U8 readChar_U8FromCharArray(char* ch);
+
+/**
+ * Return the first Char_U8 of char* with first c.
+ */
+Char_U8 readChar_U8FromCharArrayWithFirst(char* array, char c);
+
 
 /**
  * Print in the file the bits.

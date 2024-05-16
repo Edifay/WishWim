@@ -1,8 +1,8 @@
-#include "key_management.h"
 
 #include <ncurses.h>
-#include <unistd.h>
-#include <sys/time.h>
+
+#include "key_management.h"
+#include "tools.h"
 
 time_val lastPress = 0;
 int last_press_x = 0;
@@ -13,19 +13,7 @@ time_val lastClick = 0;
 int last_clicked_x = 0;
 int last_clicked_y = 0;
 
-time_val timeInMilliseconds(void) {
-  struct timeval tv;
 
-  gettimeofday(&tv,NULL);
-  return (((time_val)tv.tv_sec) * 1000) + (tv.tv_usec / 1000);
-}
-
-time_val diff2Time(time_val start, time_val end) {
-  time_val diff = start - end;
-  if (diff < 0)
-    return -diff;
-  return diff;
-}
 
 void detectComplexEvents(MEVENT* event) {
   time_val current_time = timeInMilliseconds();

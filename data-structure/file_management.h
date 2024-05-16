@@ -28,13 +28,18 @@ Cursor skipLeftInvisibleChar(Cursor cursor);
 Cursor moveToNextWord(Cursor cursor);
 Cursor moveToPreviousWord(Cursor cursor);
 
+Cursor insertCharArrayAtCursor(Cursor cursor, char* chs) ;
+
 ////// -------------- SELECTION MANAGEMENT --------------
 
 
 bool isCursorPreviousThanOther(Cursor cursor, Cursor other);
+bool isCursorStrictPreviousThanOther(Cursor cursor, Cursor other);
 bool isCursorBetweenOthers(Cursor cursor, Cursor cur1, Cursor cur2);
 bool areCursorEqual(Cursor cur1, Cursor cur2);
 bool isCursorDisabled(Cursor cursor);
+
+int charBetween2Curso(Cursor cur1, Cursor cur2);
 
 Cursor disableCursor(Cursor cursor);
 

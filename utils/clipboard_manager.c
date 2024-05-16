@@ -68,8 +68,7 @@ Cursor loadFromClipBoard(Cursor cursor) {
     return cursor;
   }
 
-  FileNode* root = cursor.file_id.file;
-
+  // Duplicated search in project DUP_SCAN.
   char c;
   while (fscanf(f, "%c", &c) != EOF) {
 #ifdef LOGS

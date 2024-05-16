@@ -1,6 +1,7 @@
 #include "file_management.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <limits.h>
 #include <stdlib.h>
 #include "../utils/tools.h"
@@ -159,6 +160,55 @@ Cursor moveToPreviousWord(Cursor cursor) {
   return cursor;
 }
 
+Cursor insertCharArrayAtCursor(Cursor cursor, char* chs) {
+  // Duplicated search in project DUP_SCAN.
+
+  int index = 0;
+
+  char c;
+  while ((c = chs[index++]) != '\0') {
+#ifdef LOGS
+    assert(checkFileIntegrity(root) == true);
+#endif
+    if (iscntrl(c)) {
+      if (c == '\n') {
+#ifdef LOGS
+        printf("Enter\r\n");
+#endif
+        cursor = insertNewLineInLineC(cursor);
+      }
+      else if (c == 9) {
+#ifdef LOGS
+        printf("Tab\r\n");
+#endif
+        Char_U8 ch;
+        ch.t[0] = ' ';
+        for (int i = 0; i < 4; i++) {
+          cursor = insertCharInLineC(cursor, ch);
+        }
+      }
+      else {
+#ifdef LOGS
+        printf("Unsupported Char loaded from file : '%d'.\r\n", c);
+#endif
+        // exit(0);
+      }
+    }
+    else {
+      Char_U8 ch = readChar_U8FromCharArrayWithFirst(chs + index -1 , c);
+      index += sizeChar_U8(ch) - 1;
+#ifdef LOGS
+      printChar_U8(stdout, ch);
+      printf("\r\n");
+#endif
+      cursor = insertCharInLineC(cursor, ch);
+    }
+  }
+
+
+  return cursor;
+}
+
 ////// -------------- SELECTION MANAGEMENT --------------
 
 bool isCursorPreviousThanOther(Cursor cursor, Cursor other) {
@@ -169,6 +219,16 @@ bool isCursorPreviousThanOther(Cursor cursor, Cursor other) {
   assert(cursor.file_id.absolute_row == other.file_id.absolute_row);
 
   return cursor.line_id.absolute_column <= other.line_id.absolute_column;
+}
+
+bool isCursorStrictPreviousThanOther(Cursor cursor, Cursor other) {
+  if (cursor.file_id.absolute_row < other.file_id.absolute_row)
+    return true;
+  if (cursor.file_id.absolute_row > other.file_id.absolute_row)
+    return false;
+  assert(cursor.file_id.absolute_row == other.file_id.absolute_row);
+
+  return cursor.line_id.absolute_column < other.line_id.absolute_column;
 }
 
 bool isCursorBetweenOthers(Cursor cursor, Cursor cur1, Cursor cur2) {
@@ -201,6 +261,15 @@ bool areCursorEqual(Cursor cur1, Cursor cur2) {
 
 bool isCursorDisabled(Cursor cursor) {
   return cursor.file_id.absolute_row == -1;
+}
+
+int charBetween2Curso(Cursor cur1, Cursor cur2) {
+  int count = 0;
+  while (isCursorPreviousThanOther(cur1, cur2)) {
+    cur1 = moveRight(cur1);
+    count++;
+  }
+  return count;
 }
 
 Cursor disableCursor(Cursor cursor) {

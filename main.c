@@ -7,6 +7,7 @@
 
 #include "data-structure/file_management.h"
 #include "data-structure/file_structure.h"
+#include "data-structure/state_control.h"
 #include "io_management/file_history.h"
 #include "io_management/file_manager.h"
 #include "utils/clipboard_manager.h"
@@ -63,8 +64,13 @@ int main(int argc, char** args) {
   printFile(cursor, select_cursor, screen_x, screen_y);
   refresh();
 
+  History history_root;
+  History* history_frame = &history_root;
+  initHistory(history_frame);
+
   int desired_column = cursor.line_id.absolute_column; // Used on line change to try to reach column.
   Cursor old_cur = cursor;
+  Cursor tmp = cursor;
   MEVENT m_event;
   bool button1_down = false;
   while (true) {
@@ -97,7 +103,6 @@ int main(int argc, char** args) {
           }
 
           if (button1_down) {
-            setDesiredColumn(cursor, &desired_column);
             // printf("Drag detected !\n");
             FileIdentifier new_file_id = tryToReachAbsRow(cursor.file_id, screen_y + m_event.y);
             LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), screen_x, m_event.x);
@@ -109,14 +114,15 @@ int main(int argc, char** args) {
               select_cursor = cursor;
               cursor = cursorOf(new_file_id, new_line_id);
             }
+            setDesiredColumn(cursor, &desired_column);
           }
 
           if (m_event.bstate & BUTTON1_PRESSED) {
-            setDesiredColumn(cursor, &desired_column);
             setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_RIGHT);
             FileIdentifier new_file_id = tryToReachAbsRow(cursor.file_id, screen_y + m_event.y);
             LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), screen_x, m_event.x);
             cursor = cursorOf(new_file_id, new_line_id);
+            setDesiredColumn(cursor, &desired_column);
             button1_down = true;
           }
 
@@ -224,16 +230,31 @@ int main(int argc, char** args) {
 
       // ---------------------- FILE MANAGEMENT ----------------------
 
+      case CTRL_KEY('z'):
+        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_LEFT);
+        cursor = undo(&history_frame, cursor);
+        setDesiredColumn(cursor, &desired_column);
+        break;
       case CTRL_KEY('c'):
         saveToClipBoard(cursor, select_cursor);
         break;
       case CTRL_KEY('x'):
         saveToClipBoard(cursor, select_cursor);
-        deleteSelection(&cursor, &select_cursor);
+        if (isCursorDisabled(select_cursor) == false) {
+          history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
+          deleteSelection(&cursor, &select_cursor);
+        }
+        setDesiredColumn(cursor, &desired_column);
         break;
       case CTRL_KEY('v'):
-        deleteSelection(&cursor, &select_cursor);
+        if (isCursorDisabled(select_cursor) == false) {
+          history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
+          deleteSelection(&cursor, &select_cursor);
+        }
+        tmp = cursor;
         cursor = loadFromClipBoard(cursor);
+        history_frame = saveAction(history_frame, createInsertAction(cursor, tmp));
+        setDesiredColumn(cursor, &desired_column);
         break;
       case CTRL_KEY('q'):
         goto end;
@@ -253,40 +274,76 @@ int main(int argc, char** args) {
         cursor = moveToPreviousWord(cursor);
         setSelectCursorOn(cursor, &select_cursor);
         cursor = moveToNextWord(cursor);
+        history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
         deleteSelection(&cursor, &select_cursor);
         setDesiredColumn(cursor, &desired_column);
         break;
       case '\n':
       case KEY_ENTER:
-        deleteSelection(&cursor, &select_cursor);
+        if (isCursorDisabled(select_cursor) == false) {
+          history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
+          deleteSelection(&cursor, &select_cursor);
+        }
+        tmp = cursor;
         cursor = insertNewLineInLineC(cursor);
+        history_frame = saveAction(history_frame, createInsertAction(tmp, cursor));
         setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_BACKSPACE:
-        if (isCursorDisabled(select_cursor))
+        if (isCursorDisabled(select_cursor)) {
+          history_frame = saveAction(history_frame, createDeleteAction(moveLeft(cursor), cursor));
           cursor = deleteCharAtCursor(cursor);
-        else
+        }
+        else {
+          history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
           deleteSelection(&cursor, &select_cursor);
+        }
         setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_SUPPR:
-        if (isCursorDisabled(select_cursor))
+        if (isCursorDisabled(select_cursor)) {
+          history_frame = saveAction(history_frame, createDeleteAction(cursor, moveRight(cursor)));
           cursor = supprCharAtCursor(cursor);
-        else
+        }
+        else {
+          history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
           deleteSelection(&cursor, &select_cursor);
+        }
         setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_TAB:
-        deleteSelection(&cursor, &select_cursor);
+        if (isCursorDisabled(select_cursor) == false) {
+          history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
+          deleteSelection(&cursor, &select_cursor);
+        }
+        tmp = cursor;
         cursor = insertCharInLineC(cursor, readChar_U8FromInput(' '));
         cursor = insertCharInLineC(cursor, readChar_U8FromInput(' '));
+        history_frame = saveAction(history_frame, createInsertAction(tmp, cursor));
         setDesiredColumn(cursor, &desired_column);
         break;
       case CTRL_KEY('d'):
-        if (isCursorDisabled(select_cursor))
+        if (isCursorDisabled(select_cursor) == true) {
+          // TODO history not working.
+          history_frame = saveAction(history_frame,
+                                     createDeleteAction(
+                                       cursorOf(
+                                         cursor.file_id,
+                                         moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), 0)
+                                       )
+                                       ,
+                                       cursorOf(
+                                         cursor.file_id,
+                                         getLastLineNode(getLineForFileIdentifier(cursor.file_id))
+                                       )
+                                     )
+          );
           cursor = deleteLineAtCursor(cursor);
-        else
+        }
+        else {
+          history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
           deleteSelection(&cursor, &select_cursor);
+        }
         setDesiredColumn(cursor, &desired_column);
         break;
 
@@ -301,9 +358,13 @@ int main(int argc, char** args) {
           goto end;
         }
         else {
-          deleteSelection(&cursor, &select_cursor);
+          if (isCursorDisabled(select_cursor) == false) {
+            history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
+            deleteSelection(&cursor, &select_cursor);
+          }
           cursor = insertCharInLineC(cursor, readChar_U8FromInput(c));
           setDesiredColumn(cursor, &desired_column);
+          history_frame = saveAction(history_frame, createInsertAction(old_cur, cursor));
         }
         break;
     }
@@ -328,6 +389,7 @@ end:
 
   endwin();
   destroyFullFile(root);
+  destroyEndOfHistory(&history_root);
   return 0;
 }
 

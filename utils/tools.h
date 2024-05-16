@@ -5,6 +5,12 @@
 #ifndef TOOLS_H
 #define TOOLS_H
 
+typedef long long time_val;
+
+time_val timeInMilliseconds(void);
+
+time_val diff2Time(time_val start, time_val end);
+
 int min(int a, int b);
 
 #endif //TOOLS_H
