@@ -2,6 +2,7 @@
 #define FILE_MANAGEMENT_H
 
 #include "file_structure.h"
+#include "state_control.h"
 
 
 typedef enum {
@@ -47,7 +48,11 @@ void setSelectCursorOn(Cursor cursor, Cursor* select_cursor);
 void setSelectCursorOff(Cursor* cursor, Cursor* select_cursor, SELECT_OFF_STYLE style);
 
 void selectWord(Cursor* cursor, Cursor* select_cursor);
+void selectLine(Cursor *cursor, Cursor *select_cursor);
 
 void deleteSelection(Cursor* cursor, Cursor* select_cursor);
+
+void deleteSelectionWithHist(History **history_p, Cursor* cursor, Cursor* select_cursor);
+
 
 #endif //FILE_MANAGEMENT_H

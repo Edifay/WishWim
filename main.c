@@ -235,25 +235,24 @@ int main(int argc, char** args) {
         cursor = undo(&history_frame, cursor);
         setDesiredColumn(cursor, &desired_column);
         break;
+      case CTRL_KEY('y'):
+        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_LEFT);
+        cursor = redo(&history_frame, cursor);
+        setDesiredColumn(cursor, &desired_column);
+        break;
       case CTRL_KEY('c'):
         saveToClipBoard(cursor, select_cursor);
         break;
       case CTRL_KEY('x'):
         saveToClipBoard(cursor, select_cursor);
-        if (isCursorDisabled(select_cursor) == false) {
-          history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
-          deleteSelection(&cursor, &select_cursor);
-        }
+        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
         setDesiredColumn(cursor, &desired_column);
         break;
       case CTRL_KEY('v'):
-        if (isCursorDisabled(select_cursor) == false) {
-          history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
-          deleteSelection(&cursor, &select_cursor);
-        }
+        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
         tmp = cursor;
         cursor = loadFromClipBoard(cursor);
-        history_frame = saveAction(history_frame, createInsertAction(cursor, tmp));
+        saveAction(&history_frame, createInsertAction(cursor, tmp));
         setDesiredColumn(cursor, &desired_column);
         break;
       case CTRL_KEY('q'):
@@ -274,76 +273,44 @@ int main(int argc, char** args) {
         cursor = moveToPreviousWord(cursor);
         setSelectCursorOn(cursor, &select_cursor);
         cursor = moveToNextWord(cursor);
-        history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
-        deleteSelection(&cursor, &select_cursor);
+        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
         setDesiredColumn(cursor, &desired_column);
         break;
       case '\n':
       case KEY_ENTER:
-        if (isCursorDisabled(select_cursor) == false) {
-          history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
-          deleteSelection(&cursor, &select_cursor);
-        }
+        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
         tmp = cursor;
         cursor = insertNewLineInLineC(cursor);
-        history_frame = saveAction(history_frame, createInsertAction(tmp, cursor));
+        saveAction(&history_frame, createInsertAction(tmp, cursor));
         setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_BACKSPACE:
         if (isCursorDisabled(select_cursor)) {
-          history_frame = saveAction(history_frame, createDeleteAction(moveLeft(cursor), cursor));
-          cursor = deleteCharAtCursor(cursor);
+          select_cursor = moveLeft(cursor);
         }
-        else {
-          history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
-          deleteSelection(&cursor, &select_cursor);
-        }
+        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
         setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_SUPPR:
         if (isCursorDisabled(select_cursor)) {
-          history_frame = saveAction(history_frame, createDeleteAction(cursor, moveRight(cursor)));
-          cursor = supprCharAtCursor(cursor);
+          select_cursor = moveRight(cursor);
         }
-        else {
-          history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
-          deleteSelection(&cursor, &select_cursor);
-        }
+        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
         setDesiredColumn(cursor, &desired_column);
         break;
       case KEY_TAB:
-        if (isCursorDisabled(select_cursor) == false) {
-          history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
-          deleteSelection(&cursor, &select_cursor);
-        }
+        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
         tmp = cursor;
         cursor = insertCharInLineC(cursor, readChar_U8FromInput(' '));
         cursor = insertCharInLineC(cursor, readChar_U8FromInput(' '));
-        history_frame = saveAction(history_frame, createInsertAction(tmp, cursor));
+        saveAction(&history_frame, createInsertAction(tmp, cursor));
         setDesiredColumn(cursor, &desired_column);
         break;
       case CTRL_KEY('d'):
         if (isCursorDisabled(select_cursor) == true) {
-          // TODO history not working.
-          history_frame = saveAction(history_frame,
-                                     createDeleteAction(
-                                       cursorOf(
-                                         cursor.file_id,
-                                         moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), 0)
-                                       )
-                                       ,
-                                       cursorOf(
-                                         cursor.file_id,
-                                         getLastLineNode(getLineForFileIdentifier(cursor.file_id))
-                                       )
-                                     )
-          );
-          cursor = deleteLineAtCursor(cursor);
+          selectLine(&cursor, &select_cursor);
         }
-        else {
-          history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
-          deleteSelection(&cursor, &select_cursor);
-        }
+        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
         setDesiredColumn(cursor, &desired_column);
         break;
 
@@ -358,13 +325,10 @@ int main(int argc, char** args) {
           goto end;
         }
         else {
-          if (isCursorDisabled(select_cursor) == false) {
-            history_frame = saveAction(history_frame, createDeleteAction(cursor, select_cursor));
-            deleteSelection(&cursor, &select_cursor);
-          }
+          deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
           cursor = insertCharInLineC(cursor, readChar_U8FromInput(c));
           setDesiredColumn(cursor, &desired_column);
-          history_frame = saveAction(history_frame, createInsertAction(old_cur, cursor));
+          saveAction(&history_frame, createInsertAction(old_cur, cursor));
         }
         break;
     }

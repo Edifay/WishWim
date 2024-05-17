@@ -195,7 +195,7 @@ Cursor insertCharArrayAtCursor(Cursor cursor, char* chs) {
       }
     }
     else {
-      Char_U8 ch = readChar_U8FromCharArrayWithFirst(chs + index -1 , c);
+      Char_U8 ch = readChar_U8FromCharArrayWithFirst(chs + index - 1, c);
       index += sizeChar_U8(ch) - 1;
 #ifdef LOGS
       printChar_U8(stdout, ch);
@@ -311,6 +311,23 @@ void selectWord(Cursor* cursor, Cursor* select_cursor) {
   *cursor = moveToNextWord(*cursor);
 }
 
+void selectLine(Cursor* cursor, Cursor* select_cursor) {
+  Cursor tmp = cursorOf(
+    cursor->file_id,
+    moduloLineIdentifierR(getLineForFileIdentifier(cursor->file_id), 0)
+  );
+  select_cursor->file_id = tryToReachAbsRow(cursor->file_id, cursor->file_id.absolute_row + 1);
+  if (select_cursor->file_id.absolute_row == cursor->file_id.absolute_row) {
+    tmp = moveLeft(tmp);
+    select_cursor->line_id = getLastLineNode(getLineForFileIdentifier(cursor->file_id));
+  }
+  else {
+    select_cursor->line_id = moduloLineIdentifierR(getLineForFileIdentifier(select_cursor->file_id), 0);
+  }
+
+  *cursor = tmp;
+}
+
 void deleteSelection(Cursor* cursor, Cursor* select_cursor) {
   if (isCursorDisabled(*select_cursor) == true) {
     return;
@@ -337,4 +354,9 @@ void deleteSelection(Cursor* cursor, Cursor* select_cursor) {
   }
 
   *select_cursor = disableCursor(*select_cursor);
+}
+
+void deleteSelectionWithHist(History **history_p, Cursor* cursor, Cursor* select_cursor) {
+  saveAction(history_p, createDeleteAction(*cursor, *select_cursor));
+  deleteSelection(cursor, select_cursor);
 }

@@ -35,15 +35,13 @@ typedef struct History_ History;
 
 void initHistory(History* history);
 
-// TODO implement
 Cursor undo(History** history_p, Cursor cursor);
 
-Cursor redo(History** history, Cursor cursor);
+Cursor redo(History** history_p, Cursor cursor);
 
-// TODO implement
-History* saveAction(History* history, Action action);
+void saveAction(History** history, Action action);
 
-Cursor doReverseAction(Action action, Cursor cursor);
+Cursor doReverseAction(Action *action_p, Cursor cursor);
 
 Action createDeleteAction(Cursor cur1, Cursor cur2);
 

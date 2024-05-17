@@ -22,9 +22,10 @@ Cursor undo(History** history_p, Cursor cursor) {
     return cursor;
   }
 
-
+  time_val canceled_time_action = history->action.time;
   // TODO implement keep reverse action to redo.
-  cursor = doReverseAction(history->action, cursor);
+  cursor = doReverseAction(&history->action, cursor);
+  history->action.time = canceled_time_action;
 
   *history_p = history->prev;
 
@@ -35,10 +36,37 @@ Cursor undo(History** history_p, Cursor cursor) {
   return cursor;
 }
 
-Cursor redo(History** history, Cursor cursor);
+Cursor redo(History** history_p, Cursor cursor) {
+  History* history = *history_p;
+
+  // If hisotory is at root return and do nothing. Cannot undo nothing ;).
+  if (history->next == NULL) {
+    return cursor;
+  }
+
+  *history_p = history->next;
+  history = *history_p;
+
+  time_val canceled_time_action = history->action.time;
+  // TODO implement keep reverse action to redo.
+  cursor = doReverseAction(&history->action, cursor);
+  history->action.time = canceled_time_action;
+
+
+  if (history->next != NULL && diff2Time(history->action.time, history->next->action.time) < TIME_CONSIDER_UNIQUE_UNDO) {
+    return redo(history_p, cursor);
+  }
+
+  return cursor;
+}
 
 // TODO implement
-History* saveAction(History* history, Action action) {
+void saveAction(History** history_p, Action action) {
+  History* history = *history_p;
+  if (action.action == ACTION_NONE) {
+    return;
+  }
+
   destroyEndOfHistory(history);
   assert(history->next == NULL);
 
@@ -52,33 +80,54 @@ History* saveAction(History* history, Action action) {
 
   history = history->next;
 
-  return history;
+  *history_p = history;
 }
 
-Cursor doReverseAction(Action action, Cursor cursor) {
+Cursor doReverseAction(Action* action_p, Cursor cursor) {
+  Action action = *action_p;
   Cursor tmp;
   ACTION_TYPE type = action.action;
   switch (type) {
     case DELETE_ONE:
       tmp.file_id = tryToReachAbsRow(cursor.file_id, action.cur.file_id.absolute_row);
       tmp.line_id = moduloLineIdentifierR(getLineForFileIdentifier(tmp.file_id), action.cur.line_id.absolute_column);
-      return insertCharInLineC(tmp, readChar_U8FromInput(action.unique_ch));
+      if (action.unique_ch == '\n') {
+        cursor = insertNewLineInLineC(tmp);
+        destroyAction(action);
+        *action_p = createInsertAction(tmp, cursor);
+        return cursor;
+      }
+      cursor = insertCharInLineC(tmp, readChar_U8FromInput(action.unique_ch));
+      destroyAction(action);
+      *action_p = createInsertAction(tmp, cursor);
+      return cursor;
     case DELETE:
       tmp.file_id = tryToReachAbsRow(cursor.file_id, action.cur.file_id.absolute_row);
       tmp.line_id = moduloLineIdentifierR(getLineForFileIdentifier(tmp.file_id), action.cur.line_id.absolute_column);
-      return insertCharArrayAtCursor(tmp, action.ch);
+      cursor = insertCharArrayAtCursor(tmp, action.ch);
+      destroyAction(action);
+      *action_p = createInsertAction(tmp, cursor);
+      return cursor;
     case INSERT:
+      destroyAction(action);
+      *action_p = createDeleteAction(action.cur, action.cur_end);
       deleteSelection(&action.cur, &action.cur_end);
       return action.cur;
     case ACTION_NONE:
       return cursor;
     default:
-      printf("%c\r\n", action.action);
       assert(false);
   }
 }
 
 Action createDeleteAction(Cursor cur1, Cursor cur2) {
+  if (isCursorDisabled(cur1) || isCursorDisabled(cur2)) {
+    Action action;
+    action.action = ACTION_NONE;
+    action.time = 0;
+    return action;
+  }
+
   if (isCursorPreviousThanOther(cur2, cur1)) {
     Cursor tmp = cur1;
     cur1 = cur2;
@@ -104,6 +153,12 @@ Action createDeleteAction(Cursor cur1, Cursor cur2) {
       assert(tmp.file_id.absolute_row != it.file_id.absolute_row);
       byte_between_2_cursor++; // Add one byte alloc to save '\n' char.
     }
+  }
+
+  if (byte_between_2_cursor == 0) {
+    action.action = ACTION_NONE;
+    action.time = 0;
+    return action;
   }
 
   assert(byte_between_2_cursor != 0);
