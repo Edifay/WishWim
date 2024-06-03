@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-void createDir() {
+void createConfigDir() {
   char command[20 + strlen(FILE_HISTORY_PATH) + strlen(getenv("HOME"))];
   sprintf(command, "mkdir %s%s -p", getenv("HOME"),FILE_HISTORY_PATH);
   system(command);
@@ -12,7 +12,7 @@ void createDir() {
 
 
 void getLastFilePosition(char* fileName, int* row, int* column, int *screen_x, int *screen_y) {
-  createDir();
+  createConfigDir();
 
   int path_len = 60 /* Size of str can contain int */ + strlen(getenv("HOME")) + strlen(FILE_HISTORY_PATH);
   char path[path_len + 10];
@@ -32,7 +32,7 @@ void getLastFilePosition(char* fileName, int* row, int* column, int *screen_x, i
 }
 
 void setlastFilePosition(char* fileName, int row, int column, int screen_x, int screen_y) {
-  createDir();
+  createConfigDir();
 
   int path_len = 20 /* Size of str can contain int */ + strlen(getenv("HOME")) + strlen(FILE_HISTORY_PATH);
   char path[path_len + 10];
@@ -61,6 +61,7 @@ int powInt(int x, int y) {
 }
 
 
+// TODO patch abs fileName
 unsigned long long hashFileName(char* fileName) {
   int length = strlen(getenv("PWD")) + strlen(fileName);
   unsigned long long value = powInt(length, 4);

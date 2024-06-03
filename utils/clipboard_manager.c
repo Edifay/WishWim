@@ -20,7 +20,7 @@ bool saveToClipBoard(Cursor begin, Cursor end) {
     begin = tmp;
   }
 
-  FILE* mktemp_result = popen("mktemp /tmp/al-XXXXXX", "r");
+  FILE* mktemp_result = popen("mktemp /tmp/al-clip-XXXXXX", "r");
   char tmp_file[100];
 
   if (mktemp_result == NULL) {

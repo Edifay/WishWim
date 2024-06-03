@@ -38,6 +38,9 @@ FileNode* root = NULL;
 int wcwidth(const wint_t wc);
 
 int main(int argc, char** args) {
+  // createTmpDir();
+  // if (true)
+  // return 0;
   setlocale(LC_ALL, "");
 
   initscr();
@@ -66,7 +69,12 @@ int main(int argc, char** args) {
 
   History history_root;
   History* history_frame = &history_root;
-  initHistory(history_frame);
+  if (argc >= 2) {
+    loadCurrentStateControl(&history_root, &history_frame, args[1]);
+  }
+  else {
+    initHistory(history_frame);
+  }
 
   int desired_column = cursor.line_id.absolute_column; // Used on line change to try to reach column.
   Cursor old_cur = cursor;
@@ -250,8 +258,7 @@ int main(int argc, char** args) {
         break;
       case CTRL_KEY('v'):
         deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
-        tmp = cursor;
-        cursor = loadFromClipBoard(cursor);
+        tmp = cursor;cursor = loadFromClipBoard(cursor);
         saveAction(&history_frame, createInsertAction(cursor, tmp));
         setDesiredColumn(cursor, &desired_column);
         break;
@@ -263,6 +270,8 @@ int main(int argc, char** args) {
           exit(0);
         }
         saveFile(root, args[1]);
+        setlastFilePosition(args[1], cursor.file_id.absolute_row, cursor.line_id.absolute_column, screen_x, screen_y);
+        saveCurrentStateControl(history_root, history_frame, args[1]);
         break;
 
 
@@ -349,6 +358,7 @@ end:
 
   if (argc >= 2) {
     setlastFilePosition(args[1], cursor.file_id.absolute_row, cursor.line_id.absolute_column, screen_x, screen_y);
+    // TODO add the save of the history in a file.
   }
 
   endwin();
