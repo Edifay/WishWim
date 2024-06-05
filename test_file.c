@@ -11,7 +11,7 @@
 
 #include "data-structure/file_management.h"
 #include "data-structure/file_structure.h"
-#include "io_management/file_manager.h"
+#include "io_management/io_manager.h"
 #include "data-structure/utf_8_extractor.h"
 
 

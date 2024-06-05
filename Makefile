@@ -5,7 +5,7 @@ LDFLAGS +=-fsanitize=address
 executable=main.o test_line.o test_file.o utils/debug.o al_t test_line test_file
 modules= \
 	data-structure/utf_8_extractor.o data-structure/file_structure.o data-structure/file_management.o utils/tools.o    \
-	io_management/file_manager.o utils/key_management.o utils/clipboard_manager.o io_management/file_history.o         \
+	io_management/io_manager.o utils/key_management.o utils/clipboard_manager.o io_management/file_history.o         \
 	data-structure/state_control.o
 
 

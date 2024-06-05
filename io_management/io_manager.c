@@ -1,8 +1,9 @@
-#include "file_manager.h"
+#include "io_manager.h"
 
 #include <assert.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 Cursor initWrittableFileFromFile(char* fileName) {
   Cursor cursor = initNewWrittableFile();
@@ -68,18 +69,28 @@ bool loadFile(Cursor cursor, char* fileName) {
   return true;
 }
 
-void saveFile(FileNode* file, char* fileName) {
-  FILE* f = fopen(fileName, "w");
+void saveFile(FileNode* root, IO_FileID* file) {
+  if (file->status == DONT_EXIST) {
+    // create the file.
+    FILE* tmp_file = fopen(file->path_args, "w");
+    fclose(tmp_file);
+    char* realpath_resulst = realpath(file->path_args, file->path_abs);
+    assert(realpath_resulst != NULL);
+    file->status = EXIST;
+  }
+
+  assert(file->status == EXIST);
+  FILE* f = fopen(file->path_abs, "w");
   bool first = true;
-  while (file != NULL) {
-    for (int i = 0; i < file->element_number; i++) {
+  while (root != NULL) {
+    for (int i = 0; i < root->element_number; i++) {
       if (!first) {
         fprintf(f, "\n");
       }
       else {
         first = false;
       }
-      LineNode* line = file->lines + i;
+      LineNode* line = root->lines + i;
       while (line != NULL) {
         for (int j = 0; j < line->element_number; j++) {
           printChar_U8(f, line->ch[j]);
@@ -87,9 +98,32 @@ void saveFile(FileNode* file, char* fileName) {
         line = line->next;
       }
     }
-    file = file->next;
+    root = root->next;
   }
 
 
   fclose(f);
+}
+
+
+void setupFile(int argc, char** args, IO_FileID* file) {
+  file->path_args = NULL;
+  // 3 file status: no file given, file doesn't exist, file exists.
+  if (argc > 1) {
+    file->path_args = args[1];
+    if (access(args[1], F_OK) == 0) {
+      file->status = EXIST;
+      // File exist
+      char* realpath_result = realpath(args[1], file->path_abs);
+      assert(realpath_result != NULL);
+    }
+    else {
+      // File doesn't exist.
+      file->status = DONT_EXIST;
+    }
+  }
+  else {
+    // No file given
+    file->status = NONE;
+  }
 }

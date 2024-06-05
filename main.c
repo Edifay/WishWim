@@ -3,20 +3,21 @@
 #include <locale.h>
 #include <ncurses.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <wchar.h>
 
 #include "data-structure/file_management.h"
 #include "data-structure/file_structure.h"
 #include "data-structure/state_control.h"
 #include "io_management/file_history.h"
-#include "io_management/file_manager.h"
+#include "io_management/io_manager.h"
 #include "utils/clipboard_manager.h"
 #include "utils/key_management.h"
 
 #define CTRL_KEY(k) ((k)&0x1f)
 #define SCROLL_SPEED 3
 
-Cursor createRoot(int argc, char** args);
+Cursor createRoot(IO_FileID file);
 
 void printChar_U8ToNcurses(Char_U8 ch);
 
@@ -37,10 +38,11 @@ FileNode* root = NULL;
 /* Unix call, use 'man wcwidth' to see explication. */
 int wcwidth(const wint_t wc);
 
+
 int main(int argc, char** args) {
-  // createTmpDir();
-  // if (true)
-  // return 0;
+  IO_FileID file;
+  setupFile(argc, args, &file);
+
   setlocale(LC_ALL, "");
 
   initscr();
@@ -53,7 +55,7 @@ int main(int argc, char** args) {
   printf("\033[?1003h"); // enable mouse tracking
   fflush(stdout);
 
-  Cursor cursor = createRoot(argc, args);
+  Cursor cursor = createRoot(file);
 
   root = cursor.file_id.file;
   assert(root->prev == NULL);
@@ -61,7 +63,7 @@ int main(int argc, char** args) {
   int screen_x = 1;
   int screen_y = 1;
 
-  fetchSavedCursorPosition(argc, args, &cursor, &screen_x, &screen_y);
+  fetchSavedCursorPosition(file, &cursor, &screen_x, &screen_y);
   Cursor select_cursor = disableCursor(cursor);
 
   printFile(cursor, select_cursor, screen_x, screen_y);
@@ -69,8 +71,8 @@ int main(int argc, char** args) {
 
   History history_root;
   History* history_frame = &history_root;
-  if (argc >= 2) {
-    loadCurrentStateControl(&history_root, &history_frame, args[1]);
+  if (file.status == EXIST) {
+    loadCurrentStateControl(&history_root, &history_frame, file.path_abs);
   }
   else {
     initHistory(history_frame);
@@ -258,20 +260,22 @@ int main(int argc, char** args) {
         break;
       case CTRL_KEY('v'):
         deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
-        tmp = cursor;cursor = loadFromClipBoard(cursor);
+        tmp = cursor;
+        cursor = loadFromClipBoard(cursor);
         saveAction(&history_frame, createInsertAction(cursor, tmp));
         setDesiredColumn(cursor, &desired_column);
         break;
       case CTRL_KEY('q'):
         goto end;
       case CTRL_KEY('s'):
-        if (argc < 2) {
-          printf("\r\nNo opened file\r\n");
+        if (file.status == NONE) {
+          printf("\r\nNo specified file\r\n");
           exit(0);
         }
-        saveFile(root, args[1]);
-        setlastFilePosition(args[1], cursor.file_id.absolute_row, cursor.line_id.absolute_column, screen_x, screen_y);
-        saveCurrentStateControl(history_root, history_frame, args[1]);
+        saveFile(root, &file);
+        assert(file.status == EXIST);
+        setlastFilePosition(file.path_abs, cursor.file_id.absolute_row, cursor.line_id.absolute_column, screen_x, screen_y);
+        saveCurrentStateControl(history_root, history_frame, file.path_abs);
         break;
 
 
@@ -329,7 +333,7 @@ int main(int argc, char** args) {
         // exit(0);
         if (iscntrl(c)) {
           printf("Unsupported touch %d\r\n", c);
-          if (argc >= 2) saveFile(root, args[1]);
+          if (file.status != NONE) saveFile(root, &file);
           // exit(0);
           goto end;
         }
@@ -356,8 +360,8 @@ end:
   printf("\033[?1003l\n"); // Disable mouse movement events, as l = low
   fflush(stdout);
 
-  if (argc >= 2) {
-    setlastFilePosition(args[1], cursor.file_id.absolute_row, cursor.line_id.absolute_column, screen_x, screen_y);
+  if (file.status == EXIST) {
+    setlastFilePosition(file.path_abs, cursor.file_id.absolute_row, cursor.line_id.absolute_column, screen_x, screen_y);
     // TODO add the save of the history in a file.
   }
 
@@ -504,9 +508,9 @@ void centerCursorOnScreen(Cursor cursor, int* screen_x, int* screen_y) {
   moveScreenToMatchCursor(cursor, screen_x, screen_y);
 }
 
-Cursor createRoot(int argc, char** args) {
-  if (argc >= 2) {
-    return initWrittableFileFromFile(args[1]);
+Cursor createRoot(IO_FileID file) {
+  if (file.status == EXIST) {
+    return initWrittableFileFromFile(file.path_abs);
   }
   return initNewWrittableFile();
 }

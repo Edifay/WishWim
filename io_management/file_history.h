@@ -1,6 +1,7 @@
 #ifndef FILE_HISTORY_H
 #define FILE_HISTORY_H
 
+#include "io_manager.h"
 #include "../data-structure/file_management.h"
 
 
@@ -13,6 +14,6 @@ void setlastFilePosition(char* fileName, int row, int column, int screen_x, int 
 
 unsigned long long hashFileName(char* fileName);
 
-void fetchSavedCursorPosition(int argc, char** args, Cursor* cursor, int* screen_x, int* screen_y);
+void fetchSavedCursorPosition(IO_FileID file, Cursor* cursor, int* screen_x, int* screen_y);
 
 #endif //FILE_HISTORY_H

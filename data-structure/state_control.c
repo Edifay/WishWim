@@ -10,6 +10,7 @@
 #include <time.h>
 
 #include "file_management.h"
+#include "../io_management/file_history.h"
 
 
 void initHistory(History* history) {
@@ -262,9 +263,8 @@ void createTmpDir() {
 void saveCurrentStateControl(History root, History* current_state, char* fileName) {
   createTmpDir();
 
-  char fileStateControl[strlen(FILE_STATE_PATH) + 20 + 1];
-  strcpy(fileStateControl, FILE_STATE_PATH);
-  strcat(fileStateControl, fileName);
+  char fileStateControl[strlen(FILE_STATE_PATH) + 60 /*size of the hash*/ + 1];
+  sprintf(fileStateControl, "%s%llu", FILE_STATE_PATH, hashFileName(fileName));
 
 
   FILE* f = fopen(fileStateControl, "w");
@@ -312,9 +312,8 @@ void loadCurrentStateControl(History* root, History** current_state, char* fileN
   *current_state = root;
   initHistory(root);
 
-  char fileStateControl[strlen(FILE_STATE_PATH) + strlen(fileName) + 1];
-  strcpy(fileStateControl, FILE_STATE_PATH);
-  strcat(fileStateControl, fileName);
+  char fileStateControl[strlen(FILE_STATE_PATH) + 60 /*size of the hash*/ + 1];
+  sprintf(fileStateControl, "%s%llu", FILE_STATE_PATH, hashFileName(fileName));
 
   FILE* f = fopen(fileStateControl, "r");
   if (f == NULL) {
