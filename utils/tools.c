@@ -1,4 +1,7 @@
 #include "tools.h"
+
+#include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/time.h>
 
@@ -20,4 +23,11 @@ time_val diff2Time(time_val start, time_val end) {
 int min(int a, int b) {
   if (a < b) return a;
   return b;
+}
+
+
+int numberOfDigitOfNumber(int n) {
+  char page_number[40];
+  sprintf(page_number, "%d", n);
+  return strlen(page_number);
 }

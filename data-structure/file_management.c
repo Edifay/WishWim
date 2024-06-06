@@ -3,8 +3,29 @@
 #include <assert.h>
 #include <ctype.h>
 #include <limits.h>
-#include <stdlib.h>
-#include "../utils/tools.h"
+
+#include "term_handler.h"
+#include "../io_management/file_history.h"
+
+////// -------------- FILE CONTAINER --------------
+void setupFileContainer(int argc, char** args, FileContainer* container) {
+  setupFile(argc, args, &container->io_file);
+  container->screen_x = 1;
+  container->screen_y = 1;
+  container->old_screen_x = -1;
+  container->old_screen_y = -1;
+  container->history_frame = &container->history_root;
+
+  container->cursor = createRoot(container->io_file);
+  container->select_cursor = disableCursor(container->cursor);
+  setDesiredColumn(container->cursor, &container->desired_column);
+
+  container->root = container->cursor.file_id.file;
+  assert(container->root->prev == NULL);
+  fetchSavedCursorPosition(container->io_file, &container->cursor, &container->screen_x, &container->screen_y);
+  loadCurrentStateControl(&container->history_root, &container->history_frame, container->io_file);
+}
+
 
 //// -------------- CURSOR MANAGEMENT --------------
 
@@ -356,7 +377,7 @@ void deleteSelection(Cursor* cursor, Cursor* select_cursor) {
   *select_cursor = disableCursor(*select_cursor);
 }
 
-void deleteSelectionWithHist(History **history_p, Cursor* cursor, Cursor* select_cursor) {
+void deleteSelectionWithHist(History** history_p, Cursor* cursor, Cursor* select_cursor) {
   saveAction(history_p, createDeleteAction(*cursor, *select_cursor));
   deleteSelection(cursor, select_cursor);
 }

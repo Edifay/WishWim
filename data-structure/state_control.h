@@ -3,6 +3,7 @@
 
 #include "file_structure.h"
 #include "../utils/tools.h"
+#include "../io_management/io_manager.h"
 
 #define TIME_CONSIDER_UNIQUE_UNDO 200 /*MS*/
 
@@ -54,11 +55,9 @@ void destroyAction(Action action);
 
 void destroyEndOfHistory(History* history);
 
-
-// TODO implement
 void saveCurrentStateControl(History root, History* current_state, char* fileName);
 
-void loadCurrentStateControl(History *root, History** current_state, char* fileName);
+void loadCurrentStateControl(History *root, History** current_state, IO_FileID io_file);
 
 
 #endif //STATE_CONTROL_H

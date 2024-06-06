@@ -1,5 +1,6 @@
 #include "file_history.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -82,6 +83,9 @@ void fetchSavedCursorPosition(IO_FileID file, Cursor* cursor, int* screen_x, int
     int loaded_column;
 
     getLastFilePosition(file.path_abs, &loaded_row, &loaded_column, screen_x, screen_y);
+    // if assert don't pass file_history is corrupted.
+    assert(loaded_row >= 1);
+    assert(loaded_column >= 0);
 
     cursor->file_id = tryToReachAbsRow(cursor->file_id, loaded_row);
     cursor->line_id = tryToReachAbsColumn(moduloLineIdentifierR(getLineForFileIdentifier(cursor->file_id), 0), loaded_column);

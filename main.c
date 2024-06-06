@@ -2,13 +2,12 @@
 #include <ctype.h>
 #include <locale.h>
 #include <ncurses.h>
-#include <stdlib.h>
-#include <unistd.h>
 #include <wchar.h>
 
 #include "data-structure/file_management.h"
 #include "data-structure/file_structure.h"
 #include "data-structure/state_control.h"
+#include "data-structure/term_handler.h"
 #include "io_management/file_history.h"
 #include "io_management/io_manager.h"
 #include "utils/clipboard_manager.h"
@@ -17,35 +16,18 @@
 #define CTRL_KEY(k) ((k)&0x1f)
 #define SCROLL_SPEED 3
 
-Cursor createRoot(IO_FileID file);
-
-void printChar_U8ToNcurses(Char_U8 ch);
-
-void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y);
-
-void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y);
-
-void centerCursorOnScreen(Cursor cursor, int* screen_x, int* screen_y);
-
-int getScreenXForCursor(Cursor cursor, int screen_x);
-
-LineIdentifier getLineIdForScreenX(LineIdentifier line_id, int screen_x, int x_click);
-
-void setDesiredColumn(Cursor cursor, int* desired_column);
-
-FileNode* root = NULL;
-
-/* Unix call, use 'man wcwidth' to see explication. */
-int wcwidth(const wint_t wc);
-
 
 int main(int argc, char** args) {
-  IO_FileID file;
-  setupFile(argc, args, &file);
-
   setlocale(LC_ALL, "");
 
+  WINDOW* ftw = NULL; // File Text Window
+  WINDOW* lnw = NULL; // Line Number Window
+  int edw_yoffset = 0; // Offset of the y for ftw and lnw.
+
+  // Init ncurses
   initscr();
+  ftw = newwin(0, 0, edw_yoffset, 0); // lnw_width will auto-resize.
+  lnw = newwin(0, 0, 0, 0);
   raw();
   keypad(stdscr, TRUE);
   mouseinterval(0);
@@ -55,36 +37,36 @@ int main(int argc, char** args) {
   printf("\033[?1003h"); // enable mouse tracking
   fflush(stdout);
 
-  Cursor cursor = createRoot(file);
+  FileContainer file_container;
+  setupFileContainer(argc, args, &file_container);
 
-  root = cursor.file_id.file;
-  assert(root->prev == NULL);
+  // setups current file vars
+  IO_FileID* io_file = &file_container.io_file; // Describe the IO file on OS
+  FileNode** root = &file_container.root; // The root of the File object
+  Cursor* cursor = &file_container.cursor; // The current cursor for the root File
+  Cursor* select_cursor = &file_container.select_cursor; // The cursor used to make selection
+  Cursor* old_cur = &file_container.old_cur; // Old cursor used to flag cursor change
+  int* desired_column = &file_container.desired_column; // Used on line change to try to reach column
+  int* screen_x = &file_container.screen_x; // The x coord of the top left corner of the current viewport of the file
+  int* screen_y = &file_container.screen_y; // The y coord of the top left corner of the current viewport of the file
+  int* old_screen_x = &file_container.old_screen_x; // old screen_x used to flag screen_x changes
+  int* old_screen_y = &file_container.old_screen_y; // old screen_y used to flag screen_y changes
+  History* history_root = &file_container.history_root; // Root of History object for the current File
+  History** history_frame = &file_container.history_frame; // Current node of the History. Before -> Undo, After -> Redo.
 
-  int screen_x = 1;
-  int screen_y = 1;
-
-  fetchSavedCursorPosition(file, &cursor, &screen_x, &screen_y);
-  Cursor select_cursor = disableCursor(cursor);
-
-  printFile(cursor, select_cursor, screen_x, screen_y);
+  // First print
+  printFile(ftw, lnw, *cursor, *select_cursor, *screen_x, *screen_y);
   refresh();
+  wrefresh(ftw);
+  wrefresh(lnw);
 
-  History history_root;
-  History* history_frame = &history_root;
-  if (file.status == EXIST) {
-    loadCurrentStateControl(&history_root, &history_frame, file.path_abs);
-  }
-  else {
-    initHistory(history_frame);
-  }
-
-  int desired_column = cursor.line_id.absolute_column; // Used on line change to try to reach column.
-  Cursor old_cur = cursor;
-  Cursor tmp = cursor;
+  // Start automated-machine
+  *old_cur = *cursor;
+  Cursor tmp;
   MEVENT m_event;
   bool button1_down = false;
   while (true) {
-    assert(checkFileIntegrity(root) == true);
+    assert(checkFileIntegrity(*root) == true);
 
     int c = getch();
     switch (c) {
@@ -93,6 +75,7 @@ int main(int argc, char** args) {
       case BEGIN_MOUSE_LISTEN:
       case MOUSE_IN_OUT:
       case KEY_RESIZE:
+        resizeEditorWindows(&ftw, &lnw, edw_yoffset, ftw->_begx);
         break;
 
       // ---------------------- MOUSE ----------------------
@@ -106,6 +89,11 @@ int main(int argc, char** args) {
             continue;
           }
 
+          if (m_event.y - edw_yoffset < 0 && button1_down == true) {
+            m_event.y = edw_yoffset;
+          }
+
+
           // ---------- CURSOR ACTION ------------
 
           if (m_event.bstate & BUTTON1_RELEASED) {
@@ -114,52 +102,52 @@ int main(int argc, char** args) {
 
           if (button1_down) {
             // printf("Drag detected !\n");
-            FileIdentifier new_file_id = tryToReachAbsRow(cursor.file_id, screen_y + m_event.y);
-            LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), screen_x, m_event.x);
+            FileIdentifier new_file_id = tryToReachAbsRow(cursor->file_id, *screen_y + m_event.y - edw_yoffset);
+            LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), *screen_x, m_event.x - ftw->_begx);
 
-            if (isCursorDisabled(select_cursor) == false) {
-              cursor = cursorOf(new_file_id, new_line_id);
+            if (isCursorDisabled(*select_cursor) == false) {
+              *cursor = cursorOf(new_file_id, new_line_id);
             }
-            else if (areCursorEqual(cursor, cursorOf(new_file_id, new_line_id)) == false) {
-              select_cursor = cursor;
-              cursor = cursorOf(new_file_id, new_line_id);
+            else if (areCursorEqual(*cursor, cursorOf(new_file_id, new_line_id)) == false) {
+              *select_cursor = *cursor;
+              *cursor = cursorOf(new_file_id, new_line_id);
             }
-            setDesiredColumn(cursor, &desired_column);
+            setDesiredColumn(*cursor, desired_column);
           }
 
           if (m_event.bstate & BUTTON1_PRESSED) {
-            setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_RIGHT);
-            FileIdentifier new_file_id = tryToReachAbsRow(cursor.file_id, screen_y + m_event.y);
-            LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), screen_x, m_event.x);
-            cursor = cursorOf(new_file_id, new_line_id);
-            setDesiredColumn(cursor, &desired_column);
+            setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
+            FileIdentifier new_file_id = tryToReachAbsRow(cursor->file_id, *screen_y + m_event.y - edw_yoffset);
+            LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), *screen_x, m_event.x - ftw->_begx);
+            *cursor = cursorOf(new_file_id, new_line_id);
+            setDesiredColumn(*cursor, desired_column);
             button1_down = true;
           }
 
           if (m_event.bstate & BUTTON1_DOUBLE_CLICKED) {
-            selectWord(&cursor, &select_cursor);
+            selectWord(cursor, select_cursor);
           }
 
 
           // ---------- SCROLL ------------
           if (m_event.bstate & BUTTON4_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
             // Move Up
-            screen_y -= SCROLL_SPEED;
-            if (screen_y < 1) screen_y = 1;
+            *screen_y -= SCROLL_SPEED;
+            if (*screen_y < 1) *screen_y = 1;
           }
           else if (m_event.bstate & BUTTON4_PRESSED && m_event.bstate & BUTTON_SHIFT) {
             // Move Left
-            screen_x -= SCROLL_SPEED;
-            if (screen_x < 1) screen_x = 1;
+            *screen_x -= SCROLL_SPEED;
+            if (*screen_x < 1) *screen_x = 1;
           }
 
           if (m_event.bstate & BUTTON5_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
             // Move Down
-            screen_y += SCROLL_SPEED;
+            *screen_y += SCROLL_SPEED;
           }
           else if (m_event.bstate & BUTTON5_PRESSED && m_event.bstate & BUTTON_SHIFT) {
             // Move Right
-            screen_x += SCROLL_SPEED;
+            *screen_x += SCROLL_SPEED;
           }
         }
         break;
@@ -168,68 +156,68 @@ int main(int argc, char** args) {
 
 
       case KEY_RIGHT:
-        if (isCursorDisabled(select_cursor))
-          cursor = moveRight(cursor);
-        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_RIGHT);
-        setDesiredColumn(cursor, &desired_column);
+        if (isCursorDisabled(*select_cursor))
+          *cursor = moveRight(*cursor);
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
+        setDesiredColumn(*cursor, desired_column);
         break;
       case KEY_LEFT:
-        if (isCursorDisabled(select_cursor))
-          cursor = moveLeft(cursor);
-        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_LEFT);
-        setDesiredColumn(cursor, &desired_column);
+        if (isCursorDisabled(*select_cursor))
+          *cursor = moveLeft(*cursor);
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
+        setDesiredColumn(*cursor, desired_column);
         break;
       case KEY_UP:
-        cursor = moveUp(cursor, desired_column);
-        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_LEFT);
+        *cursor = moveUp(*cursor, *desired_column);
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
         break;
       case KEY_DOWN:
-        cursor = moveDown(cursor, desired_column);
-        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_RIGHT);
+        *cursor = moveDown(*cursor, *desired_column);
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
         break;
       case KEY_MAJ_RIGHT:
-        setSelectCursorOn(cursor, &select_cursor);
-        cursor = moveRight(cursor);
-        setDesiredColumn(cursor, &desired_column);
+        setSelectCursorOn(*cursor, select_cursor);
+        *cursor = moveRight(*cursor);
+        setDesiredColumn(*cursor, desired_column);
         break;
       case KEY_MAJ_LEFT:
-        setSelectCursorOn(cursor, &select_cursor);
-        cursor = moveLeft(cursor);
-        setDesiredColumn(cursor, &desired_column);
+        setSelectCursorOn(*cursor, select_cursor);
+        *cursor = moveLeft(*cursor);
+        setDesiredColumn(*cursor, desired_column);
         break;
       case KEY_MAJ_UP:
-        setSelectCursorOn(cursor, &select_cursor);
-        cursor = moveUp(cursor, desired_column);
+        setSelectCursorOn(*cursor, select_cursor);
+        *cursor = moveUp(*cursor, *desired_column);
         break;
       case KEY_MAJ_DOWN:
-        setSelectCursorOn(cursor, &select_cursor);
-        cursor = moveDown(cursor, desired_column);
+        setSelectCursorOn(*cursor, select_cursor);
+        *cursor = moveDown(*cursor, *desired_column);
         break;
       case KEY_CTRL_RIGHT:
-        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_RIGHT);
-        cursor = moveToNextWord(cursor);
-        setDesiredColumn(cursor, &desired_column);
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
+        *cursor = moveToNextWord(*cursor);
+        setDesiredColumn(*cursor, desired_column);
         break;
       case KEY_CTRL_LEFT:
-        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_LEFT);
-        cursor = moveToPreviousWord(cursor);
-        setDesiredColumn(cursor, &desired_column);
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
+        *cursor = moveToPreviousWord(*cursor);
+        setDesiredColumn(*cursor, desired_column);
         break;
       case KEY_CTRL_DOWN:
-        selectWord(&cursor, &select_cursor);
+        selectWord(cursor, select_cursor);
         break;
       case KEY_CTRL_UP:
-        selectWord(&cursor, &select_cursor);
+        selectWord(cursor, select_cursor);
         break;
       case KEY_CTRL_MAJ_RIGHT:
-        setSelectCursorOn(cursor, &select_cursor);
-        cursor = moveToNextWord(cursor);
-        setDesiredColumn(cursor, &desired_column);
+        setSelectCursorOn(*cursor, select_cursor);
+        *cursor = moveToNextWord(*cursor);
+        setDesiredColumn(*cursor, desired_column);
         break;
       case KEY_CTRL_MAJ_LEFT:
-        setSelectCursorOn(cursor, &select_cursor);
-        cursor = moveToPreviousWord(cursor);
-        setDesiredColumn(cursor, &desired_column);
+        setSelectCursorOn(*cursor, select_cursor);
+        *cursor = moveToPreviousWord(*cursor);
+        setDesiredColumn(*cursor, desired_column);
         break;
       case KEY_CTRL_MAJ_DOWN:
         // Do something with this.
@@ -241,41 +229,41 @@ int main(int argc, char** args) {
       // ---------------------- FILE MANAGEMENT ----------------------
 
       case CTRL_KEY('z'):
-        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_LEFT);
-        cursor = undo(&history_frame, cursor);
-        setDesiredColumn(cursor, &desired_column);
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
+        *cursor = undo(history_frame, *cursor);
+        setDesiredColumn(*cursor, desired_column);
         break;
       case CTRL_KEY('y'):
-        setSelectCursorOff(&cursor, &select_cursor, SELECT_OFF_LEFT);
-        cursor = redo(&history_frame, cursor);
-        setDesiredColumn(cursor, &desired_column);
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
+        *cursor = redo(history_frame, *cursor);
+        setDesiredColumn(*cursor, desired_column);
         break;
       case CTRL_KEY('c'):
-        saveToClipBoard(cursor, select_cursor);
+        saveToClipBoard(*cursor, *select_cursor);
         break;
       case CTRL_KEY('x'):
-        saveToClipBoard(cursor, select_cursor);
-        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
-        setDesiredColumn(cursor, &desired_column);
+        saveToClipBoard(*cursor, *select_cursor);
+        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        setDesiredColumn(*cursor, desired_column);
         break;
       case CTRL_KEY('v'):
-        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
-        tmp = cursor;
-        cursor = loadFromClipBoard(cursor);
-        saveAction(&history_frame, createInsertAction(cursor, tmp));
-        setDesiredColumn(cursor, &desired_column);
+        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        tmp = *cursor;
+        *cursor = loadFromClipBoard(*cursor);
+        saveAction(history_frame, createInsertAction(*cursor, tmp));
+        setDesiredColumn(*cursor, desired_column);
         break;
       case CTRL_KEY('q'):
         goto end;
       case CTRL_KEY('s'):
-        if (file.status == NONE) {
+        if (io_file->status == NONE) {
           printf("\r\nNo specified file\r\n");
-          exit(0);
+          goto end;
         }
-        saveFile(root, &file);
-        assert(file.status == EXIST);
-        setlastFilePosition(file.path_abs, cursor.file_id.absolute_row, cursor.line_id.absolute_column, screen_x, screen_y);
-        saveCurrentStateControl(history_root, history_frame, file.path_abs);
+        saveFile(*root, io_file);
+        assert(io_file->status == EXIST);
+        setlastFilePosition(io_file->path_abs, cursor->file_id.absolute_row, cursor->line_id.absolute_column, *screen_x, *screen_y);
+        saveCurrentStateControl(*history_root, *history_frame, io_file->path_abs);
         break;
 
 
@@ -283,48 +271,48 @@ int main(int argc, char** args) {
 
 
       case KEY_CTRL_DELETE:
-        cursor = moveToPreviousWord(cursor);
-        setSelectCursorOn(cursor, &select_cursor);
-        cursor = moveToNextWord(cursor);
-        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
-        setDesiredColumn(cursor, &desired_column);
+        *cursor = moveToPreviousWord(*cursor);
+        setSelectCursorOn(*cursor, select_cursor);
+        *cursor = moveToNextWord(*cursor);
+        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        setDesiredColumn(*cursor, desired_column);
         break;
       case '\n':
       case KEY_ENTER:
-        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
-        tmp = cursor;
-        cursor = insertNewLineInLineC(cursor);
-        saveAction(&history_frame, createInsertAction(tmp, cursor));
-        setDesiredColumn(cursor, &desired_column);
+        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        tmp = *cursor;
+        *cursor = insertNewLineInLineC(*cursor);
+        saveAction(history_frame, createInsertAction(tmp, *cursor));
+        setDesiredColumn(*cursor, desired_column);
         break;
       case KEY_BACKSPACE:
-        if (isCursorDisabled(select_cursor)) {
-          select_cursor = moveLeft(cursor);
+        if (isCursorDisabled(*select_cursor)) {
+          *select_cursor = moveLeft(*cursor);
         }
-        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
-        setDesiredColumn(cursor, &desired_column);
+        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        setDesiredColumn(*cursor, desired_column);
         break;
       case KEY_SUPPR:
-        if (isCursorDisabled(select_cursor)) {
-          select_cursor = moveRight(cursor);
+        if (isCursorDisabled(*select_cursor)) {
+          *select_cursor = moveRight(*cursor);
         }
-        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
-        setDesiredColumn(cursor, &desired_column);
+        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        setDesiredColumn(*cursor, desired_column);
         break;
       case KEY_TAB:
-        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
-        tmp = cursor;
-        cursor = insertCharInLineC(cursor, readChar_U8FromInput(' '));
-        cursor = insertCharInLineC(cursor, readChar_U8FromInput(' '));
-        saveAction(&history_frame, createInsertAction(tmp, cursor));
-        setDesiredColumn(cursor, &desired_column);
+        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        tmp = *cursor;
+        *cursor = insertCharInLineC(*cursor, readChar_U8FromInput(' '));
+        *cursor = insertCharInLineC(*cursor, readChar_U8FromInput(' '));
+        saveAction(history_frame, createInsertAction(tmp, *cursor));
+        setDesiredColumn(*cursor, desired_column);
         break;
       case CTRL_KEY('d'):
-        if (isCursorDisabled(select_cursor) == true) {
-          selectLine(&cursor, &select_cursor);
+        if (isCursorDisabled(*select_cursor) == true) {
+          selectLine(cursor, select_cursor);
         }
-        deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
-        setDesiredColumn(cursor, &desired_column);
+        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        setDesiredColumn(*cursor, desired_column);
         break;
 
 
@@ -333,26 +321,44 @@ int main(int argc, char** args) {
         // exit(0);
         if (iscntrl(c)) {
           printf("Unsupported touch %d\r\n", c);
-          if (file.status != NONE) saveFile(root, &file);
-          // exit(0);
-          goto end;
+          // if (file.status != NONE) saveFile(root, &file);
+          // goto end;
         }
         else {
-          deleteSelectionWithHist(&history_frame, &cursor, &select_cursor);
-          cursor = insertCharInLineC(cursor, readChar_U8FromInput(c));
-          setDesiredColumn(cursor, &desired_column);
-          saveAction(&history_frame, createInsertAction(old_cur, cursor));
+          deleteSelectionWithHist(history_frame, cursor, select_cursor);
+          *cursor = insertCharInLineC(*cursor, readChar_U8FromInput(c));
+          setDesiredColumn(*cursor, desired_column);
+          saveAction(history_frame, createInsertAction(*old_cur, *cursor));
         }
         break;
     }
 
-    if (!areCursorEqual(cursor, old_cur)) {
-      old_cur = cursor;
-      moveScreenToMatchCursor(cursor, &screen_x, &screen_y);
+    // flag cursor change
+    if (!areCursorEqual(*cursor, *old_cur)) {
+      *old_cur = *cursor;
+      moveScreenToMatchCursor(ftw, *cursor, screen_x, screen_y);
     }
 
-    printFile(cursor, select_cursor, screen_x, screen_y);
+    // flag screen_x change
+    if (*old_screen_x != *screen_x) {
+      *old_screen_x = *screen_x;
+    }
+
+    // flag screen_y change
+    if (*old_screen_y != *screen_y) {
+      *old_screen_y = *screen_y;
+      // resize line_w to match with line_number_length
+      int new_lnw_width = numberOfDigitOfNumber(*screen_y + ftw->_maxy) + 1 /* +1 for the line */;
+      if (new_lnw_width != ftw->_begx) {
+        resizeEditorWindows(&ftw, &lnw, edw_yoffset, new_lnw_width);
+      }
+    }
+
+
+    printFile(ftw, lnw, *cursor, *select_cursor, *screen_x, *screen_y);
     refresh();
+    wrefresh(ftw);
+    wrefresh(lnw);
   }
 
 end:
@@ -360,206 +366,12 @@ end:
   printf("\033[?1003l\n"); // Disable mouse movement events, as l = low
   fflush(stdout);
 
-  if (file.status == EXIST) {
-    setlastFilePosition(file.path_abs, cursor.file_id.absolute_row, cursor.line_id.absolute_column, screen_x, screen_y);
-    // TODO add the save of the history in a file.
+  if (io_file->status == EXIST) {
+    setlastFilePosition(io_file->path_abs, cursor->file_id.absolute_row, cursor->line_id.absolute_column, *screen_x, *screen_y);
   }
 
   endwin();
-  destroyFullFile(root);
-  destroyEndOfHistory(&history_root);
+  destroyFullFile(*root);
+  destroyEndOfHistory(history_root);
   return 0;
-}
-
-void printChar_U8ToNcurses(Char_U8 ch) {
-  int size = sizeChar_U8(ch);
-  for (int i = 0; i < size; i++) {
-    printw("%c", ch.t[i]);
-  }
-}
-
-void printFile(Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) {
-  move(0, 0);
-  FileIdentifier file_cur = cursor.file_id;
-
-  // print text
-  for (int row = screen_y; row < screen_y + LINES; row++) {
-    // getting the row to print.
-    file_cur = tryToReachAbsRow(file_cur, row);
-
-    // if the row is couldn't be reached.
-    if (file_cur.absolute_row != row) {
-      printw("~\n");
-      continue;
-    }
-
-    LineIdentifier begin_screen_line_cur = tryToReachAbsColumn(
-      moduloLineIdentifierR(getLineForFileIdentifier(file_cur), 0), screen_x);
-    LineIdentifier end_screen_line_cur = tryToReachAbsColumn(begin_screen_line_cur, screen_x + COLS - 3);
-
-
-    int column = screen_x;
-    while (end_screen_line_cur.absolute_column >= screen_x && begin_screen_line_cur.absolute_column <= end_screen_line_cur.absolute_column && screen_x + COLS - 3 >= column) {
-      Char_U8 ch = getCharForLineIdentifier(begin_screen_line_cur);
-
-      int size = charPrintSize(ch);
-      // If the char is detected as not printable char.
-      if (size == 0 || size == -1) {
-        ch = readChar_U8FromCharArray("�");
-        size = 1;
-      }
-
-      // If a char of size 2 is at the end of the line replace it by '_' to avoid line overflow.
-      if (size == 2 && screen_x + COLS - 4 < column) {
-        ch = readChar_U8FromCharArray("_");
-        size = 1;
-      }
-
-      // determine if the char is selected or not.
-      bool selected_style = isCursorDisabled(select_cursor) == false
-                            && isCursorBetweenOthers(cursorOf(file_cur, begin_screen_line_cur), select_cursor, cursor);
-
-      if (selected_style)
-        attron(A_STANDOUT|A_DIM);
-
-      printChar_U8ToNcurses(ch);
-
-      if (selected_style)
-        attroff(A_STANDOUT|A_DIM);
-
-      // move to next column
-      begin_screen_line_cur.relative_column++;
-      begin_screen_line_cur.absolute_column++;
-      column += size;
-    }
-
-    // show empty line selected.
-    if (begin_screen_line_cur.absolute_column == end_screen_line_cur.absolute_column && hasElementAfterLine(end_screen_line_cur) == false) {
-      if (isCursorDisabled(select_cursor) == false
-          && isCursorBetweenOthers(cursorOf(file_cur, begin_screen_line_cur), select_cursor, cursor)) {
-        // if line selected
-        attron(A_STANDOUT|A_DIM);
-        printw(" ");
-        attroff(A_STANDOUT|A_DIM);
-      }
-    }
-
-    // If the line is not fully display show '>'
-    if (hasElementAfterLine(end_screen_line_cur)) {
-      attron(A_BOLD|A_UNDERLINE|A_DIM);
-      printw(">");
-      attroff(A_BOLD|A_UNDERLINE|A_DIM);
-    }
-
-    printw("\n");
-  }
-
-  // Check if cursor is in the screen and print it if needed.
-  if (cursor.file_id.absolute_row >= screen_y && cursor.file_id.absolute_row < screen_y + LINES
-      && cursor.line_id.absolute_column >= screen_x - 1 && cursor.line_id.absolute_column <= screen_x + COLS - 3) {
-    int x = getScreenXForCursor(cursor, screen_x);
-    move(cursor.file_id.absolute_row - screen_y, x);
-
-    char size = 1;
-    if (hasElementAfterLine(cursor.line_id) == true) {
-      // Check the size of the the char which is under cursor.
-      Cursor tmp = moveRight(cursor);
-      size = charPrintSize(getCharForLineIdentifier(tmp.line_id));
-    }
-
-    chgat(size, A_STANDOUT, 0, NULL);
-  }
-}
-
-void moveScreenToMatchCursor(Cursor cursor, int* screen_x, int* screen_y) {
-  if (cursor.file_id.absolute_row - (*screen_y + LINES) + 1 >= 0) {
-    *screen_y = cursor.file_id.absolute_row - LINES + 2;
-    if (*screen_y < 1) *screen_y = 1;
-  }
-  else if (cursor.file_id.absolute_row < *screen_y + 1) {
-    *screen_y = cursor.file_id.absolute_row - 1;
-    if (*screen_y < 1) *screen_y = 1;
-  }
-
-  int screen_x_wide_char = getScreenXForCursor(cursor, *screen_x) + *screen_x;
-  if (screen_x_wide_char - (*screen_x + COLS - 8) >= 0) {
-    *screen_x = screen_x_wide_char - COLS + 8;
-    if (*screen_x < 1) *screen_x = 1;
-  }
-  else if (screen_x_wide_char - 5 < *screen_x) {
-    *screen_x = screen_x_wide_char - 5;
-    if (*screen_x < 1) {
-      *screen_x = 1;
-    }
-  }
-}
-
-void centerCursorOnScreen(Cursor cursor, int* screen_x, int* screen_y) {
-  // center for y, but right for x.
-  *screen_x = cursor.line_id.absolute_column - (COLS /*/ 2*/);
-  *screen_y = cursor.file_id.absolute_row - (LINES / 2);
-
-  if (*screen_x < 1)
-    *screen_x = 1;
-  if (*screen_y < 1)
-    *screen_y = 1;
-
-  // To match right for x.
-  moveScreenToMatchCursor(cursor, screen_x, screen_y);
-}
-
-Cursor createRoot(IO_FileID file) {
-  if (file.status == EXIST) {
-    return initWrittableFileFromFile(file.path_abs);
-  }
-  return initNewWrittableFile();
-}
-
-
-int getScreenXForCursor(Cursor cursor, int screen_x) {
-  Cursor initial = cursor;
-  Cursor old_cursor = cursor;
-  int atAdd = 0;
-
-  if (cursor.line_id.absolute_column != 0 && charPrintSize(getCharForLineIdentifier(cursor.line_id)) == 2) {
-    atAdd++;
-  }
-  cursor = moveLeft(cursor);
-
-
-  while (screen_x <= cursor.line_id.absolute_column && areCursorEqual(cursor, old_cursor) == false && cursor.file_id.absolute_row == old_cursor.file_id.absolute_row) {
-    assert(cursor.line_id.absolute_column != 0);
-    if (charPrintSize(getCharForLineIdentifier(cursor.line_id)) == 2) {
-      atAdd++;
-    }
-
-    old_cursor = cursor;
-    cursor = moveLeft(cursor);
-  }
-
-  return initial.line_id.absolute_column - screen_x + 1 + atAdd;
-}
-
-LineIdentifier getLineIdForScreenX(LineIdentifier line_id, int screen_x, int x_click) {
-  line_id = tryToReachAbsColumn(line_id, screen_x - 1);
-
-  int current_column = 0;
-  int x_el = 0;
-
-  while (hasElementAfterLine(line_id) == true && current_column <= x_click) {
-    line_id = tryToReachAbsColumn(line_id, line_id.absolute_column + 1);
-    int size = charPrintSize(getCharForLineIdentifier(line_id));
-    if (size <= 0) size = 1; // TODO handle non UTF_8 char.
-    current_column += size;
-    x_el++;
-  }
-
-  if (x_click >= current_column)
-    x_el++;
-
-  return tryToReachAbsColumn(line_id, screen_x + x_el - 2);
-}
-
-void setDesiredColumn(Cursor cursor, int* desired_column) {
-  *desired_column = cursor.line_id.absolute_column;
 }

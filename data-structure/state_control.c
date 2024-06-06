@@ -4,11 +4,9 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
-#include "state_control.h"
-
 #include <time.h>
 
+#include "state_control.h"
 #include "file_management.h"
 #include "../io_management/file_history.h"
 
@@ -308,12 +306,16 @@ void saveCurrentStateControl(History root, History* current_state, char* fileNam
   fclose(f);
 }
 
-void loadCurrentStateControl(History* root, History** current_state, char* fileName) {
+void loadCurrentStateControl(History* root, History** current_state, IO_FileID io_file) {
   *current_state = root;
   initHistory(root);
 
+  if (io_file.status != EXIST) {
+    return;
+  }
+
   char fileStateControl[strlen(FILE_STATE_PATH) + 60 /*size of the hash*/ + 1];
-  sprintf(fileStateControl, "%s%llu", FILE_STATE_PATH, hashFileName(fileName));
+  sprintf(fileStateControl, "%s%llu", FILE_STATE_PATH, hashFileName(io_file.path_abs));
 
   FILE* f = fopen(fileStateControl, "r");
   if (f == NULL) {
@@ -321,7 +323,7 @@ void loadCurrentStateControl(History* root, History** current_state, char* fileN
   }
 
   struct stat attr;
-  stat(fileName, &attr);
+  stat(io_file.path_abs, &attr);
 
   struct timespec loaded;
   fscanf(f, "%ld\n", &loaded);
