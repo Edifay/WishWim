@@ -1,8 +1,12 @@
 #include "utf_8_extractor.h"
 
+#include <ncurses.h>
 #include <stdlib.h>
 #include <wchar.h>
 #include <__stddef_wchar_t.h>
+
+#include "term_handler.h"
+#include "../utils/constants.h"
 
 /* Unix call, use 'man wcwidth' to see explication. */
 int wcwidth(const wint_t wc);
@@ -167,6 +171,10 @@ void testUnitUtf8Extractor() {
 
 
 int charPrintSize(Char_U8 ch) {
+  if (ch.t[0] == '\t') {
+    return TAB_SIZE;
+  }
+
   if (sizeChar_U8(ch) == 1) // If char is ascii avoid convert and call wcwidth we can instant return size 1. Will not work with control char from ascii.
     return 1;
 

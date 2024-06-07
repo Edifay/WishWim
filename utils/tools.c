@@ -31,3 +31,27 @@ int numberOfDigitOfNumber(int n) {
   sprintf(page_number, "%d", n);
   return strlen(page_number);
 }
+
+int powInt(int x, int y) {
+  int res = x;
+
+  for (int i = 1; i < y; i++) {
+    res *= x;
+  }
+
+  return res;
+}
+
+/**
+ * Give as fileName the absolute path of the file !
+ */
+unsigned long long hashFileName(char* fileName) {
+  int length = strlen(fileName);
+  unsigned long long value = powInt(length, 4);
+
+  for (int i = 0; i < length; i++) {
+    value += i * i * i * i * fileName[i];
+  }
+
+  return value;
+}

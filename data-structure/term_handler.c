@@ -1,9 +1,12 @@
 #include <assert.h>
 #include <string.h>
+#include <libgen.h>
+#include <stdlib.h>
 
-
-#include "term_handler.h"
 #include "file_management.h"
+#include "term_handler.h"
+#include "../utils/constants.h"
+
 
 void printChar_U8ToNcurses(WINDOW* w, Char_U8 ch) {
   int size = sizeChar_U8(ch);
@@ -12,12 +15,12 @@ void printChar_U8ToNcurses(WINDOW* w, Char_U8 ch) {
   }
 }
 
-void printFile(WINDOW* file_w, WINDOW* line_w, Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) {
-  wmove(file_w, 0, 0);
+void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) {
+  wmove(ftw, 0, 0);
   FileIdentifier file_cur = cursor.file_id;
 
-  int current_lines = file_w->_maxy + 1;
-  int current_columns = file_w->_maxx + 1;
+  int current_lines = ftw->_maxy + 1;
+  int current_columns = ftw->_maxx + 1;
 
   // print text
   for (int row = screen_y; row < screen_y + current_lines; row++) {
@@ -26,12 +29,12 @@ void printFile(WINDOW* file_w, WINDOW* line_w, Cursor cursor, Cursor select_curs
 
     // if the row is couldn't be reached.
     if (file_cur.absolute_row != row) {
-      wmove(line_w, row - screen_y, 0);
-      for (int i = 0; i < line_w->_maxx + 1; i++) {
-        wprintw(line_w, " ");
+      wmove(lnw, row - screen_y, 0);
+      for (int i = 0; i < lnw->_maxx + 1; i++) {
+        wprintw(lnw, " ");
       }
 
-      wprintw(file_w, "~\n");
+      wprintw(ftw, "~\n");
 
       continue;
     }
@@ -43,30 +46,29 @@ void printFile(WINDOW* file_w, WINDOW* line_w, Cursor cursor, Cursor select_curs
     int lineNumberSize = strlen(line_number);
 
     if (file_cur.absolute_row != cursor.file_id.absolute_row)
-      wattron(line_w, A_DIM);
+      wattron(lnw, A_DIM);
     else
-      wattron(line_w, A_BOLD);
+      wattron(lnw, A_BOLD);
 
-    wmove(line_w, row - screen_y, 0);
-    for (int i = 0; i < line_w->_maxx - lineNumberSize; i++) {
-      wprintw(line_w, " ");
+    wmove(lnw, row - screen_y, 0);
+    for (int i = 0; i < lnw->_maxx - lineNumberSize; i++) {
+      wprintw(lnw, " ");
     }
-    wprintw(line_w, "%s", line_number);
+    wprintw(lnw, "%s", line_number);
     if (file_cur.absolute_row == cursor.file_id.absolute_row)
-      wprintw(line_w, "🭳");
+      wprintw(lnw, "🭳");
     else
-      wprintw(line_w, "🭵");
+      wprintw(lnw, "🭵");
 
     if (file_cur.absolute_row != cursor.file_id.absolute_row)
-      wattroff(line_w, A_DIM);
+      wattroff(lnw, A_DIM);
     else
-      wattroff(line_w, A_BOLD);
+      wattroff(lnw, A_BOLD);
 
 
     // Print line chars
 
-    LineIdentifier begin_screen_line_cur = tryToReachAbsColumn(
-      moduloLineIdentifierR(getLineForFileIdentifier(file_cur), 0), screen_x);
+    LineIdentifier begin_screen_line_cur = tryToReachAbsColumn(moduloLineIdentifierR(getLineForFileIdentifier(file_cur), 0), screen_x);
     LineIdentifier end_screen_line_cur = tryToReachAbsColumn(begin_screen_line_cur, screen_x + current_columns - 3);
 
 
@@ -83,22 +85,29 @@ void printFile(WINDOW* file_w, WINDOW* line_w, Cursor cursor, Cursor select_curs
       }
 
       // If a char of size 2 is at the end of the line replace it by '_' to avoid line overflow.
-      if (size == 2 && screen_x + current_columns - 4 < column) {
+      if (size >= 2 && screen_x + current_columns - 4 < column) {
         ch = readChar_U8FromCharArray("_");
-        size = 1;
+        // size = 1;
       }
 
       // determine if the char is selected or not.
-      bool selected_style = isCursorDisabled(select_cursor) == false
-                            && isCursorBetweenOthers(cursorOf(file_cur, begin_screen_line_cur), select_cursor, cursor);
+      bool selected_style = isCursorDisabled(select_cursor) == false && isCursorBetweenOthers(cursorOf(file_cur, begin_screen_line_cur), select_cursor, cursor);
 
       if (selected_style)
-        wattron(file_w, A_STANDOUT|A_DIM);
+        wattron(ftw, A_STANDOUT|A_DIM);
 
-      printChar_U8ToNcurses(file_w, ch);
+      if (ch.t[0] == '\t') {
+        for (int i = 0; i < TAB_SIZE; i++) {
+          Char_U8 space = readChar_U8FromInput(' ');
+          printChar_U8ToNcurses(ftw, space);
+        }
+      }
+      else {
+        printChar_U8ToNcurses(ftw, ch);
+      }
 
       if (selected_style)
-        wattroff(file_w, A_STANDOUT|A_DIM);
+        wattroff(ftw, A_STANDOUT|A_DIM);
 
       // move to next column
       begin_screen_line_cur.relative_column++;
@@ -111,27 +120,27 @@ void printFile(WINDOW* file_w, WINDOW* line_w, Cursor cursor, Cursor select_curs
       if (isCursorDisabled(select_cursor) == false
           && isCursorBetweenOthers(cursorOf(file_cur, begin_screen_line_cur), select_cursor, cursor)) {
         // if line selected
-        wattron(file_w, A_STANDOUT|A_DIM);
-        wprintw(file_w, " ");
-        wattroff(file_w, A_STANDOUT|A_DIM);
+        wattron(ftw, A_STANDOUT|A_DIM);
+        wprintw(ftw, " ");
+        wattroff(ftw, A_STANDOUT|A_DIM);
       }
     }
 
     // If the line is not fully display show '>'
     if (hasElementAfterLine(end_screen_line_cur)) {
-      wattron(file_w, A_BOLD|A_UNDERLINE|A_DIM);
-      wprintw(file_w, ">");
-      wattroff(file_w, A_BOLD|A_UNDERLINE|A_DIM);
+      wattron(ftw, A_BOLD|A_UNDERLINE|A_DIM);
+      wprintw(ftw, ">");
+      wattroff(ftw, A_BOLD|A_UNDERLINE|A_DIM);
     }
 
-    wprintw(file_w, "\n");
+    wprintw(ftw, "\n");
   }
 
   // Check if cursor is in the screen and print it if needed.
   if (cursor.file_id.absolute_row >= screen_y && cursor.file_id.absolute_row < screen_y + current_lines
       && cursor.line_id.absolute_column >= screen_x - 1 && cursor.line_id.absolute_column <= screen_x + current_columns - 3) {
     int x = getScreenXForCursor(cursor, screen_x);
-    wmove(file_w, cursor.file_id.absolute_row - screen_y, x);
+    wmove(ftw, cursor.file_id.absolute_row - screen_y, x);
 
     char size = 1;
     if (hasElementAfterLine(cursor.line_id) == true) {
@@ -140,8 +149,9 @@ void printFile(WINDOW* file_w, WINDOW* line_w, Cursor cursor, Cursor select_curs
       size = charPrintSize(getCharForLineIdentifier(tmp.line_id));
     }
 
-    wchgat(file_w, size, A_STANDOUT, 0, NULL);
+    wchgat(ftw, size, A_STANDOUT, 0, NULL);
   }
+  // box(ofw, 0, 0);
 }
 
 void moveScreenToMatchCursor(WINDOW* w, Cursor cursor, int* screen_x, int* screen_y) {
@@ -192,21 +202,94 @@ Cursor createRoot(IO_FileID file) {
 }
 
 
+void handleEditorClick(int edws_offset_x, int edws_offset_y, Cursor* cursor, Cursor* select_cursor, int* desired_column, int* screen_x, int* screen_y, MEVENT* m_event,
+                       bool* button1_down) {
+  if (m_event->y - edws_offset_y < 0) {
+    m_event->y = edws_offset_y;
+  }
+
+
+  // ---------- CURSOR ACTION ------------
+
+  if (m_event->bstate & BUTTON1_RELEASED) {
+    *button1_down = false;
+  }
+
+  if (*button1_down) {
+    FileIdentifier new_file_id = tryToReachAbsRow(cursor->file_id, *screen_y + m_event->y - edws_offset_y);
+    LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), *screen_x, m_event->x - edws_offset_x);
+
+    if (isCursorDisabled(*select_cursor) == false) {
+      *cursor = cursorOf(new_file_id, new_line_id);
+    }
+    else if (areCursorEqual(*cursor, cursorOf(new_file_id, new_line_id)) == false) {
+      *select_cursor = *cursor;
+      *cursor = cursorOf(new_file_id, new_line_id);
+    }
+    setDesiredColumn(*cursor, desired_column);
+  }
+
+  if (m_event->bstate & BUTTON1_PRESSED) {
+    setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
+    FileIdentifier new_file_id = tryToReachAbsRow(cursor->file_id, *screen_y + m_event->y - edws_offset_y);
+    LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), *screen_x, m_event->x - edws_offset_x);
+    *cursor = cursorOf(new_file_id, new_line_id);
+    setDesiredColumn(*cursor, desired_column);
+    *button1_down = true;
+  }
+
+  if (m_event->bstate & BUTTON1_DOUBLE_CLICKED) {
+    selectWord(cursor, select_cursor);
+  }
+
+
+  // ---------- SCROLL ------------
+  if (m_event->bstate & BUTTON4_PRESSED && !(m_event->bstate & BUTTON_SHIFT)) {
+    // Move Up
+    *screen_y -= SCROLL_SPEED;
+    if (*screen_y < 1) *screen_y = 1;
+  }
+  else if (m_event->bstate & BUTTON4_PRESSED && m_event->bstate & BUTTON_SHIFT) {
+    // Move Left
+    *screen_x -= SCROLL_SPEED;
+    if (*screen_x < 1) *screen_x = 1;
+  }
+
+  if (m_event->bstate & BUTTON5_PRESSED && !(m_event->bstate & BUTTON_SHIFT)) {
+    // Move Down
+    *screen_y += SCROLL_SPEED;
+    FileIdentifier last_line_cur = tryToReachAbsRow(cursor->file_id, *screen_y + 2);
+    if (*screen_y + 2 != last_line_cur.absolute_row) {
+      *screen_y = last_line_cur.absolute_row - 2;
+      if (*screen_y < 1) *screen_y = 1;
+    }
+  }
+  else if (m_event->bstate & BUTTON5_PRESSED && m_event->bstate & BUTTON_SHIFT) {
+    // Move Right
+    *screen_x += SCROLL_SPEED;
+  }
+}
+
+
 int getScreenXForCursor(Cursor cursor, int screen_x) {
   Cursor initial = cursor;
   Cursor old_cursor = cursor;
   int atAdd = 0;
+  int size;
 
-  if (cursor.line_id.absolute_column != 0 && charPrintSize(getCharForLineIdentifier(cursor.line_id)) == 2) {
-    atAdd++;
+
+  if (cursor.line_id.absolute_column != 0 && (size = charPrintSize(getCharForLineIdentifier(cursor.line_id))) >= 2) {
+    atAdd += size - 1;
   }
   cursor = moveLeft(cursor);
 
 
-  while (screen_x <= cursor.line_id.absolute_column && areCursorEqual(cursor, old_cursor) == false && cursor.file_id.absolute_row == old_cursor.file_id.absolute_row) {
+  while (screen_x <= cursor.line_id.absolute_column && areCursorEqual(cursor, old_cursor) == false
+         && cursor.file_id.absolute_row == old_cursor.file_id.absolute_row) {
     assert(cursor.line_id.absolute_column != 0);
-    if (charPrintSize(getCharForLineIdentifier(cursor.line_id)) == 2) {
-      atAdd++;
+    Char_U8 current_ch = getCharForLineIdentifier(cursor.line_id);
+    if ((size = charPrintSize(current_ch)) >= 2) {
+      atAdd += size - 1;
     }
 
     old_cursor = cursor;
@@ -236,13 +319,34 @@ LineIdentifier getLineIdForScreenX(LineIdentifier line_id, int screen_x, int x_c
   return tryToReachAbsColumn(line_id, screen_x + x_el - 2);
 }
 
+void printOpenedFileExplorer(int argc, FileContainer* files, int max_opened_file, int current_file, WINDOW* ofw) {
+  wmove(ofw, 0, 0);
+  for (int i = 1; i < argc && i < max_opened_file + 1; i++) {
+    if (i - 1 == current_file)
+      wattron(ofw, A_BOLD);
+    else
+      wattron(ofw, A_DIM);
+    wprintw(ofw, "%s", basename(files[i - 1].io_file.path_args));
+    if (i - 1 == current_file)
+      wattroff(ofw, A_BOLD);
+    else
+      wattroff(ofw, A_DIM);
+    if (i + 1 < argc && i + 1 < max_opened_file + 1)
+      wprintw(ofw, FILE_NAME_SEPARATOR);
+  }
+  wmove(ofw, 1, 0);
+  for (int i = 0; i < COLS; i++) {
+    wprintw(ofw, "🭸");
+  }
+}
+
 void setDesiredColumn(Cursor cursor, int* desired_column) {
   *desired_column = cursor.line_id.absolute_column;
 }
 
-void resizeEditorWindows(WINDOW** file_w, WINDOW** line_w, int y_file_editor, int new_start_x) {
-  delwin(*file_w);
-  delwin(*line_w);
-  *file_w = newwin(0, 0, y_file_editor, new_start_x);
-  *line_w = newwin(0, new_start_x, y_file_editor, 0);
+void resizeEditorWindows(WINDOW** ftw, WINDOW** lnw, int y_file_editor, int new_start_x) {
+  delwin(*ftw);
+  delwin(*lnw);
+  *ftw = newwin(0, 0, y_file_editor, new_start_x);
+  *lnw = newwin(0, new_start_x, y_file_editor, 0);
 }

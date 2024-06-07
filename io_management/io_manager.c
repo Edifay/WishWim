@@ -1,8 +1,10 @@
 #include "io_manager.h"
+#include "../utils/constants.h"
 
 #include <assert.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 Cursor initWrittableFileFromFile(char* fileName) {
@@ -42,9 +44,15 @@ bool loadFile(Cursor cursor, char* fileName) {
         printf("Tab\r\n");
 #endif
         Char_U8 ch;
-        ch.t[0] = ' ';
-        for (int i = 0; i < 4; i++) {
+        if (TAB_CHAR_USE) {
+          ch.t[0] = '\t';
           cursor = insertCharInLineC(cursor, ch);
+        }
+        else {
+          ch.t[0] = ' ';
+          for (int i = 0; i < TAB_SIZE; i++) {
+            cursor = insertCharInLineC(cursor, ch);
+          }
         }
       }
       else {
@@ -106,15 +114,15 @@ void saveFile(FileNode* root, IO_FileID* file) {
 }
 
 
-void setupFile(int argc, char** args, IO_FileID* file) {
+void setupFile(char* path, IO_FileID* file) {
   file->path_args = NULL;
   // 3 file status: no file given, file doesn't exist, file exists.
-  if (argc > 1) {
-    file->path_args = args[1];
-    if (access(args[1], F_OK) == 0) {
+  if (strcmp(path, "") != 0) {
+    file->path_args = path;
+    if (access(path, F_OK) == 0) {
       file->status = EXIST;
       // File exist
-      char* realpath_result = realpath(args[1], file->path_abs);
+      char* realpath_result = realpath(path, file->path_abs);
       assert(realpath_result != NULL);
     }
     else {

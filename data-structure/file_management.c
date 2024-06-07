@@ -5,11 +5,13 @@
 #include <limits.h>
 
 #include "term_handler.h"
-#include "../io_management/file_history.h"
+#include "../io_management/viewport_history.h"
+#include "../utils/constants.h"
 
 ////// -------------- FILE CONTAINER --------------
-void setupFileContainer(int argc, char** args, FileContainer* container) {
-  setupFile(argc, args, &container->io_file);
+
+void setupFileContainer(char* path, FileContainer* container) {
+  setupFile(path, &container->io_file);
   container->screen_x = 1;
   container->screen_y = 1;
   container->old_screen_x = -1;
@@ -203,9 +205,15 @@ Cursor insertCharArrayAtCursor(Cursor cursor, char* chs) {
         printf("Tab\r\n");
 #endif
         Char_U8 ch;
-        ch.t[0] = ' ';
-        for (int i = 0; i < 4; i++) {
+        if (TAB_CHAR_USE) {
+          ch.t[0] = '\t';
           cursor = insertCharInLineC(cursor, ch);
+        }
+        else {
+          ch.t[0] = ' ';
+          for (int i = 0; i < TAB_SIZE; i++) {
+            cursor = insertCharInLineC(cursor, ch);
+          }
         }
       }
       else {

@@ -111,7 +111,7 @@ void printLine(LineNode* line, int index, bool sep) {
 }
 
 
-void printFile(FileNode* file, Cursor cursor, bool sep) {
+void printEditor(FileNode* file, Cursor cursor, bool sep) {
   write(STDOUT_FILENO, "\x1b[12;H", 6);
 
   int row = cursor.file_id.absolute_row;
@@ -221,7 +221,7 @@ int main(int argc, char** args) {
 
 
   clearFullScreen();
-  printFile(root, cursor, SEPARATOR);
+  printEditor(root, cursor, SEPARATOR);
 
 
   char c;
@@ -252,13 +252,13 @@ int main(int argc, char** args) {
         // Delete backspace
         initNewWrite();
         cursor = deleteCharAtCursor(cursor);
-        printFile(root, cursor, SEPARATOR);
+        printEditor(root, cursor, SEPARATOR);
       }
       else if (c == 13) {
         // ENTER
         initNewWrite();
         cursor = insertNewLineInLineC(cursor);
-        printFile(root, cursor, SEPARATOR);
+        printEditor(root, cursor, SEPARATOR);
       }
       else if (c == 9) {
         // TAB
@@ -268,7 +268,7 @@ int main(int argc, char** args) {
         for (int i = 0; i < 4; i++) {
           cursor = insertCharInLineC(cursor, ch);
         }
-        printFile(root, cursor, SEPARATOR);
+        printEditor(root, cursor, SEPARATOR);
       }
       else if (c == '\x1b') {
         if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
@@ -280,32 +280,32 @@ int main(int argc, char** args) {
             // move right
             initNewWrite();
             cursor = moveRight(cursor);
-            printFile(root, cursor, SEPARATOR);
+            printEditor(root, cursor, SEPARATOR);
           }
           else if (c == 'D') {
             // move left
             initNewWrite();
             cursor = moveLeft(cursor);
-            printFile(root, cursor, SEPARATOR);
+            printEditor(root, cursor, SEPARATOR);
           }
           else if (c == 'A') {
             // move up
             initNewWrite();
             cursor = moveUp(cursor, cursor.line_id.absolute_column);
-            printFile(root, cursor, SEPARATOR);
+            printEditor(root, cursor, SEPARATOR);
           }
           else if (c == 'B') {
             // move down
             initNewWrite();
             cursor = moveDown(cursor, cursor.line_id.absolute_column);
-            printFile(root, cursor, SEPARATOR);
+            printEditor(root, cursor, SEPARATOR);
           }
           else if (c == 'F') {
             // fin
             initNewWrite();
             cursor.line_id = getLastLineNode(cursor.line_id.line);
             cursor = cursorOf(cursor.file_id, cursor.line_id);
-            printFile(root, cursor, SEPARATOR);
+            printEditor(root, cursor, SEPARATOR);
           }
           else if (c == '3') {
             if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
@@ -320,7 +320,7 @@ int main(int argc, char** args) {
                 cursor = deleteCharAtCursor(cursor);
               }
 
-              printFile(root, cursor, SEPARATOR);
+              printEditor(root, cursor, SEPARATOR);
             }
             else {
               printf("Unsupported char case 1. %c\r\n", c);
@@ -342,7 +342,7 @@ int main(int argc, char** args) {
       initNewWrite();
       Char_U8 ch = readChar_U8FromInput(c);
       cursor = insertCharInLineC(cursor, ch);
-      printFile(root, cursor, SEPARATOR);
+      printEditor(root, cursor, SEPARATOR);
     }
   }
 

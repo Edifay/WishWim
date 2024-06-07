@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 
+#include "constants.h"
 #include "../data-structure/file_management.h"
 
 
@@ -86,9 +87,15 @@ Cursor loadFromClipBoard(Cursor cursor) {
         printf("Tab\r\n");
 #endif
         Char_U8 ch;
-        ch.t[0] = ' ';
-        for (int i = 0; i < 4; i++) {
+        if (TAB_CHAR_USE) {
+          ch.t[0] = '\t';
           cursor = insertCharInLineC(cursor, ch);
+        }
+        else {
+          ch.t[0] = ' ';
+          for (int i = 0; i < TAB_SIZE; i++) {
+            cursor = insertCharInLineC(cursor, ch);
+          }
         }
       }
       else {

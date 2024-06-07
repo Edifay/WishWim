@@ -23,6 +23,6 @@ bool loadFile(Cursor cursor, char* fileName);
 
 void saveFile(FileNode* root, IO_FileID *file);
 
-void setupFile(int argc, char** args, IO_FileID *file);
+void setupFile(char* path, IO_FileID *file);
 
 #endif //FILE_MANAGER_H

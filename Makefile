@@ -5,7 +5,7 @@ LDFLAGS +=-fsanitize=address
 executable=data-structure/term_handler.o main.o al #test_line.o test_file.o  test_line test_file  # utils/debug.o
 modules= \
 	data-structure/utf_8_extractor.o data-structure/file_structure.o data-structure/file_management.o utils/tools.o    \
-	io_management/io_manager.o utils/key_management.o utils/clipboard_manager.o io_management/file_history.o         \
+	io_management/io_manager.o utils/key_management.o utils/clipboard_manager.o io_management/viewport_history.o         \
 	data-structure/state_control.o data-structure/term_handler.o
 
 
@@ -17,11 +17,8 @@ test_file.o: test_file.c data-structure/utf_8_extractor.h data-structure/file_st
 
 test_line.o: test_line.c data-structure/utf_8_extractor.h data-structure/file_structure.h
 	$(CC) $(CFLAGS) -c $< -o $@
-#
-#data-structure/term_handler.o: data-structure/term_handler.c
-#	$(CC) $(CFLAGS) -c $< -o $@ -lncursesw
 
-%.o : %.c %.h data-structure/utf_8_extractor.h data-structure/file_structure.h
+%.o : %.c %.h data-structure/utf_8_extractor.h data-structure/file_structure.h utils/constants.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 test_line: test_line.o $(modules)

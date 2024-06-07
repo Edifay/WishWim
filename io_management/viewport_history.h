@@ -12,8 +12,6 @@ void getLastFilePosition(char* fileName, int* row, int* column, int *screen_x, i
 
 void setlastFilePosition(char* fileName, int row, int column, int screen_x, int screen_y);
 
-unsigned long long hashFileName(char* fileName);
-
 void fetchSavedCursorPosition(IO_FileID file, Cursor* cursor, int* screen_x, int* screen_y);
 
 #endif //FILE_HISTORY_H

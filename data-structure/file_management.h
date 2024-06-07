@@ -28,7 +28,7 @@ typedef enum {
 
 ////// -------------- FILE CONTAINER --------------
 
-void setupFileContainer(int argc, char **args, FileContainer *container);
+void setupFileContainer(char *args, FileContainer *container);
 
 
 ////// -------------- CURSOR ACTIONS --------------

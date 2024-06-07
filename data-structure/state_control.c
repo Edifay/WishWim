@@ -4,11 +4,10 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <time.h>
 
 #include "state_control.h"
 #include "file_management.h"
-#include "../io_management/file_history.h"
+#include "../io_management/viewport_history.h"
 
 
 void initHistory(History* history) {

@@ -15,4 +15,6 @@ int min(int a, int b);
 
 int numberOfDigitOfNumber(int n);
 
+unsigned long long hashFileName(char* fileName);
+
 #endif //TOOLS_H
