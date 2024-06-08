@@ -55,3 +55,9 @@ unsigned long long hashFileName(char* fileName) {
 
   return value;
 }
+
+void printToNcursesNCharFromString(WINDOW* w, char* str, int n) {
+  for (int i = 0; i < n && str[i] != '\0'; i++) {
+    wprintw(w, "%c", str[i]);
+  }
+}

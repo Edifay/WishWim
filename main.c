@@ -3,6 +3,7 @@
 #include <libgen.h>
 #include <locale.h>
 #include <ncurses.h>
+#include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
 
@@ -10,6 +11,7 @@
 #include "data-structure/file_structure.h"
 #include "data-structure/state_control.h"
 #include "data-structure/term_handler.h"
+#include "io_management/io_explorer.h"
 #include "io_management/viewport_history.h"
 #include "io_management/io_manager.h"
 #include "utils/clipboard_manager.h"
@@ -29,18 +31,27 @@ int main(int argc, char** args) {
 
   FileContainer files[MAX_OPENED_FILE];
   int current_file = 0;
+  int current_file_offset = 0;
+
+  ExplorerFolder folder;
+  initFolder(getenv("PWD"), &folder);
+  folder.open = true;
 
   // Init GUI vars
   WINDOW* ftw = NULL; // File Text Window
   WINDOW* lnw = NULL; // Line Number Window
   WINDOW* ofw = NULL; // Opened Files Window
-  int edws_offset_y = 2; // Offset of the y for ftw and lnw, and height of ofw.
+  WINDOW* few = NULL; // File Explorer Window
+  int edws_offset_y = 2; // Height of Opened Files Window.
+  int few_width = 0; // File explorer width
+  int few_x_offset = 0;
+  int few_y_offset = 0;
 
   // Init ncurses
   initscr();
-  ftw = newwin(0, 0, edws_offset_y, 0);
-  lnw = newwin(0, 0, 0, 0);
-  ofw = newwin(edws_offset_y, 0, 0, 0);
+  ftw = newwin(0, 0, edws_offset_y, few_width);
+  lnw = newwin(0, 0, 0, few_width);
+  ofw = newwin(edws_offset_y, 0, 0, few_width);
   raw();
   keypad(stdscr, TRUE);
   mouseinterval(0);
@@ -81,12 +92,14 @@ int main(int argc, char** args) {
   printEditor(ftw, lnw, ofw, *cursor, *select_cursor, *screen_x, *screen_y);
 
   // print file opened explorer
-  printOpenedFileExplorer(argc, files, MAX_OPENED_FILE, current_file, ofw);
+  printOpenedFile(argc, files, MAX_OPENED_FILE, current_file, current_file_offset, ofw);
 
   refresh();
   wrefresh(ftw);
   wrefresh(lnw);
   wrefresh(ofw);
+  wrefresh(few);
+
 
   // Start automated-machine
   *old_cur = *cursor;
@@ -103,8 +116,12 @@ int main(int argc, char** args) {
       case BEGIN_MOUSE_LISTEN:
       case MOUSE_IN_OUT:
       case KEY_RESIZE:
-        resizeEditorWindows(&ftw, &lnw, edws_offset_y, ftw->_begx);
-        printOpenedFileExplorer(argc, files, MAX_OPENED_FILE, current_file, ofw);
+        // Avoid biggest size only used on time before automated resize.
+        if (lnw->_maxx + few_width + 1 >= COLS)
+          break;
+        resizeEditorWindows(&ftw, &lnw, edws_offset_y, lnw->_maxx + 1, few_width);
+        printOpenedFile(argc, files, MAX_OPENED_FILE, current_file, current_file_offset, ofw);
+        printFileExplorer(&folder, few);
         break;
 
       // ---------------------- MOUSE ----------------------
@@ -118,16 +135,75 @@ int main(int argc, char** args) {
             continue;
           }
 
+          if (m_event.x < ofw->_begx && button1_down == false) {
+            // Click in File Explorer Window
 
-          if (m_event.y - edws_offset_y < 0 && button1_down == false) {
+            if (!(m_event.bstate & BUTTON1_RELEASED))
+              break;
+
+            ExplorerFolder* res_folder;
+            int res_index;
+            bool found = getClickedFile(&folder, m_event.y, &res_folder, &res_index);
+            if (found == false) {
+              // printf("Don't find\r\n");
+            }
+            else {
+              if (res_index == -1) {
+                // printf("Folder %s\r\n", basename(res_folder->path));
+                //switch opened.
+                res_folder->open = !res_folder->open;
+              }
+              else {
+                // printf("File %s\r\n", basename(res_folder->files[res_index].path));
+              }
+            }
+            printFileExplorer(&folder, few);
+          }
+          else if (m_event.y - edws_offset_y < 0 && button1_down == false) {
             // Click on opened file window
 
-            int current_offset = 0;
-            for (int i = 0; i < argc - 1 && i < MAX_OPENED_FILE; i++) {
+            if (m_event.bstate & BUTTON4_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
+              // Move Up
+              current_file_offset--;
+              if (current_file_offset < 0)
+                current_file_offset = 0;
+              printOpenedFile(argc, files, MAX_OPENED_FILE, current_file, current_file_offset, ofw);
+            }
+            if (m_event.bstate & BUTTON5_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
+              // Move Down
+              current_file_offset++;
+              if (current_file_offset > MAX_OPENED_FILE - 1)
+                current_file_offset = MAX_OPENED_FILE - 1;
+              printOpenedFile(argc, files, MAX_OPENED_FILE, current_file, current_file_offset, ofw);
+            }
+
+            if (!(m_event.bstate & BUTTON1_RELEASED))
+              break;
+
+            int current_offset = ofw->_begx;
+            if (current_file_offset != 0) {
+              current_offset += strlen("< | ");
+            }
+            for (int i = current_file_offset; i < argc - 1 && i < MAX_OPENED_FILE; i++) {
               if (files[i].io_file.status == NONE)
                 break;
 
               current_offset += strlen(basename(files[i].io_file.path_args));
+
+              if (current_file_offset != 0 && m_event.x < ofw->_begx + 3) {
+                current_file_offset--;
+                assert(current_file_offset >= 0);
+                printOpenedFile(argc, files, MAX_OPENED_FILE, current_file, current_file_offset, ofw);
+                break;
+              }
+
+              if (current_offset + strlen(FILE_NAME_SEPARATOR) > COLS && m_event.x > COLS - 4) {
+                current_file_offset++;
+                assert(current_file_offset < MAX_OPENED_FILE);
+                printOpenedFile(argc, files, MAX_OPENED_FILE, current_file, current_file_offset, ofw);
+                break;
+              }
+
               if (m_event.x < current_offset + (strlen(FILE_NAME_SEPARATOR) / 2)) {
                 // Don't change anything if the file clicked is currently the file opened.
                 if (current_file == i)
@@ -136,9 +212,10 @@ int main(int argc, char** args) {
                 current_file = i;
                 setupLocalVars(files, current_file, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y,
                                &history_root, &history_frame);
-                printOpenedFileExplorer(argc, files, MAX_OPENED_FILE, current_file, ofw);
+                printOpenedFile(argc, files, MAX_OPENED_FILE, current_file, current_file_offset, ofw);
                 break;
               }
+
 
               current_offset += strlen(FILE_NAME_SEPARATOR);
             }
@@ -223,7 +300,8 @@ int main(int argc, char** args) {
           current_file--;
         setupLocalVars(files, current_file, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y, &history_root,
                        &history_frame);
-        printOpenedFileExplorer(argc, files, MAX_OPENED_FILE, current_file, ofw);
+      // TODO check if the file selected is showing in ofw. If not move it in.
+        printOpenedFile(argc, files, MAX_OPENED_FILE, current_file, current_file_offset, ofw);
         break;
       case KEY_CTRL_MAJ_UP:
         // Do something with this.
@@ -231,7 +309,8 @@ int main(int argc, char** args) {
           current_file++;
         setupLocalVars(files, current_file, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y, &history_root,
                        &history_frame);
-        printOpenedFileExplorer(argc, files, MAX_OPENED_FILE, current_file, ofw);
+      // TODO check if the file selected is showing in ofw. If not move it in.
+        printOpenedFile(argc, files, MAX_OPENED_FILE, current_file, current_file_offset, ofw);
         break;
 
       // ---------------------- FILE MANAGEMENT ----------------------
@@ -331,6 +410,33 @@ int main(int argc, char** args) {
         break;
 
 
+      // ---------------------- EDITOR SHORTCUTS ----------------------
+
+
+      case CTRL_KEY('e'):
+        if (few_width == 0) {
+          // Open File Explorer Window
+          few_width = FILE_EXPLORER_WIDTH;
+          few = newwin(0, few_width, 0, 0);
+          if (folder.open == false) {
+            discoverFolder(&folder);
+          }
+          printFileExplorer(&folder, few);
+        }
+        else {
+          // Close File Explorer Window
+          delwin(few);
+          few_width = 0;
+        }
+      // Resize Opened File Window
+        delwin(ofw);
+        ofw = newwin(edws_offset_y, 0, 0, few_width);
+        printOpenedFile(argc, files, MAX_OPENED_FILE, current_file, current_file_offset, ofw);
+      // Resize Editor Window
+        resizeEditorWindows(&ftw, &lnw, edws_offset_y, lnw->_maxx + 1, few_width);
+        break;
+
+
       default:
         if (iscntrl(c)) {
           printf("Unsupported touch %d\r\n", c);
@@ -361,7 +467,7 @@ int main(int argc, char** args) {
       // resize line_w to match with line_number_length
       int new_lnw_width = numberOfDigitOfNumber(*screen_y + ftw->_maxy) + 1 /* +1 for the line */;
       if (new_lnw_width != ftw->_begx) {
-        resizeEditorWindows(&ftw, &lnw, edws_offset_y, new_lnw_width);
+        resizeEditorWindows(&ftw, &lnw, edws_offset_y, new_lnw_width, few_width);
       }
     }
 
@@ -371,6 +477,7 @@ int main(int argc, char** args) {
     wrefresh(ftw);
     wrefresh(lnw);
     wrefresh(ofw);
+    wrefresh(few);
   }
 
 end:
@@ -387,6 +494,7 @@ end:
     destroyFullFile(files[i].root);
     destroyEndOfHistory(&files[i].history_root);
   }
+  destroyFolder(&folder);
   return 0;
 }
 

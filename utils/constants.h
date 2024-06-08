@@ -7,4 +7,8 @@
 #define TAB_CHAR_USE false
 #define TAB_SIZE 2
 
+#define FILE_EXPLORER_WIDTH 30
+#define FILE_EXPLORER_TREE_OFFSET 1
+
+
 #endif //CONTANTS_H

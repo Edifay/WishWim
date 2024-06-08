@@ -6,7 +6,7 @@ executable=data-structure/term_handler.o main.o al #test_line.o test_file.o  tes
 modules= \
 	data-structure/utf_8_extractor.o data-structure/file_structure.o data-structure/file_management.o utils/tools.o    \
 	io_management/io_manager.o utils/key_management.o utils/clipboard_manager.o io_management/viewport_history.o         \
-	data-structure/state_control.o data-structure/term_handler.o
+	data-structure/state_control.o data-structure/term_handler.o io_management/io_explorer.o
 
 
 

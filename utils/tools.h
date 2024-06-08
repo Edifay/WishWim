@@ -4,6 +4,7 @@
 
 #ifndef TOOLS_H
 #define TOOLS_H
+#include <ncurses.h>
 
 typedef long long time_val;
 
@@ -16,5 +17,7 @@ int min(int a, int b);
 int numberOfDigitOfNumber(int n);
 
 unsigned long long hashFileName(char* fileName);
+
+void printToNcursesNCharFromString(WINDOW *w, char *str, int n);
 
 #endif //TOOLS_H

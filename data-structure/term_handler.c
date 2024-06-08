@@ -319,34 +319,157 @@ LineIdentifier getLineIdForScreenX(LineIdentifier line_id, int screen_x, int x_c
   return tryToReachAbsColumn(line_id, screen_x + x_el - 2);
 }
 
-void printOpenedFileExplorer(int argc, FileContainer* files, int max_opened_file, int current_file, WINDOW* ofw) {
+void printOpenedFile(int argc, FileContainer* files, int max_opened_file, int current_file, int current_file_offset, WINDOW* ofw) {
+  // The current position of the cursor for the first line.
   wmove(ofw, 0, 0);
-  for (int i = 1; i < argc && i < max_opened_file + 1; i++) {
+  int current_offset = ofw->_begx;
+  if (current_file_offset != 0) {
+    current_offset += strlen("< | ");
+    wattron(ofw, A_DIM);
+    wprintw(ofw, "< | ");
+    wattroff(ofw, A_DIM);
+  }
+  // Move to the top left corner.
+  for (int i = current_file_offset + 1; i < argc && i < max_opened_file + 1; i++) {
+    // Style file names.
     if (i - 1 == current_file)
       wattron(ofw, A_BOLD);
     else
       wattron(ofw, A_DIM);
-    wprintw(ofw, "%s", basename(files[i - 1].io_file.path_args));
+    // Print file name
+    char* file_name = basename(files[i - 1].io_file.path_args);
+    current_offset += strlen(file_name);
+    wprintw(ofw, "%s", file_name);
+    // Style file names.
     if (i - 1 == current_file)
       wattroff(ofw, A_BOLD);
     else
       wattroff(ofw, A_DIM);
-    if (i + 1 < argc && i + 1 < max_opened_file + 1)
+    // Print file name separator
+    if (i + 1 < argc && i + 1 < max_opened_file + 1) {
       wprintw(ofw, FILE_NAME_SEPARATOR);
+      current_offset += strlen(FILE_NAME_SEPARATOR);
+    }
+    // If the file names overflow the line, print the move right text.
+    if (current_offset + strlen(FILE_NAME_SEPARATOR) > COLS) {
+      wmove(ofw, 0, COLS - ofw->_begx - strlen("... | >"));
+      wattron(ofw, A_DIM);
+      wprintw(ofw, "... | >");
+      wattroff(ofw, A_DIM);
+      // assert((i < argc && i < max_opened_file + 1) == false);
+      break;
+    }
   }
+  // To erase the end of the line to avoid garbage on scroll to right.
+  for (int i = current_offset; i < COLS; i++) {
+    wprintw(ofw, " ");
+  }
+  // Print the bottom line.
   wmove(ofw, 1, 0);
   for (int i = 0; i < COLS; i++) {
     wprintw(ofw, "🭸");
   }
 }
 
+void internalPrintExplorerRec(ExplorerFolder* folder, WINDOW* few, int offset) {
+  // Don't print if not in window.
+  if (few->_cury >= few->_maxy) return;
+
+  if (folder->open && folder->discovered == false) {
+    discoverFolder(folder);
+  }
+
+  // Print current folder name
+  for (int i = 0; i < offset; i++) {
+    printToNcursesNCharFromString(few, " ", few->_maxx - few->_curx);
+  }
+
+  // Print decoration of folder
+  if (folder->open) printToNcursesNCharFromString(few, "🮦", few->_maxx - few->_curx);
+  else printToNcursesNCharFromString(few, ">", few->_maxx - few->_curx);
+
+  printToNcursesNCharFromString(few, "📁", few->_maxx - few->_curx);
+  printToNcursesNCharFromString(few, basename(folder->path), few->_maxx - few->_curx);
+  wprintw(few, "\n");
+
+
+  if (folder->open == false)
+    return;
+
+  // Print sub folders
+  for (int i = 0; i < folder->folder_count; i++) {
+    internalPrintExplorerRec(folder->folders + i, few, offset + FILE_EXPLORER_TREE_OFFSET);
+  }
+  // Print sub files
+  for (int i = 0; i < folder->file_count; i++) {
+    if (few->_cury >= few->_maxy) return;
+    for (int j = 0; j < offset + FILE_EXPLORER_TREE_OFFSET + 1/*Add one to balance with the folder decoration*/; j++) {
+      printToNcursesNCharFromString(few, " ", few->_maxx - few->_curx);
+    }
+    printToNcursesNCharFromString(few, "📄", few->_maxx - few->_curx);
+    printToNcursesNCharFromString(few, basename(folder->files[i].path), few->_maxx - few->_curx);
+    wprintw(few, "\n");
+    // Don't print if not in window.
+  }
+}
+
+void printFileExplorer(ExplorerFolder* pwd, WINDOW* few) {
+  wmove(few, 0, 0);
+
+  internalPrintExplorerRec(pwd, few, 0);
+  // Clear end of window
+  for (int i = few->_cury; i < few->_maxy + 1; i++) {
+    wprintw(few, "\n");
+  }
+  for (int i = few->_begy; i < few->_maxy + 1; i++) {
+    mvwprintw(few, i,FILE_EXPLORER_WIDTH - 1, "│");
+  }
+}
+
+
+bool internalGetClickedFile(ExplorerFolder* current_folder, int* y_click, ExplorerFolder** res_folder, int* file_index) {
+  if (*y_click == 0) {
+    *res_folder = current_folder;
+    *file_index = -1;
+    return true;
+  }
+  (*y_click)--;
+
+  // Don't check childs if current_folder isn't opened.
+  if (current_folder->open == false)
+    return false;
+
+  // Check for child folders click.
+  for (int i = 0; i < current_folder->folder_count; i++) {
+    if (internalGetClickedFile(current_folder->folders + i, y_click, res_folder, file_index) == true) {
+      return true;
+    }
+  }
+
+  // Check for child file click.
+  for (int i = 0; i < current_folder->file_count; i++) {
+    if (*y_click == 0) {
+      *res_folder = current_folder;
+      *file_index = i;
+      return true;
+    }
+    (*y_click)--;
+  }
+
+  return false;
+}
+
+bool getClickedFile(ExplorerFolder* pwd, int y_click, ExplorerFolder** res_folder, int* file_index) {
+  return internalGetClickedFile(pwd, &y_click, res_folder, file_index);
+}
+
 void setDesiredColumn(Cursor cursor, int* desired_column) {
   *desired_column = cursor.line_id.absolute_column;
 }
 
-void resizeEditorWindows(WINDOW** ftw, WINDOW** lnw, int y_file_editor, int new_start_x) {
+void resizeEditorWindows(WINDOW** ftw, WINDOW** lnw, int y_file_editor, int lnw_width, int few_width) {
   delwin(*ftw);
   delwin(*lnw);
-  *ftw = newwin(0, 0, y_file_editor, new_start_x);
-  *lnw = newwin(0, new_start_x, y_file_editor, 0);
+  *ftw = newwin(0, 0, y_file_editor, lnw_width + few_width);
+  *lnw = newwin(0, lnw_width, y_file_editor, few_width);
 }

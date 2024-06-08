@@ -7,6 +7,7 @@
 #include "file_management.h"
 #include "file_structure.h"
 #include "../io_management/io_manager.h"
+#include "../io_management/io_explorer.h"
 
 
 Cursor createRoot(IO_FileID file);
@@ -26,11 +27,16 @@ int getScreenXForCursor(Cursor cursor, int screen_x);
 
 LineIdentifier getLineIdForScreenX(LineIdentifier line_id, int screen_x, int x_click);
 
-void printOpenedFileExplorer(int argc, FileContainer* files, int max_opened_file, int current_file, WINDOW* ofw);
+void printOpenedFile(int argc, FileContainer* files, int max_opened_file, int current_file, int current_file_offset, WINDOW* ofw);
+
+void printFileExplorer(ExplorerFolder* pwd, WINDOW* few);
+
+// true if found, false if not. if file_index == -1 => Res_folder was clicked. If file_index != -1 => file clicked is res_folder.files[file_index].
+bool getClickedFile(ExplorerFolder* pwd, int y_click, ExplorerFolder** res_folder, int* file_index);
 
 void setDesiredColumn(Cursor cursor, int* desired_column);
 
-void resizeEditorWindows(WINDOW** ftw, WINDOW** lnw, int y_file_editor, int new_start_x);
+void resizeEditorWindows(WINDOW** ftw, WINDOW** lnw, int y_file_editor, int lnw_width, int few_width);
 
 /* Unix call, use 'man wcwidth' to see explication. */
 int wcwidth(const wint_t wc);
