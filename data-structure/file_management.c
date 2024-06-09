@@ -29,6 +29,42 @@ void setupFileContainer(char* path, FileContainer* container) {
 }
 
 
+void setupLocalVars(FileContainer* files, int current_file, IO_FileID** io_file, FileNode*** root, Cursor** cursor, Cursor** select_cursor, Cursor** old_cur, int** desired_column,
+                    int** screen_x, int** screen_y, int** old_screen_x, int** old_screen_y, History** history_root, History*** history_frame) {
+  *io_file = &files[current_file].io_file; // Describe the IO file on OS
+  *root = &files[current_file].root; // The root of the File object
+  *cursor = &files[current_file].cursor; // The current cursor for the root File
+  *select_cursor = &files[current_file].select_cursor; // The cursor used to make selection
+  *old_cur = &files[current_file].old_cur; // Old cursor used to flag cursor change
+  *desired_column = &files[current_file].desired_column; // Used on line change to try to reach column
+  *screen_x = &files[current_file].screen_x; // The x coord of the top left corner of the current viewport of the file
+  *screen_y = &files[current_file].screen_y; // The y coord of the top left corner of the current viewport of the file
+  *old_screen_x = &files[current_file].old_screen_x; // old screen_x used to flag screen_x changes
+  *old_screen_y = &files[current_file].old_screen_y; // old screen_y used to flag screen_y changes
+  *history_root = &files[current_file].history_root; // Root of History object for the current File
+  *history_frame = &files[current_file].history_frame; // Current node of the History. Before -> Undo, After -> Redo.
+  **old_screen_y = -1;
+}
+
+
+bool isFileContainerEmpty(FileContainer* container) {
+  if (container->io_file.status != NONE)
+    return false;
+
+  return container->cursor.file_id.absolute_row == 1 && container->cursor.line_id.absolute_column == 0
+         && areCursorEqual(container->cursor, moveRight(container->cursor));
+}
+
+// assert that opened files are slide at the begin of the array.
+int getOpenedFileCount(FileContainer* files) {
+  for (int i = 0; i < MAX_OPENED_FILE; i++) {
+    if (isFileContainerEmpty(files + i) == true) {
+      return i;
+    }
+  }
+  return MAX_OPENED_FILE;
+}
+
 //// -------------- CURSOR MANAGEMENT --------------
 
 Cursor moveRight(Cursor cursor) {

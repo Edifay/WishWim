@@ -30,6 +30,12 @@ typedef enum {
 
 void setupFileContainer(char *args, FileContainer *container);
 
+void setupLocalVars(FileContainer* files, int current_file, IO_FileID** io_file, FileNode*** root, Cursor** cursor, Cursor** select_cursor, Cursor** old_cur, int** desired_column,
+                    int** screen_x, int** screen_y, int** old_screen_x, int** old_screen_y, History** history_root, History*** history_frame);
+
+bool isFileContainerEmpty(FileContainer *container);
+
+int getOpenedFileCount(FileContainer *files);
 
 ////// -------------- CURSOR ACTIONS --------------
 

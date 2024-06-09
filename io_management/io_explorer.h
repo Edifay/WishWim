@@ -4,7 +4,6 @@
 #include <linux/limits.h>
 
 
-// TODO implement theses shits
 typedef struct {
   char path[PATH_MAX];
   int size;

@@ -18,7 +18,7 @@ test_file.o: test_file.c data-structure/utf_8_extractor.h data-structure/file_st
 test_line.o: test_line.c data-structure/utf_8_extractor.h data-structure/file_structure.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-%.o : %.c %.h data-structure/utf_8_extractor.h data-structure/file_structure.h utils/constants.h
+%.o : %.c %.h data-structure/utf_8_extractor.h data-structure/file_structure.h utils/constants.h data-structure/file_management.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 test_line: test_line.o $(modules)

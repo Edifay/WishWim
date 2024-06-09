@@ -133,5 +133,7 @@ void setupFile(char* path, IO_FileID* file) {
   else {
     // No file given
     file->status = NONE;
+    file->path_args = "untitled";
+    strcpy(file->path_abs, "untitled");
   }
 }
