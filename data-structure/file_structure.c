@@ -294,12 +294,14 @@ int allocateOneCharAtIndex(LineNode* line, int index) {
 
 /**
  * Return idenfier for the node containing current relative index.
- * Return an index as 0 <= index <= line->element_number
+ * Return an index as 0 < index <= line->element_number
+ * Index == 0 is possible if index = 0 and previous node doesn't exist.
  */
-LineIdentifier moduloLineIdentifier(LineNode* line, int column) {
-  while (column < 0) {
-    column += line->element_number;
+LineIdentifier moduloLineIdentifierR(LineNode* line, int column) {
+  int abs_column = column;
+  while (column < 0 || (column == 0 && line->prev != NULL)) {
     assert(line->prev != NULL); // Index out of range
+    column += line->prev->element_number;
     line = line->prev;
   }
 
@@ -308,23 +310,30 @@ LineIdentifier moduloLineIdentifier(LineNode* line, int column) {
     assert(line->next != NULL); // Index out of range
     line = line->next;
   }
-  LineIdentifier id;
-  id.last_shift = 0;
-  id.line = line;
-  id.relative_column = column;
 
-  return id;
+  LineIdentifier line_id;
+  line_id.line = line;
+  line_id.relative_column = column;
+  line_id.absolute_column = abs_column;
+
+  return line_id;
 }
 
+LineIdentifier moduloLineIdentifier(LineIdentifier line_id) {
+  LineIdentifier tmp_line_id = moduloLineIdentifierR(line_id.line, line_id.relative_column);
+  tmp_line_id.absolute_column = line_id.absolute_column;
+  return tmp_line_id;
+}
 
 /**
  * Insert a char at index of the line node.
  * Return the new relative index for line cell.
  */
-LineIdentifier insertCharInLine(LineNode* line, Char_U8 ch, int column) {
-  LineIdentifier id = moduloLineIdentifier(line, column);
-  line = id.line;
-  column = id.relative_column;
+LineIdentifier insertCharInLine(LineIdentifier line_id, Char_U8 ch) {
+  line_id = moduloLineIdentifier(line_id);
+
+  LineNode* line = line_id.line;
+  int column = line_id.relative_column;
 
   int relative_shift = allocateOneCharAtIndex(line, column);
 #ifdef LOGS
@@ -379,35 +388,29 @@ LineIdentifier insertCharInLine(LineNode* line, Char_U8 ch, int column) {
     line->element_number++;
   }
 
-  id.last_shift = relative_shift;
-  id.line = line;
-  id.relative_column = column + 1;
+  line_id.line = line;
+  line_id.relative_column = column + 1;
+  line_id.absolute_column++;
 
-  return id;
+  return line_id;
 }
 
 
 /**
  * Insert a char at index of the line node.
  */
-LineIdentifier removeCharInLine(LineNode* line, int cursorPos) {
-#ifdef LOGS
-  printf("ABSOLUTE INDEX %d\r\n", cursorPos);
-  printf("ABSOLUTE LINE ELEMENT NUMBER %d\n\r", line->element_number);
-#endif
-
-
-  LineIdentifier id = moduloLineIdentifier(line, cursorPos);
-  id.relative_column--;
-  line = id.line;
-  cursorPos = id.relative_column;
+LineIdentifier removeCharInLine(LineIdentifier line_id) {
+  line_id = moduloLineIdentifier(line_id);
+  line_id.relative_column--;
+  LineNode* line = line_id.line;
+  int cursorPos = line_id.relative_column;
 
   if (cursorPos == -1) {
     assert(line->prev != NULL);
     line = line->prev;
     cursorPos = line->element_number;
-    id.line = line;
-    id.relative_column = cursorPos;
+    line_id.line = line;
+    line_id.relative_column = cursorPos;
   }
 
 #ifdef LOGS
@@ -454,13 +457,13 @@ LineIdentifier removeCharInLine(LineNode* line, int cursorPos) {
           slideFromLineNodeToPreviousLineNodeBeforeIndex(line->next, line->next->element_number);
           assert(line->next->element_number == 0);
           destroyCurrentLineNode(line->next);
-          id.line = line;
-          id.relative_column = 0;
+          line_id.line = line;
+          line_id.relative_column = 0;
         }
         else {
           line = destroyCurrentLineNode(line);
-          id.line = line;
-          id.relative_column = line->element_number;
+          line_id.line = line;
+          line_id.relative_column = line->element_number;
         }
       }
     }
@@ -479,32 +482,35 @@ LineIdentifier removeCharInLine(LineNode* line, int cursorPos) {
 #ifdef LOGS
   printf("REMOVE ENDED\r\n");
 #endif
-  return id;
+  line_id.absolute_column--;
+  return line_id;
 }
 
 
-Char_U8* getCharForLineIdentifier(LineIdentifier line_id) {
+Char_U8 getCharForLineIdentifier(LineIdentifier line_id) {
+  line_id = moduloLineIdentifier(line_id);
   if (line_id.relative_column == 0) {
     assert(line_id.line->prev != NULL); // OUT OF RANGE.
-    return line_id.line->prev->ch + line_id.line->prev->element_number - 1;
+    return line_id.line->prev->ch[line_id.line->prev->element_number - 1];
   }
-  return line_id.line->ch + line_id.relative_column - 1;
+  return line_id.line->ch[line_id.relative_column - 1];
 }
 
 
 LineIdentifier getLastLineNode(LineNode* line) {
   assert(line != NULL);
+  int abs_column = 0;
   while (line->next != NULL) {
-    printf("MOVING TO NEXT NODE IN SEARCH OF LAST\r\n");
+    abs_column += line->element_number;
     line = line->next;
   }
 
-  LineIdentifier newId;
-  newId.relative_column = line->element_number;
-  newId.line = line;
-  newId.last_shift = 0;
+  LineIdentifier line_id;
+  line_id.relative_column = line->element_number;
+  line_id.line = line;
+  line_id.absolute_column = abs_column + line->element_number;
 
-  return newId;
+  return line_id;
 }
 
 int getAbsoluteLineIndex(LineIdentifier id) {
@@ -531,10 +537,106 @@ bool isEmptyLine(LineNode* line) {
   return true;
 }
 
+bool hasElementAfterLine(LineIdentifier line_id) {
+  return line_id.relative_column != line_id.line->element_number || isEmptyLine(line_id.line->next) == false;
+}
+
+bool hasElementBeforeLine(LineIdentifier line_id) {
+  return line_id.absolute_column != 0;
+}
+
 
 void printLineNode(LineNode* line) {
   for (int i = 0; i < line->element_number; i++) {
     printChar_U8(stdout, line->ch[i]);
+  }
+}
+
+LineIdentifier tryToReachAbsColumn(LineIdentifier line_id, int abs_column) {
+  if (line_id.absolute_column == abs_column)
+    return line_id;
+
+  line_id = moduloLineIdentifier(line_id);
+
+  line_id.absolute_column -= line_id.relative_column;
+  line_id.relative_column = 0;
+
+  bool first = false;
+
+  while (line_id.absolute_column + line_id.line->element_number < abs_column) {
+    first = true;
+    if (line_id.line->next == NULL)
+      break;
+    line_id.absolute_column += line_id.line->element_number - line_id.relative_column;
+    line_id.line = line_id.line->next;
+    line_id.relative_column = 0;
+  }
+
+  while (abs_column < line_id.absolute_column) {
+    assert(first == false);
+    assert(line_id.relative_column == 0);
+    if (line_id.line->prev == NULL)
+      break;
+    line_id.absolute_column -= line_id.line->prev->element_number;
+    line_id.line = line_id.line->prev;
+    line_id.relative_column = 0; // no needed.
+  }
+
+  if (line_id.absolute_column < abs_column) {
+    int toAdd = min(line_id.line->element_number - line_id.relative_column, abs_column - line_id.absolute_column);
+    line_id.absolute_column += toAdd;
+    line_id.relative_column += toAdd;
+    assert(line_id.relative_column == line_id.line->element_number || abs_column == line_id.absolute_column);
+  }
+
+  return moduloLineIdentifier(line_id);
+}
+
+
+void deleteLinePart(LineIdentifier line_id, int length) {
+  line_id = moduloLineIdentifier(line_id);
+
+  int current_removed = 0;
+  while (current_removed < length) {
+    // If it's the line end go to next.
+    if (line_id.relative_column == line_id.line->element_number) {
+      line_id.line = line_id.line->next;
+      assert(line_id.line != NULL);
+      line_id.relative_column = 0;
+    }
+
+    // If the id is the begin of a node and If the node can be completely removed. We can improve perf.
+    if (line_id.relative_column == 0 && line_id.line->element_number <= length - current_removed) {
+      current_removed += line_id.line->element_number;
+      if (line_id.line->fixed == false) {
+        // If the node can be cleared.
+        line_id.line = destroyCurrentLineNode(line_id.line);
+        line_id.relative_column = line_id.line->element_number;
+      }
+      else {
+        // If the node is fixed.
+        // assert(false);
+        line_id.line->element_number = 0;
+        line_id.line->current_max_element_number = 0;
+        free(line_id.line->ch);
+        line_id.line->ch = NULL;
+      }
+    }
+    else {
+      // Need to delete a part of the node.
+      int atDelete = min(length - current_removed, line_id.line->element_number - line_id.relative_column);
+      memmove(line_id.line->ch + line_id.relative_column, line_id.line->ch + line_id.relative_column + atDelete,
+              (line_id.line->element_number - line_id.relative_column - atDelete) * sizeof(Char_U8));
+      line_id.line->element_number -= atDelete;
+      current_removed += atDelete;
+
+      // Realloc line.ch if too much unused mem.
+      if (line_id.line->current_max_element_number > line_id.line->element_number + CACHE_SIZE) {
+        line_id.line->ch = realloc(line_id.line->ch, (line_id.line->element_number + CACHE_SIZE) * sizeof(Char_U8));
+        line_id.line->current_max_element_number = line_id.line->element_number + CACHE_SIZE;
+        assert(line_id.line->current_max_element_number <= MAX_ELEMENT_NODE);
+      }
+    }
   }
 }
 
@@ -553,17 +655,25 @@ void destroyFullLine(LineNode* node) {
     node = node->next;
 
     free(tmp->ch);
-    if (tmp != NULL && tmp->fixed == false)
+    if (tmp->fixed == false)
       free(tmp);
+    else {
+      initEmptyLineNode(tmp);
+      tmp->fixed = true;
+    }
   }
 }
 
 /**
+ *
  * Destroy line letting this current node.
  */
 void destroyChildLine(LineNode* node) {
   assert(node != NULL);
   free(node->ch);
+  node->ch = NULL;
+  node->current_max_element_number = 0;
+  node->element_number = 0;
   node = node->next;
 
   while (node != NULL) {
@@ -571,8 +681,12 @@ void destroyChildLine(LineNode* node) {
     node = node->next;
 
     free(tmp->ch);
-    if (node->fixed == false)
+    if (tmp->fixed == false)
       free(tmp);
+    else {
+      initEmptyLineNode(tmp);
+      tmp->fixed = true;
+    }
   }
 }
 
@@ -589,6 +703,17 @@ void initEmptyFileNode(FileNode* file) {
   file->lines = NULL;
   file->current_max_element_number = 0;
   file->element_number = 0;
+}
+
+Cursor initNewWrittableFile() {
+  FileNode* file = malloc(sizeof(FileNode));
+  initEmptyFileNode(file);
+
+  FileIdentifier file_id = insertEmptyLineInFile(moduloFileIdentifierR(file, 0));
+  assert(file_id.file == file);
+  assert(file_id.relative_row == 1);
+
+  return moduloCursorR(file, 1, 0);
 }
 
 /**
@@ -672,7 +797,7 @@ FileNode* destroyCurrentFileNode(FileNode* file) {
   assert(file->next == NULL || file->next->prev == file->prev);
 
   for (int i = 0; i < file->element_number; i++) {
-    destroyChildLine(file->lines + i);
+    destroyFullLine(file->lines + i);
   }
   free(file->lines);
   free(file);
@@ -842,7 +967,7 @@ int allocateOneRowInFile(FileNode* file, int row) {
     printf("INSERTING A NODE\r\n");
 #endif
 
-    if (row == 0) {
+    if (row == 0 && file->prev != NULL /*AVOID move previous for root FileNode*/) {
       // Due to the fact that we can just deallocate instant from right of an array only more power full for index == 0.
       insertFileNodeBefore(file);
       available_prev = MAX_ELEMENT_NODE;
@@ -884,25 +1009,32 @@ int allocateOneRowInFile(FileNode* file, int row) {
  * Return idenfier for the node containing current relative index.
  * Return an index as 0 <= index <= line->element_number
  */
-FileIdentifier moduloFileIdentifier(FileNode* file, int row) {
-  while (row < 0) {
-    row += file->element_number;
+FileIdentifier moduloFileIdentifierR(FileNode* file, int row) {
+  int abs_row = row;
+  while (row < 0 || (row == 0 && file->prev != NULL)) {
     assert(file->prev != NULL); // Index out of range
+    row += file->prev->element_number;
     file = file->prev;
   }
 
   while (row > file->element_number) {
     row -= file->element_number;
-    assert(file->next != NULL); // Index out of range
+    // assert(file->next != NULL); // Index out of range
     file = file->next;
   }
 
-  FileIdentifier id;
-  id.last_shift = 0;
-  id.file = file;
-  id.relative_row = row;
+  FileIdentifier line_id;
+  line_id.file = file;
+  line_id.relative_row = row;
+  line_id.absolute_row = abs_row;
 
-  return id;
+  return line_id;
+}
+
+FileIdentifier moduloFileIdentifier(FileIdentifier file_id) {
+  FileIdentifier tmp_file_id = moduloFileIdentifierR(file_id.file, file_id.relative_row);
+  tmp_file_id.absolute_row = file_id.absolute_row;
+  return tmp_file_id;
 }
 
 
@@ -910,12 +1042,14 @@ FileIdentifier moduloFileIdentifier(FileNode* file, int row) {
  * Insert a char at index of the line node.
  * Return the new relative index for line cell.
  */
-FileIdentifier insertEmptyLineInFile(FileNode* file, int row) {
-  FileIdentifier id = moduloFileIdentifier(file, row);
-  file = id.file;
-  row = id.relative_row;
+FileIdentifier insertEmptyLineInFile(FileIdentifier file_id) {
+  FileIdentifier line_id = moduloFileIdentifier(file_id);
+
+  FileNode* file = line_id.file;
+  int row = line_id.relative_row;
 
   int relative_shift = allocateOneRowInFile(file, row);
+
 #ifdef LOGS
   printf("Shift : %d & Index : %d\n\r", relative_shift, row);
 #endif
@@ -967,40 +1101,35 @@ FileIdentifier insertEmptyLineInFile(FileNode* file, int row) {
     assert(file->element_number - row > 0);
     memmove(file->lines + row + 1, file->lines + row, (file->element_number - row) * sizeof(LineNode));
     initEmptyLineNode(file->lines + row);
-    rebindFileNode(file, row + 1, -1);
     file->lines[row].fixed = true;
     file->element_number++;
+    rebindFileNode(file, row + 1, -1);
   }
 
-  id.last_shift = relative_shift;
-  id.file = file;
-  id.relative_row = row + 1;
+  line_id.file = file;
+  line_id.relative_row = row + 1;
+  line_id.absolute_row++;
 
-  return id;
+  return line_id;
 }
 
 
 /**
- * Insert a char at index of the line node.
+ * Insert a line at index of the line node.
  */
-FileIdentifier removeLineInFile(FileNode* file, int row) {
-#ifdef LOGS
-  printf("ABSOLUTE INDEX %d\r\n", row);
-  printf("ABSOLUTE LINE ELEMENT NUMBER %d\n\r", file->element_number);
-#endif
-
-
-  FileIdentifier id = moduloFileIdentifier(file, row);
-  id.relative_row--;
-  file = id.file;
-  row = id.relative_row;
+FileIdentifier removeLineInFile(FileIdentifier file_id) {
+  file_id = moduloFileIdentifier(file_id);
+  file_id.relative_row--;
+  file_id.absolute_row--;
+  FileNode* file = file_id.file;
+  int row = file_id.relative_row;
 
   if (row == -1) {
     assert(file->prev != NULL);
     file = file->prev;
     row = file->element_number;
-    id.file = file;
-    id.relative_row = row;
+    file_id.file = file;
+    file_id.relative_row = row;
   }
 
 #ifdef LOGS
@@ -1017,7 +1146,7 @@ FileIdentifier removeLineInFile(FileNode* file, int row) {
 #endif
     // printf("At move : %d, first %d, ")
     memmove(file->lines + row, file->lines + row + 1, (file->element_number - row - 1) * sizeof(LineNode));
-    rebindFileNode(file, row, -1);
+    rebindFileNode(file, row, file->element_number - 1 - row);
   }
   else {
 #ifdef LOGS
@@ -1038,8 +1167,8 @@ FileIdentifier removeLineInFile(FileNode* file, int row) {
       printf("FREE NODE\r\n");
 #endif
       file = destroyCurrentFileNode(file);
-      id.file = file;
-      id.relative_row = id.file->element_number;
+      file_id.file = file;
+      file_id.relative_row = file_id.file->element_number;
     }
     else {
       if (file->current_max_element_number > CACHE_SIZE + 1) {
@@ -1059,7 +1188,7 @@ FileIdentifier removeLineInFile(FileNode* file, int row) {
 #ifdef LOGS
   printf("REMOVE ENDED\r\n");
 #endif
-  return moduloFileIdentifier(id.file, id.relative_row);
+  return file_id;
 }
 
 int getAbsoluteFileIndex(FileIdentifier id) {
@@ -1075,7 +1204,7 @@ int getAbsoluteFileIndex(FileIdentifier id) {
 }
 
 LineNode* getLineForFileIdentifier(FileIdentifier file_id) {
-  file_id = moduloFileIdentifier(file_id.file, file_id.relative_row);
+  file_id = moduloFileIdentifier(file_id);
   if (file_id.relative_row == 0) {
     assert(file_id.file->prev != NULL); // OUT OF RANGE.
     return file_id.file->prev->lines + file_id.file->prev->element_number - 1;
@@ -1089,7 +1218,7 @@ bool checkFileIntegrity(FileNode* file) {
     for (int i = 0; i < file->element_number; i++) {
       LineNode* line = file->lines + i;
       if (line != NULL) {
-        assert(line->prev == NULL);
+        // assert(line->prev == NULL);
         if (line->prev != NULL)
           return false;
       }
@@ -1110,7 +1239,7 @@ bool checkFileIntegrity(FileNode* file) {
             else
               printf("None");
             printf("\r\n");
-            assert(line->next->prev == line);
+            // assert(line->next->prev == line);
             return false;
           }
         }
@@ -1118,13 +1247,128 @@ bool checkFileIntegrity(FileNode* file) {
       }
     }
     if (file->next != NULL) {
-      assert(file->next->prev == file);
+      // assert(file->next->prev == file);
       if (file->next->prev != file)
         return false;
     }
     file = file->next;
   }
   return true;
+}
+
+bool isEmptyFile(FileNode* file) {
+  while (file != NULL) {
+    if (file->element_number != 0)
+      return false;
+    file = file->next;
+  }
+  return true;
+}
+
+bool hasElementAfterFile(FileIdentifier file_id) {
+  return file_id.relative_row != file_id.file->element_number || isEmptyFile(file_id.file->next) == false;
+}
+
+bool hasElementBeforeFile(FileIdentifier file_id) {
+  return file_id.absolute_row != 1;
+}
+
+FileIdentifier tryToReachAbsRow(FileIdentifier file_id, int abs_row) {
+  if (file_id.absolute_row == abs_row) {
+    return file_id;
+  }
+
+  file_id = moduloFileIdentifier(file_id);
+
+  file_id.absolute_row -= file_id.relative_row;
+  file_id.relative_row = 0;
+  assert(file_id.relative_row == 0);
+
+
+  bool first = false;
+
+  while (file_id.absolute_row + file_id.file->element_number < abs_row) {
+    first = true;
+    if (file_id.file->next == NULL)
+      break;
+    file_id.absolute_row += file_id.file->element_number;
+    file_id.file = file_id.file->next;
+  }
+
+  while (abs_row < file_id.absolute_row) {
+    assert(first == false);
+    if (file_id.file->prev == NULL)
+      break;
+    file_id.absolute_row -= file_id.file->prev->element_number;
+    file_id.file = file_id.file->prev;
+  }
+
+  if (file_id.absolute_row < abs_row) {
+    int toAdd = min(file_id.file->element_number - file_id.relative_row, abs_row - file_id.absolute_row);
+    file_id.absolute_row += toAdd;
+    file_id.relative_row += toAdd;
+    assert(file_id.relative_row == file_id.file->element_number || abs_row == file_id.absolute_row);
+  }
+
+  return moduloFileIdentifier(file_id);
+}
+
+
+void deleteFilePart(FileIdentifier file_id, int length) {
+  file_id = moduloFileIdentifier(file_id);
+
+  int current_removed = 0;
+  while (current_removed < length) {
+    // If it's the line end go to next.
+    if (file_id.relative_row == file_id.file->element_number) {
+      file_id.file = file_id.file->next;
+      file_id.relative_row = 0;
+      assert(file_id.file != NULL);
+    }
+
+    // If the id is the begin of a node and If the node can be completely removed. We can improve perf.
+    if (file_id.relative_row == 0 && file_id.file->element_number <= length - current_removed) {
+      current_removed += file_id.file->element_number;
+      if (file_id.file->prev != NULL) {
+        // If the node can be cleared.
+        file_id.file = destroyCurrentFileNode(file_id.file);
+        file_id.relative_row = file_id.file->element_number;
+      }
+      else {
+        // If the node is fixed.
+        // assert(false);
+        file_id.file->element_number = 0;
+        file_id.file->current_max_element_number = 0;
+        for (int i = 0; i < file_id.file->element_number; i++) {
+          destroyFullLine(file_id.file->lines + i);
+        }
+        free(file_id.file->lines);
+        file_id.file->lines = NULL;
+      }
+    }
+    else {
+      // Need to delete a part of the node.
+      int atDelete = min(length - current_removed, file_id.file->element_number - file_id.relative_row);
+      for (int i = file_id.relative_row; i < file_id.relative_row + atDelete; i++) {
+        destroyFullLine(file_id.file->lines + i);
+      }
+      memmove(file_id.file->lines + file_id.relative_row, file_id.file->lines + file_id.relative_row + atDelete,
+              (file_id.file->element_number - file_id.relative_row - atDelete) * sizeof(LineNode));
+      file_id.file->element_number -= atDelete;
+      current_removed += atDelete;
+
+
+      // Realloc file.lines if too much unused mem.
+      if (file_id.file->current_max_element_number > file_id.file->element_number + CACHE_SIZE) {
+        file_id.file->lines = realloc(file_id.file->lines, (file_id.file->element_number + CACHE_SIZE) * sizeof(LineNode));
+        file_id.file->current_max_element_number = file_id.file->element_number + CACHE_SIZE;
+        assert(file_id.file->current_max_element_number <= MAX_ELEMENT_NODE);
+        assert(file_id.file->element_number <= file_id.file->current_max_element_number);
+      }
+
+      rebindFileNode(file_id.file, 0, file_id.file->element_number);
+    }
+  }
 }
 
 /**
@@ -1153,11 +1397,11 @@ void destroyFullFile(FileNode* node) {
 ////// -------------- COMBO LINE & FILE --------------
 
 
-LineIdentifier identifierForCursor(FileNode* file, int row, int column) {
-  FileIdentifier file_id = moduloFileIdentifier(file, row);
-  LineIdentifier line_id = moduloLineIdentifier(getLineForFileIdentifier(file_id), column);
+Cursor moduloCursorR(FileNode* file, int row, int column) {
+  FileIdentifier file_id = moduloFileIdentifierR(file, row);
+  LineIdentifier line_id = moduloLineIdentifierR(getLineForFileIdentifier(file_id), column);
 
-  return line_id;
+  return cursorOf(file_id, line_id);
 }
 
 
@@ -1183,34 +1427,58 @@ int sizeFileNode(FileNode* file) {
 /**
  * Return the char from the FileNode at index line, column. If file[line][column] don't exist return null.
  */
-Char_U8 getCharAt(FileNode* file, int line, int column) {
-  FileIdentifier file_id = moduloFileIdentifier(file, line);
-  LineIdentifier line_id = moduloLineIdentifier(getLineForFileIdentifier(file_id), column);
-
-  return *getCharForLineIdentifier(line_id);
+Char_U8 getCharAt(FileNode* file, int row, int column) {
+  return getCharForLineIdentifier(moduloCursorR(file, row, column).line_id);
 }
 
 Cursor cursorOf(FileIdentifier file_id, LineIdentifier line_id) {
   Cursor cursor = {file_id, line_id};
-  return cursor;
+  return moduloCursor(cursor);
 }
 
 Cursor moduloCursor(Cursor cursor) {
-  cursor.file_id = moduloFileIdentifier(cursor.file_id.file, cursor.file_id.relative_row);
-  cursor.line_id = moduloLineIdentifier(cursor.line_id.line, cursor.line_id.relative_column);
+  cursor.file_id = moduloFileIdentifier(cursor.file_id);
+  if (cursor.line_id.absolute_column <= MAX_ELEMENT_NODE) {
+    // The node have a big chance to be fixed
+    // So the risk that the line_id could have been reallocated is high.
+    cursor.line_id = moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), cursor.line_id.absolute_column);
+  }
+  else {
+    // If the node is not fixed use classic modulo.
+    // Less risk better performance.
+    cursor.line_id = moduloLineIdentifier(cursor.line_id);
+  }
 
   return cursor;
 }
 
+Cursor insertCharInLineC(Cursor cursor, Char_U8 ch) {
+  cursor.line_id = insertCharInLine(cursor.line_id, ch);
+  return cursor;
+}
 
-Cursor insertNewLineInLine(Cursor cursor) {
+Cursor removeCharInLineC(Cursor cursor) {
+  cursor.line_id = removeCharInLine(cursor.line_id);
+  return cursor;
+}
+
+Cursor removeLineInFileC(Cursor cursor) {
+  destroyFullLine(getLineForFileIdentifier(cursor.file_id));
+  FileIdentifier file_id_after_del = removeLineInFile(cursor.file_id);
+  cursor.file_id = tryToReachAbsRow(file_id_after_del, file_id_after_del.absolute_row + 1);
+  cursor.line_id = getLastLineNode(getLineForFileIdentifier(cursor.file_id));
+  return cursor;
+}
+
+
+Cursor insertNewLineInLineC(Cursor cursor) {
   cursor = moduloCursor(cursor);
 
   FileIdentifier file_id = cursor.file_id;
   LineIdentifier line_id = cursor.line_id;
   const bool line_was_fixed = line_id.line->fixed;
 
-  FileIdentifier newFileIdForNewLine = insertEmptyLineInFile(file_id.file, file_id.relative_row);
+  FileIdentifier newFileIdForNewLine = insertEmptyLineInFile(file_id);
   LineNode* newLine = getLineForFileIdentifier(newFileIdForNewLine);
   assert(newLine != NULL);
   assert(newLine->prev == NULL);
@@ -1220,9 +1488,12 @@ Cursor insertNewLineInLine(Cursor cursor) {
   assert(newLine->current_max_element_number == 0);
   assert(newLine->ch == NULL);
 
-  if (line_was_fixed)
+  // file_id may have been reallocated.
+  file_id = tryToReachAbsRow(newFileIdForNewLine, file_id.absolute_row);
+  if (line_was_fixed) {
     // If the line was fixed the line may have been reallocated. So we need to re-use modulo. We admit that fixed are the src of the line.
-    line_id = identifierForCursor(file_id.file, file_id.relative_row, line_id.relative_column);
+    line_id = moduloCursorR(file_id.file, file_id.relative_row, line_id.relative_column).line_id;
+  }
 
   if (line_id.relative_column == 0) {
 #ifdef LOGS
@@ -1306,10 +1577,7 @@ Cursor insertNewLineInLine(Cursor cursor) {
   if (newLine->next != NULL) // Really important because newLine may have changed.
     newLine->next->prev = newLine;
 
-  LineIdentifier newLineId;
-  newLineId.last_shift = 0;
-  newLineId.line = newLine;
-  newLineId.relative_column = 0;
+  LineIdentifier newLineId = moduloLineIdentifierR(newLine, 0);
   return cursorOf(newFileIdForNewLine, newLineId);
 }
 
@@ -1318,14 +1586,11 @@ Cursor insertNewLineInLine(Cursor cursor) {
  *
  * Dumb implementation of concat.
  * */
-Cursor concatNeighbordsLines(Cursor cursor) {
+Cursor concatNeighbordsLinesC(Cursor cursor) {
   cursor = moduloCursor(cursor);
 
   FileIdentifier file_id = cursor.file_id;
   LineIdentifier line_id = cursor.line_id;
-
-
-  // FileIdentifier lineDestId = moduloFileIdentifier(file_id.file, file_id.relative_row - 1);
 
   assert(line_id.line->fixed == true);
   // We assume that in the file we remove a line when we are at the column 0 so the lineNode is fixed.
@@ -1334,10 +1599,9 @@ Cursor concatNeighbordsLines(Cursor cursor) {
 #ifdef LOGS
     printf("Deleting without moving empty line\r\n");
 #endif
-    LineNode* tmp_node = getLineForFileIdentifier(file_id);
     destroyFullLine(getLineForFileIdentifier(file_id));
 
-    FileIdentifier newLineId = removeLineInFile(file_id.file, file_id.relative_row);
+    FileIdentifier newLineId = removeLineInFile(file_id);
     LineIdentifier lastNode = getLastLineNode(getLineForFileIdentifier(newLineId));
 
     if (getLineForFileIdentifier(newLineId)->next != NULL)
@@ -1350,30 +1614,36 @@ Cursor concatNeighbordsLines(Cursor cursor) {
 #endif
 
   LineNode* newNode = malloc(sizeof(LineNode));
+  initEmptyLineNode(newNode);
   newNode->ch = line_id.line->ch;
   newNode->next = line_id.line->next;
+  if (newNode->next != NULL)
+    newNode->next->prev = newNode;
   newNode->fixed = false;
   newNode->element_number = line_id.line->element_number;
   newNode->current_max_element_number = line_id.line->current_max_element_number;
-  newNode->prev = NULL;
 
-  FileIdentifier newLineId = removeLineInFile(file_id.file, file_id.relative_row);
+  FileIdentifier newLineId = removeLineInFile(file_id);
   LineIdentifier lastNode = getLastLineNode(getLineForFileIdentifier(newLineId));
 
   if (lastNode.line->element_number == 0) {
     // Just copy the data of newNode to this node.
+    // printf("First case\r\n");
     assert(lastNode.line->element_number == 0);
     free(lastNode.line->ch);
     lastNode.line->ch = newNode->ch;
     lastNode.line->next = newNode->next;
     lastNode.line->element_number = newNode->element_number;
-    lastNode.line->current_max_element_number = newNode->element_number;
+    lastNode.line->current_max_element_number = newNode->current_max_element_number;
+    if (lastNode.line->next != NULL)
+      lastNode.line->next->prev = lastNode.line;
     free(newNode);
   }
   else {
     lastNode.line->next = newNode;
     newNode->prev = lastNode.line;
   }
+
 
   return cursorOf(newLineId, lastNode);
 }

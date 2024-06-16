@@ -4,8 +4,8 @@
 #include "utf_8_extractor.h"
 #include <stdbool.h>
 
-#define MAX_ELEMENT_NODE 1000
-#define CACHE_SIZE 120
+#define MAX_ELEMENT_NODE 50
+#define CACHE_SIZE 25
 
 // #define LOGS
 
@@ -39,8 +39,8 @@ typedef struct FileNode_ {
  */
 typedef struct {
   int relative_column;
+  int absolute_column;
   LineNode* line;
-  int last_shift;
 } LineIdentifier;
 
 /**
@@ -48,8 +48,8 @@ typedef struct {
  */
 typedef struct {
   int relative_row;
+  int absolute_row;
   FileNode* file;
-  int last_shift;
 } FileIdentifier;
 
 
@@ -58,11 +58,6 @@ typedef struct {
   LineIdentifier line_id;
 } Cursor;
 
-
-/**
- *  Init a new empty head of FileNode.
- */
-void initEmptyFileNode(FileNode* file);
 
 /**
  *  Init a new empty head of LineNode.
@@ -93,7 +88,7 @@ int sizeLineNode(LineNode* line);
 /**
  * Return the char from the FileNode at index line, column. If file[line][column] don't exist return null.
  */
-Char_U8 getCharAt(FileNode* file, int line, int column);
+Char_U8 getCharAt(FileNode* file, int row, int column);
 
 
 /**
@@ -142,19 +137,21 @@ Char_U8 getCharAt(FileNode* file, int line, int column);
 /**
  * Return idenfier for the node containing current relative index.
  */
-LineIdentifier moduloLineIdentifier(LineNode* line, int column);
+LineIdentifier moduloLineIdentifierR(LineNode* line, int column);
+
+LineIdentifier moduloLineIdentifier(LineIdentifier line_id);
 
 /**
  * Insert a char at index of the line node.
  */
-LineIdentifier insertCharInLine(LineNode* line, Char_U8 ch, int column);
+LineIdentifier insertCharInLine(LineIdentifier line_id, Char_U8 ch);
 
 /**
  * Insert a char at index of the line node.
  */
-LineIdentifier removeCharInLine(LineNode* line, int cursorPos);
+LineIdentifier removeCharInLine(LineIdentifier line_id);
 
-Char_U8* getCharForLineIdentifier(LineIdentifier id);
+Char_U8 getCharForLineIdentifier(LineIdentifier id);
 
 LineIdentifier getLastLineNode(LineNode* line);
 
@@ -162,8 +159,15 @@ int getAbsoluteLineIndex(LineIdentifier id);
 
 bool isEmptyLine(LineNode* line);
 
+bool hasElementAfterLine(LineIdentifier line_id);
+
+bool hasElementBeforeLine(LineIdentifier line_id);
+
 void printLineNode(LineNode* line);
 
+LineIdentifier tryToReachAbsColumn(LineIdentifier line_id, int abs_column);
+
+void deleteLinePart(LineIdentifier line_id, int length);
 
 /**
  * Destroy line free all memory.
@@ -172,12 +176,18 @@ void destroyFullLine(LineNode* node);
 
 ////// --------------------FILE-----------------------------
 
+/**
+ *  Init a new empty head of FileNode.
+ */
+void initEmptyFileNode(FileNode* file);
 
-FileIdentifier moduloFileIdentifier(FileNode* file, int row);
+FileIdentifier moduloFileIdentifierR(FileNode* file, int row);
 
-FileIdentifier insertEmptyLineInFile(FileNode* file, int row);
+FileIdentifier moduloFileIdentifier(FileIdentifier file_id);
 
-FileIdentifier removeLineInFile(FileNode* file, int row);
+FileIdentifier insertEmptyLineInFile(FileIdentifier file_id);
+
+FileIdentifier removeLineInFile(FileIdentifier file_id);
 
 int getAbsoluteFileIndex(FileIdentifier id);
 
@@ -185,23 +195,37 @@ LineNode* getLineForFileIdentifier(FileIdentifier id);
 
 bool checkFileIntegrity(FileNode* file);
 
+bool isEmptyFile(FileNode* file);
+
+bool hasElementAfterFile(FileIdentifier file_id);
+
+bool hasElementBeforeFile(FileIdentifier file_id);
+
+FileIdentifier tryToReachAbsRow(FileIdentifier file_id, int row);
+
+void deleteFilePart(FileIdentifier file_id, int length);
+
 void destroyFullFile(FileNode* node);
 
 
 ////// -------------- COMBO LINE & FILE --------------
 
-LineIdentifier identifierForCursor(FileNode* file, int row, int column);
+Cursor initNewWrittableFile();
 
-Cursor cursorOf(FileIdentifier file_id, LineIdentifier line_id);
+Cursor moduloCursorR(FileNode* file, int row, int column);
 
 Cursor moduloCursor(Cursor cursor);
 
+Cursor cursorOf(FileIdentifier file_id, LineIdentifier line_id);
 
-// TODO implement add new line in a line.
-Cursor insertNewLineInLine(Cursor cursor);
+Cursor insertCharInLineC(Cursor cursor, Char_U8 ch);
 
+Cursor removeCharInLineC(Cursor cursor);
 
-// TODO implement remove a line with a non empty line.
-Cursor concatNeighbordsLines(Cursor cursor);
+Cursor removeLineInFileC(Cursor cursor);
+
+Cursor insertNewLineInLineC(Cursor cursor);
+
+Cursor concatNeighbordsLinesC(Cursor cursor);
 
 #endif
