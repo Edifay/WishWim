@@ -14,6 +14,8 @@ time_val diff2Time(time_val start, time_val end);
 
 int min(int a, int b);
 
+int max(int a, int b);
+
 int numberOfDigitOfNumber(int n);
 
 unsigned long long hashFileName(char* fileName);

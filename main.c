@@ -19,16 +19,17 @@
 #define CTRL_KEY(k) ((k)&0x1f)
 
 
-int main(int argc, char** args) {
-  // remove first args wich is the executable file name.
-  args++;
-  argc--;
+int main(int file_count, char** file_names) {
+  // remove first args which is the executable file name.
+  file_names++;
+  file_count--;
   setlocale(LC_ALL, "");
 
-  FileContainer files[MAX_OPENED_FILE];
-  int current_file = 0;
-  int current_file_offset = 0;
+  // Containers of current opened buffers.
+  FileContainer* files = malloc(sizeof(FileContainer) * max(1, file_count));
+  int current_file = 0; // The current showed file.
 
+  // Folder used for file explorer.
   ExplorerFolder pwd;
   initFolder(getenv("PWD"), &pwd);
   pwd.open = true;
@@ -43,8 +44,12 @@ int main(int argc, char** args) {
   bool refresh_few = true; // Need to reprint file explorer window
   WINDOW* focus_w = NULL; // Used to set the window where start mouse drag
 
+
   // EDW Datas
-  int edws_offset_y = 0; // Height of Opened Files Window.
+
+  // OFW Datas
+  int current_file_offset = 0;
+  int ofw_height = 0; // Height of Opened Files Window. 0 => Disabled on start.   OPENED_FILE_WINDOW_HEIGHT => Enabled on start.
 
   // Few Datas
   int few_width = 0; // File explorer width
@@ -55,9 +60,9 @@ int main(int argc, char** args) {
 
   // Init ncurses
   initscr();
-  ftw = newwin(0, 0, edws_offset_y, few_width);
+  ftw = newwin(0, 0, ofw_height, few_width);
   lnw = newwin(0, 0, 0, few_width);
-  ofw = newwin(edws_offset_y, 0, 0, few_width);
+  ofw = newwin(ofw_height, 0, 0, few_width);
   raw();
   keypad(stdscr, TRUE);
   mouseinterval(0);
@@ -68,12 +73,13 @@ int main(int argc, char** args) {
   fflush(stdout);
 
   // Fill files with args
-  for (int i = 0; i < argc && i < MAX_OPENED_FILE; i++) {
-    setupFileContainer(args[i], files + i);
+  for (int i = 0; i < file_count; i++) {
+    setupFileContainer(file_names[i], files + i);
   }
-  // Fill rest of un used FileContainer allocated by new buffers.
-  for (int i = argc; i < MAX_OPENED_FILE; i++) {
-    setupFileContainer("", files + i);
+  // If no args setup first untitled file.
+  if (file_count == 0) {
+    file_count = 1;
+    setupFileContainer("", files);
   }
 
   // Setup redirection of vars to use with out pass though file_container obj.
@@ -99,12 +105,13 @@ int main(int argc, char** args) {
   // First print
   printEditor(ftw, lnw, ofw, *cursor, *select_cursor, *screen_x, *screen_y);
   // print file opened explorer
-  printOpenedFile(files, current_file, current_file_offset, ofw);
+  if (ofw_height != 0)
+    printOpenedFile(files, file_count, current_file, current_file_offset, ofw);
 
   refresh();
   wrefresh(ftw);
   wrefresh(lnw);
-  if (edws_offset_y != 0)
+  if (ofw_height != 0)
     wrefresh(ofw);
   wrefresh(few);
 
@@ -133,9 +140,9 @@ int main(int argc, char** args) {
         if (lnw->_maxx + few_width + 1 >= COLS)
           break;
       // Resize Opened File Window
-        resizeOpenedFileWindow(&ofw, &refresh_ofw, edws_offset_y, few_width);
+        resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
         refresh_ofw = true;
-        resizeEditorWindows(&ftw, &lnw, edws_offset_y, lnw->_maxx + 1, few_width);
+        resizeEditorWindows(&ftw, &lnw, ofw_height, lnw->_maxx + 1, few_width);
         refresh_edw = true;
         refresh_few = true;
         break;
@@ -147,7 +154,7 @@ int main(int argc, char** args) {
           detectComplexEvents(&m_event);
 
           // Avoid refreshing when it's just mouse movement with no change.
-          if (m_event.bstate == 268435456 /*No event state*/ && mouse_drag == false) {
+          if (m_event.bstate == NO_EVENT_MOUSE /*No event state*/ && mouse_drag == false) {
             continue;
           }
 
@@ -162,26 +169,22 @@ int main(int argc, char** args) {
             if (m_event.bstate & BUTTON1_PRESSED) {
               focus_w = few;
             }
-            handleFileExplorerClick(files, &current_file, &pwd, &few_y_offset, &few_x_offset, &few_width, &few_selected_line, edws_offset_y, &few, &ofw, &lnw, &ftw, m_event,
-                                    &refresh_few,
-                                    &refresh_ofw, &refresh_edw, &refresh_local_vars);
+            handleFileExplorerClick(&files, &file_count, &current_file, &pwd, &few_y_offset, &few_x_offset, &few_width, &few_selected_line, ofw_height, &few, &ofw, &lnw, &ftw,
+                                    m_event, &refresh_few, &refresh_ofw, &refresh_edw, &refresh_local_vars);
           }
-          else if ((m_event.y - edws_offset_y < 0 && focus_w == NULL) || (ofw != NULL && focus_w == ofw)) {
+          else if ((m_event.y - ofw_height < 0 && focus_w == NULL) || (ofw != NULL && focus_w == ofw)) {
             // Click on opened file window
             if (m_event.bstate & BUTTON1_PRESSED) {
               focus_w = ofw;
             }
-            handleOpenedFileClick(files, &current_file, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y,
-                                  &history_root, &history_frame, m_event, &current_file_offset, ofw,
-                                  &refresh_few, &refresh_ofw, &refresh_edw, &refresh_local_vars);
+            handleOpenedFileClick(files, &file_count, &current_file, m_event, &current_file_offset, ofw, &refresh_ofw, &refresh_local_vars, mouse_drag);
           }
           else {
+            // Click on editor windows
             if (m_event.bstate & BUTTON1_PRESSED) {
               focus_w = ftw;
             }
-            // Click on editor windows
-            handleEditorClick(ftw->_begx, edws_offset_y, cursor, select_cursor, desired_column, screen_x, screen_y, &m_event, mouse_drag,
-                              &refresh_few, &refresh_ofw, &refresh_edw, &refresh_local_vars);
+            handleEditorClick(ftw->_begx, ofw_height, cursor, select_cursor, desired_column, screen_x, screen_y, &m_event, mouse_drag);
           }
 
           if (m_event.bstate & BUTTON1_RELEASED) {
@@ -268,7 +271,7 @@ int main(int argc, char** args) {
         break;
       case KEY_CTRL_MAJ_UP:
         // Do something with this.
-        if (current_file != MAX_OPENED_FILE - 1)
+        if (current_file != file_count - 1)
           current_file++;
         refresh_local_vars = true;
       // TODO check if the file selected is showing in ofw. If not move it in.
@@ -304,6 +307,9 @@ int main(int argc, char** args) {
         break;
       case CTRL_KEY('q'):
         goto end;
+      case CTRL_KEY('w'):
+        closeFile(&files, &file_count, &current_file, &refresh_ofw, &refresh_edw, &refresh_local_vars);
+        break;
       case CTRL_KEY('s'):
         if (io_file->status == NONE) {
           printf("\r\nNo specified file\r\n");
@@ -392,19 +398,19 @@ int main(int argc, char** args) {
           few_width = 0;
         }
       // Resize Opened File Window
-        resizeOpenedFileWindow(&ofw, &refresh_ofw, edws_offset_y, few_width);
+        resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
       // Resize Editor Window
-        resizeEditorWindows(&ftw, &lnw, edws_offset_y, lnw->_maxx + 1, few_width);
+        resizeEditorWindows(&ftw, &lnw, ofw_height, lnw->_maxx + 1, few_width);
         break;
       case CTRL_KEY('l'): // Opened File Window Switch
-        if (edws_offset_y == OPENED_FILE_WINDOW_HEIGHT) {
-          edws_offset_y = 0;
+        if (ofw_height == OPENED_FILE_WINDOW_HEIGHT) {
+          ofw_height = 0;
         }
         else {
-          edws_offset_y = OPENED_FILE_WINDOW_HEIGHT;
+          ofw_height = OPENED_FILE_WINDOW_HEIGHT;
         }
-        resizeOpenedFileWindow(&ofw, &refresh_ofw, edws_offset_y, few_width);
-        resizeEditorWindows(&ftw, &lnw, edws_offset_y, lnw->_maxx + 1, few_width);
+        resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
+        resizeEditorWindows(&ftw, &lnw, ofw_height, lnw->_maxx + 1, few_width);
         refresh_ofw = true;
         refresh_edw = true;
         break;
@@ -421,6 +427,15 @@ int main(int argc, char** args) {
           saveAction(history_frame, createInsertAction(*old_cur, *cursor));
         }
         break;
+    }
+
+    //// --------------- Post Processing -----------------
+
+
+    if (refresh_local_vars == true) {
+      setupLocalVars(files, current_file, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y, &history_root,
+                     &history_frame);
+      refresh_local_vars = false;
     }
 
     // flag cursor change
@@ -441,16 +456,11 @@ int main(int argc, char** args) {
       // resize line_w to match with line_number_length
       int new_lnw_width = numberOfDigitOfNumber(*screen_y + ftw->_maxy) + 1 /* +1 for the line */;
       if (new_lnw_width != ftw->_begx) {
-        resizeEditorWindows(&ftw, &lnw, edws_offset_y, new_lnw_width, few_width);
+        resizeEditorWindows(&ftw, &lnw, ofw_height, new_lnw_width, few_width);
       }
     }
 
-
-    if (refresh_local_vars == true) {
-      setupLocalVars(files, current_file, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y, &history_root,
-                     &history_frame);
-      refresh_local_vars = false;
-    }
+    //// --------------- Paint GUI -----------------
 
     refresh();
 
@@ -462,8 +472,8 @@ int main(int argc, char** args) {
     }
 
     // Refresh File Opened Window
-    if ((refresh_ofw == true || files[current_file].io_file.status == NONE) && edws_offset_y != 0) {
-      printOpenedFile(files, current_file, current_file_offset, ofw);
+    if ((refresh_ofw == true || files[current_file].io_file.status == NONE) && ofw_height != 0) {
+      printOpenedFile(files, file_count, current_file, current_file_offset, ofw);
       wrefresh(ofw);
       refresh_ofw = false;
     }
@@ -474,6 +484,8 @@ int main(int argc, char** args) {
       wrefresh(ftw);
       wrefresh(lnw);
     }
+
+    // While end.
   }
 
 end:
@@ -483,13 +495,10 @@ end:
 
   endwin();
   // Destroy all files
-  for (int i = 0; i < MAX_OPENED_FILE; i++) {
-    if (files[i].io_file.status == EXIST) {
-      setlastFilePosition(files[i].io_file.path_abs, files[i].cursor.file_id.absolute_row, files[i].cursor.line_id.absolute_column, files[i].screen_x, files[i].screen_y);
-    }
-    destroyFullFile(files[i].root);
-    destroyEndOfHistory(&files[i].history_root);
+  for (int i = 0; i < file_count; i++) {
+    destroyFileContainer(files + i);
   }
   destroyFolder(&pwd);
+  free(files);
   return 0;
 }

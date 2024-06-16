@@ -28,6 +28,14 @@ typedef enum {
 
 ////// -------------- FILE CONTAINER --------------
 
+void destroyFileContainer(FileContainer *container);
+
+void openNewFile(char* file_path, FileContainer** files, int* file_count, int* current_file, bool* refresh_ofw, bool* refresh_local_vars);
+
+void closeFile(FileContainer** files, int* file_count, int* current_file, bool* refresh_ofw, bool* refresh_edw, bool* refresh_local_vars);
+
+Cursor createRoot(IO_FileID file);
+
 void setupFileContainer(char *args, FileContainer *container);
 
 void setupLocalVars(FileContainer* files, int current_file, IO_FileID** io_file, FileNode*** root, Cursor** cursor, Cursor** select_cursor, Cursor** old_cur, int** desired_column,
@@ -35,7 +43,6 @@ void setupLocalVars(FileContainer* files, int current_file, IO_FileID** io_file,
 
 bool isFileContainerEmpty(FileContainer *container);
 
-int getOpenedFileCount(FileContainer *files);
 
 ////// -------------- CURSOR ACTIONS --------------
 

@@ -3,12 +3,77 @@
 #include <assert.h>
 #include <ctype.h>
 #include <limits.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "term_handler.h"
 #include "../io_management/viewport_history.h"
 #include "../utils/constants.h"
 
 ////// -------------- FILE CONTAINER --------------
+
+
+void destroyFileContainer(FileContainer* container) {
+  if (container->io_file.status == EXIST) {
+    setlastFilePosition(container->io_file.path_abs, container->cursor.file_id.absolute_row, container->cursor.line_id.absolute_column, container->screen_x, container->screen_y);
+  }
+  destroyFullFile(container->root);
+  destroyEndOfHistory(&container->history_root);
+}
+
+void openNewFile(char* file_path, FileContainer** files, int* file_count, int* current_file, bool* refresh_ofw, bool* refresh_local_vars) {
+  // Update editors vars
+  *refresh_local_vars = true;
+  *refresh_ofw = true;
+
+  char abs_path[PATH_MAX];
+  char* res = realpath(file_path, abs_path);
+  // Check for an existing buffer.
+  if (res != NULL) {
+    for (int i = 0; i < *file_count; i++) {
+      if ((*files)[i].io_file.status != NONE && strcmp((*files)[i].io_file.path_abs, abs_path) == 0) {
+        *current_file = i;
+        return;
+      }
+    }
+  }
+
+  // Reallocate files to handle one more file.
+  (*file_count)++;
+  *files = realloc(*files, *file_count * sizeof(FileContainer));
+
+  // Setup new file container with clicked file
+  setupFileContainer(file_path, *files + *file_count - 1);
+  *current_file = *file_count - 1;
+}
+
+void closeFile(FileContainer** files, int* file_count, int* current_file, bool* refresh_ofw, bool* refresh_edw, bool* refresh_local_vars) {
+  if (*file_count == 1) // Always need to keep one file.
+  {
+    return;
+  }
+  // Clear current file
+  destroyFileContainer(*files + *current_file);
+  memmove(*files + *current_file, *files + *current_file + 1, (*file_count - *current_file - 1) * sizeof(FileContainer));
+
+  // Change vars
+  if (*current_file != 0)
+    (*current_file)--;
+  (*file_count)--;
+
+  // realloc files to avoid excess of mem.
+  *files = realloc(*files, *file_count * sizeof(FileContainer));
+  *refresh_ofw = true;
+  *refresh_edw = true;
+  *refresh_local_vars = true;
+}
+
+Cursor createRoot(IO_FileID file) {
+  if (file.status == EXIST) {
+    return initWrittableFileFromFile(file.path_abs);
+  }
+  return initNewWrittableFile();
+}
 
 void setupFileContainer(char* path, FileContainer* container) {
   setupFile(path, &container->io_file);
@@ -53,16 +118,6 @@ bool isFileContainerEmpty(FileContainer* container) {
 
   return container->cursor.file_id.absolute_row == 1 && container->cursor.line_id.absolute_column == 0
          && areCursorEqual(container->cursor, moveRight(container->cursor));
-}
-
-// assert that opened files are slide at the begin of the array.
-int getOpenedFileCount(FileContainer* files) {
-  for (int i = 0; i < MAX_OPENED_FILE; i++) {
-    if (isFileContainerEmpty(files + i) == true) {
-      return i;
-    }
-  }
-  return MAX_OPENED_FILE;
 }
 
 //// -------------- CURSOR MANAGEMENT --------------

@@ -2,8 +2,8 @@
 #define CONTANTS_H
 
 #define SCROLL_SPEED 3
+#define NO_EVENT_MOUSE 268435456
 
-#define MAX_OPENED_FILE 100
 
 #define FILE_NAME_SEPARATOR " | "
 #define OPENED_FILE_WINDOW_HEIGHT 2 // 2 to enable 0 to disable

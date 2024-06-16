@@ -8,6 +8,9 @@
 #include "../utils/constants.h"
 
 
+////// -------------- PRINT FUNCTIONS --------------
+
+
 void printChar_U8ToNcurses(WINDOW* w, Char_U8 ch) {
   int size = sizeChar_U8(ch);
   for (int i = 0; i < size; i++) {
@@ -154,256 +157,8 @@ void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor se
   // box(ofw, 0, 0);
 }
 
-void moveScreenToMatchCursor(WINDOW* w, Cursor cursor, int* screen_x, int* screen_y) {
-  int current_lines = w->_maxy;
-  int current_columns = w->_maxx;
-
-  if (cursor.file_id.absolute_row - (*screen_y + current_lines) + 1 >= 0) {
-    *screen_y = cursor.file_id.absolute_row - current_lines + 2;
-    if (*screen_y < 1) *screen_y = 1;
-  }
-  else if (cursor.file_id.absolute_row < *screen_y + 1) {
-    *screen_y = cursor.file_id.absolute_row - 1;
-    if (*screen_y < 1) *screen_y = 1;
-  }
-
-  int screen_x_wide_char = getScreenXForCursor(cursor, *screen_x) + *screen_x;
-  if (screen_x_wide_char - (*screen_x + current_columns - 8) >= 0) {
-    *screen_x = screen_x_wide_char - current_columns + 8;
-    if (*screen_x < 1) *screen_x = 1;
-  }
-  else if (screen_x_wide_char - 5 < *screen_x) {
-    *screen_x = screen_x_wide_char - 5;
-    if (*screen_x < 1) {
-      *screen_x = 1;
-    }
-  }
-}
-
-void centerCursorOnScreen(WINDOW* w, Cursor cursor, int* screen_x, int* screen_y) {
-  // center for y, but right for x.
-  *screen_x = cursor.line_id.absolute_column - (COLS /*/ 2*/);
-  *screen_y = cursor.file_id.absolute_row - (LINES / 2);
-
-  if (*screen_x < 1)
-    *screen_x = 1;
-  if (*screen_y < 1)
-    *screen_y = 1;
-
-  // To match right for x.
-  moveScreenToMatchCursor(w, cursor, screen_x, screen_y);
-}
-
-Cursor createRoot(IO_FileID file) {
-  if (file.status == EXIST) {
-    return initWrittableFileFromFile(file.path_abs);
-  }
-  return initNewWrittableFile();
-}
-
-
-void handleEditorClick(int edws_offset_x, int edws_offset_y, Cursor* cursor, Cursor* select_cursor, int* desired_column, int* screen_x, int* screen_y, MEVENT* m_event,
-                       bool button1_down, bool* refresh_few, bool* refresh_ofw, bool* refresh_edw, bool* refresh_local_vars) {
-  if (m_event->y - edws_offset_y < 0) {
-    m_event->y = edws_offset_y;
-  }
-
-
-  // ---------- CURSOR ACTION ------------
-
-  if (button1_down) {
-    FileIdentifier new_file_id = tryToReachAbsRow(cursor->file_id, *screen_y + m_event->y - edws_offset_y);
-    LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), *screen_x, m_event->x - edws_offset_x);
-
-    if (isCursorDisabled(*select_cursor) == false) {
-      *cursor = cursorOf(new_file_id, new_line_id);
-    }
-    else if (areCursorEqual(*cursor, cursorOf(new_file_id, new_line_id)) == false) {
-      *select_cursor = *cursor;
-      *cursor = cursorOf(new_file_id, new_line_id);
-    }
-    setDesiredColumn(*cursor, desired_column);
-  }
-
-  if (m_event->bstate & BUTTON1_PRESSED) {
-    setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
-    FileIdentifier new_file_id = tryToReachAbsRow(cursor->file_id, *screen_y + m_event->y - edws_offset_y);
-    LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), *screen_x, m_event->x - edws_offset_x);
-    *cursor = cursorOf(new_file_id, new_line_id);
-    setDesiredColumn(*cursor, desired_column);
-  }
-
-  if (m_event->bstate & BUTTON1_DOUBLE_CLICKED) {
-    selectWord(cursor, select_cursor);
-  }
-
-
-  // ---------- SCROLL ------------
-  if (m_event->bstate & BUTTON4_PRESSED && !(m_event->bstate & BUTTON_SHIFT)) {
-    // Move Up
-    *screen_y -= SCROLL_SPEED;
-    if (*screen_y < 1) *screen_y = 1;
-  }
-  else if (m_event->bstate & BUTTON4_PRESSED && m_event->bstate & BUTTON_SHIFT) {
-    // Move Left
-    *screen_x -= SCROLL_SPEED;
-    if (*screen_x < 1) *screen_x = 1;
-  }
-
-  if (m_event->bstate & BUTTON5_PRESSED && !(m_event->bstate & BUTTON_SHIFT)) {
-    // Move Down
-    *screen_y += SCROLL_SPEED;
-    FileIdentifier last_line_cur = tryToReachAbsRow(cursor->file_id, *screen_y + 2);
-    if (*screen_y + 2 != last_line_cur.absolute_row) {
-      *screen_y = last_line_cur.absolute_row - 2;
-      if (*screen_y < 1) *screen_y = 1;
-    }
-  }
-  else if (m_event->bstate & BUTTON5_PRESSED && m_event->bstate & BUTTON_SHIFT) {
-    // Move Right
-    *screen_x += SCROLL_SPEED;
-  }
-}
-
-
-void handleFileExplorerClick(FileContainer* files, int* current_file, ExplorerFolder* pwd, int* few_y_offset, int* few_x_offset, int* few_width, int* few_selected_line,
-                             int edws_offset_y, WINDOW** few,
-                             WINDOW** ofw, WINDOW** lnw, WINDOW** ftw, MEVENT m_event, bool* refresh_few, bool* refresh_ofw, bool* refresh_edw, bool* refresh_local_vars) {
-  // ---------- SCROLL ------------
-  if (m_event.bstate & BUTTON4_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
-    // Move Up
-    *few_y_offset -= SCROLL_SPEED;
-    if (*few_y_offset < 0) *few_y_offset = 0;
-  }
-  else if (m_event.bstate & BUTTON4_PRESSED && m_event.bstate & BUTTON_SHIFT) {
-    // Move Left
-    *few_width -= 1;
-    if (*few_width < 0)
-      *few_width = 0;
-  }
-
-  if (m_event.bstate & BUTTON5_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
-    // Move Down
-    *few_y_offset += SCROLL_SPEED;
-  }
-  else if (m_event.bstate & BUTTON5_PRESSED && m_event.bstate & BUTTON_SHIFT) {
-    // Move Right
-    *few_width += 1;
-    if (*few_width > COLS - 8)
-      *few_width = COLS - 8;
-  }
-
-  if (m_event.bstate & BUTTON5_PRESSED || m_event.bstate & BUTTON4_PRESSED) {
-    if (m_event.bstate & BUTTON_SHIFT) {
-      // Resize File Explorer Window
-      delwin(*few);
-      *few = newwin(0, *few_width, 0, 0);
-      // Resize Opened File Window
-      delwin(*ofw);
-      *ofw = newwin(edws_offset_y, 0, 0, *few_width);
-      *refresh_ofw = true;
-      // Resize Editor Window
-      resizeEditorWindows(ftw, lnw, edws_offset_y, (*lnw)->_maxx + 1, *few_width);
-      *refresh_edw = true;
-    }
-    *refresh_few = true;
-  }
-
-  if (m_event.bstate & BUTTON1_PRESSED) {
-    *few_selected_line = *few_y_offset + m_event.y + 1;
-    *refresh_few = true;
-  }
-
-  if (!(m_event.bstate & BUTTON1_DOUBLE_CLICKED))
-    return;
-
-  ExplorerFolder* res_folder;
-  int res_index;
-  bool found = getFileClickedFileExplorer(pwd, m_event.y, *few_x_offset, *few_y_offset, &res_folder, &res_index);
-  *few_selected_line = *few_y_offset + m_event.y + 1;
-  // If click on nothing break;
-  if (found == false) {
-    return;
-  }
-
-  if (res_index == -1) {
-    // Result is a folder
-    // switch open.
-    res_folder->open = !res_folder->open;
-  }
-  else {
-    // Result is a file
-    int file_count = getOpenedFileCount(files);
-    if (file_count < MAX_OPENED_FILE) {
-      // Destroy empty file
-      destroyFullFile(files[file_count].root);
-      destroyEndOfHistory(&files[file_count].history_root);
-
-      // Setup new file container with clicked file
-      setupFileContainer(res_folder->files[res_index].path, files + file_count);
-      *current_file = file_count;
-
-      // Update editors vars
-      *refresh_local_vars = true;
-      *refresh_ofw = true;
-    }
-  }
-
-  *refresh_few = true;
-}
-
-
-int getScreenXForCursor(Cursor cursor, int screen_x) {
-  Cursor initial = cursor;
-  Cursor old_cursor = cursor;
-  int atAdd = 0;
-  int size;
-
-
-  if (cursor.line_id.absolute_column != 0 && (size = charPrintSize(getCharForLineIdentifier(cursor.line_id))) >= 2) {
-    atAdd += size - 1;
-  }
-  cursor = moveLeft(cursor);
-
-
-  while (screen_x <= cursor.line_id.absolute_column && areCursorEqual(cursor, old_cursor) == false
-         && cursor.file_id.absolute_row == old_cursor.file_id.absolute_row) {
-    assert(cursor.line_id.absolute_column != 0);
-    Char_U8 current_ch = getCharForLineIdentifier(cursor.line_id);
-    if ((size = charPrintSize(current_ch)) >= 2) {
-      atAdd += size - 1;
-    }
-
-    old_cursor = cursor;
-    cursor = moveLeft(cursor);
-  }
-
-  return initial.line_id.absolute_column - screen_x + 1 + atAdd;
-}
-
-LineIdentifier getLineIdForScreenX(LineIdentifier line_id, int screen_x, int x_click) {
-  line_id = tryToReachAbsColumn(line_id, screen_x - 1);
-
-  int current_column = 0;
-  int x_el = 0;
-
-  while (hasElementAfterLine(line_id) == true && current_column <= x_click) {
-    line_id = tryToReachAbsColumn(line_id, line_id.absolute_column + 1);
-    int size = charPrintSize(getCharForLineIdentifier(line_id));
-    if (size <= 0) size = 1; // TODO handle non UTF_8 char.
-    current_column += size;
-    x_el++;
-  }
-
-  if (x_click >= current_column)
-    x_el++;
-
-  return tryToReachAbsColumn(line_id, screen_x + x_el - 2);
-}
-
-void printOpenedFile(FileContainer* files, int current_file, int current_file_offset, WINDOW* ofw) {
+void printOpenedFile(FileContainer* files, int file_count, int current_file, int current_file_offset, WINDOW* ofw) {
   // The current position of the cursor for the first line.
-  int files_count = getOpenedFileCount(files);
   wmove(ofw, 0, 0);
   int current_offset = ofw->_begx;
   if (current_file_offset != 0) {
@@ -413,7 +168,7 @@ void printOpenedFile(FileContainer* files, int current_file, int current_file_of
     wattroff(ofw, A_DIM);
   }
   // Move to the top left corner.
-  for (int i = current_file_offset; i < files_count; i++) {
+  for (int i = current_file_offset; i < file_count; i++) {
     // Style file names.
     if (i == current_file)
       wattron(ofw, A_BOLD);
@@ -429,7 +184,7 @@ void printOpenedFile(FileContainer* files, int current_file, int current_file_of
     else
       wattroff(ofw, A_DIM);
     // Print file name separator
-    if (i < files_count - 1) {
+    if (i < file_count - 1) {
       wprintw(ofw, FILE_NAME_SEPARATOR);
       current_offset += strlen(FILE_NAME_SEPARATOR);
     }
@@ -453,6 +208,7 @@ void printOpenedFile(FileContainer* files, int current_file, int current_file_of
     wprintw(ofw, "🭸");
   }
 }
+
 
 void internalPrintExplorerRec(ExplorerFolder* folder, WINDOW* few, int* few_x_offset, int* few_y_offset, int tree_offset_rec, int* selected_line) {
   // Don't print if not in window.
@@ -543,6 +299,241 @@ void printFileExplorer(ExplorerFolder* pwd, WINDOW* few, int few_x_offset, int f
 }
 
 
+////// -------------- CLICK FUNCTIONS --------------
+
+
+void handleEditorClick(int edws_offset_x, int edws_offset_y, Cursor* cursor, Cursor* select_cursor, int* desired_column, int* screen_x, int* screen_y, MEVENT* m_event,
+                       bool button1_down) {
+  if (m_event->y - edws_offset_y < 0) {
+    m_event->y = edws_offset_y;
+  }
+
+
+  // ---------- CURSOR ACTION ------------
+
+  if (button1_down) {
+    FileIdentifier new_file_id = tryToReachAbsRow(cursor->file_id, *screen_y + m_event->y - edws_offset_y);
+    LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), *screen_x, m_event->x - edws_offset_x);
+
+    if (isCursorDisabled(*select_cursor) == false) {
+      *cursor = cursorOf(new_file_id, new_line_id);
+    }
+    else if (areCursorEqual(*cursor, cursorOf(new_file_id, new_line_id)) == false) {
+      *select_cursor = *cursor;
+      *cursor = cursorOf(new_file_id, new_line_id);
+    }
+    setDesiredColumn(*cursor, desired_column);
+  }
+
+  if (m_event->bstate & BUTTON1_PRESSED) {
+    setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
+    FileIdentifier new_file_id = tryToReachAbsRow(cursor->file_id, *screen_y + m_event->y - edws_offset_y);
+    LineIdentifier new_line_id = getLineIdForScreenX(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), *screen_x, m_event->x - edws_offset_x);
+    *cursor = cursorOf(new_file_id, new_line_id);
+    setDesiredColumn(*cursor, desired_column);
+  }
+
+  if (m_event->bstate & BUTTON1_DOUBLE_CLICKED) {
+    selectWord(cursor, select_cursor);
+  }
+
+
+  // ---------- SCROLL ------------
+  if (m_event->bstate & BUTTON4_PRESSED && !(m_event->bstate & BUTTON_SHIFT)) {
+    // Move Up
+    *screen_y -= SCROLL_SPEED;
+    if (*screen_y < 1) *screen_y = 1;
+  }
+  else if (m_event->bstate & BUTTON4_PRESSED && m_event->bstate & BUTTON_SHIFT) {
+    // Move Left
+    *screen_x -= SCROLL_SPEED;
+    if (*screen_x < 1) *screen_x = 1;
+  }
+
+  if (m_event->bstate & BUTTON5_PRESSED && !(m_event->bstate & BUTTON_SHIFT)) {
+    // Move Down
+    *screen_y += SCROLL_SPEED;
+    FileIdentifier last_line_cur = tryToReachAbsRow(cursor->file_id, *screen_y + 2);
+    if (*screen_y + 2 != last_line_cur.absolute_row) {
+      *screen_y = last_line_cur.absolute_row - 2;
+      if (*screen_y < 1) *screen_y = 1;
+    }
+  }
+  else if (m_event->bstate & BUTTON5_PRESSED && m_event->bstate & BUTTON_SHIFT) {
+    // Move Right
+    *screen_x += SCROLL_SPEED;
+  }
+}
+
+int handleOpenedFileSelectClick(FileContainer* files, int* file_count, int* current_file, MEVENT m_event, int* current_file_offset, WINDOW* ofw, bool *refresh_ofw) {
+  // Char offset for the window
+  int current_char_offset = ofw->_begx;
+
+  if (*current_file_offset != 0) {
+    current_char_offset += strlen("< | ");
+  }
+
+  for (int i = *current_file_offset; i < *file_count; i++) {
+    current_char_offset += strlen(basename(files[i].io_file.path_args));
+
+    if (*current_file_offset != 0 && m_event.x < ofw->_begx + 3) {
+      (*current_file_offset)--;
+      assert(*current_file_offset >= 0);
+      *refresh_ofw = true;
+      break;
+
+    }
+
+    if (current_char_offset + strlen(FILE_NAME_SEPARATOR) > COLS && m_event.x > COLS - 4) {
+      (*current_file_offset)++;
+      assert(*current_file_offset < *file_count);
+      *refresh_ofw = true;
+      break;
+    }
+
+    if (m_event.x < current_char_offset + (strlen(FILE_NAME_SEPARATOR) / 2)) {
+      // Don't change anything if the file clicked is currently the file opened.
+      if (*current_file == i)
+        break;
+
+      return i;
+    }
+    current_char_offset += strlen(FILE_NAME_SEPARATOR);
+  }
+
+  return -1;
+}
+
+
+void handleOpenedFileClick(FileContainer* files, int* file_count, int* current_file, MEVENT m_event, int* current_file_offset, WINDOW* ofw, bool* refresh_ofw,
+                           bool* refresh_local_vars, bool mouse_drag) {
+  if (m_event.bstate & BUTTON4_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
+    // Move Up
+    (*current_file_offset)--;
+    if (*current_file_offset < 0)
+      *current_file_offset = 0;
+    *refresh_ofw = true;
+    return;
+  }
+  if (m_event.bstate & BUTTON5_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
+    // Move Down
+    (*current_file_offset)++;
+    if (*current_file_offset > *file_count - 1)
+      *current_file_offset = *file_count - 1;
+    *refresh_ofw = true;
+    return;
+  }
+
+
+  if (m_event.bstate & BUTTON1_PRESSED) {
+    int result_ofw_click = handleOpenedFileSelectClick(files, file_count, current_file, m_event, current_file_offset, ofw, refresh_ofw);
+
+    if (result_ofw_click == -1) {
+      return;
+    }
+
+    *current_file = result_ofw_click;
+
+    *refresh_local_vars = true;
+    *refresh_ofw = true;
+    return;
+  }
+
+  // ReOrder opened Files.
+  if (m_event.bstate == NO_EVENT_MOUSE && mouse_drag == true) {
+    int result_ofw_click = handleOpenedFileSelectClick(files, file_count, current_file, m_event, current_file_offset, ofw, refresh_ofw);
+
+    if (result_ofw_click == -1 || result_ofw_click == *current_file) {
+      return;
+    }
+
+    // Swap both files.
+    FileContainer tmp = files[result_ofw_click];
+    files[result_ofw_click] = files[*current_file];
+    files[*current_file] = tmp;
+
+    *current_file = result_ofw_click;
+
+    *refresh_local_vars = true;
+    *refresh_ofw = true;
+    return;
+  }
+}
+
+void handleFileExplorerClick(FileContainer** files, int* file_count, int* current_file, ExplorerFolder* pwd, int* few_y_offset, int* few_x_offset, int* few_width,
+                             int* few_selected_line, int edws_offset_y, WINDOW** few, WINDOW** ofw, WINDOW** lnw, WINDOW** ftw, MEVENT m_event, bool* refresh_few,
+                             bool* refresh_ofw, bool* refresh_edw, bool* refresh_local_vars) {
+  // ---------- SCROLL ------------
+  if (m_event.bstate & BUTTON4_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
+    // Move Up
+    *few_y_offset -= SCROLL_SPEED;
+    if (*few_y_offset < 0) *few_y_offset = 0;
+  }
+  else if (m_event.bstate & BUTTON4_PRESSED && m_event.bstate & BUTTON_SHIFT) {
+    // Move Left
+    *few_width -= 1;
+    if (*few_width < 0)
+      *few_width = 0;
+  }
+
+  if (m_event.bstate & BUTTON5_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
+    // Move Down
+    *few_y_offset += SCROLL_SPEED;
+  }
+  else if (m_event.bstate & BUTTON5_PRESSED && m_event.bstate & BUTTON_SHIFT) {
+    // Move Right
+    *few_width += 1;
+    if (*few_width > COLS - 8)
+      *few_width = COLS - 8;
+  }
+
+  if (m_event.bstate & BUTTON5_PRESSED || m_event.bstate & BUTTON4_PRESSED) {
+    if (m_event.bstate & BUTTON_SHIFT) {
+      // Resize File Explorer Window
+      delwin(*few);
+      *few = newwin(0, *few_width, 0, 0);
+      // Resize Opened File Window
+      delwin(*ofw);
+      *ofw = newwin(edws_offset_y, 0, 0, *few_width);
+      *refresh_ofw = true;
+      // Resize Editor Window
+      resizeEditorWindows(ftw, lnw, edws_offset_y, (*lnw)->_maxx + 1, *few_width);
+      *refresh_edw = true;
+    }
+    *refresh_few = true;
+  }
+
+  if (m_event.bstate & BUTTON1_PRESSED) {
+    *few_selected_line = *few_y_offset + m_event.y + 1;
+    *refresh_few = true;
+  }
+
+  if (!(m_event.bstate & BUTTON1_DOUBLE_CLICKED))
+    return;
+
+  ExplorerFolder* res_folder;
+  int res_index;
+  bool found = getFileClickedFileExplorer(pwd, m_event.y, *few_x_offset, *few_y_offset, &res_folder, &res_index);
+  *few_selected_line = *few_y_offset + m_event.y + 1;
+  // If click on nothing break;
+  if (found == false) {
+    return;
+  }
+
+  if (res_index == -1) {
+    // Result is a folder
+    // switch open.
+    res_folder->open = !res_folder->open;
+  }
+  else {
+    // Result is a file => open file in text editor.
+    openNewFile(res_folder->files[res_index].path, files, file_count, current_file, refresh_ofw, refresh_local_vars);
+  }
+
+  *refresh_few = true;
+}
+
+
 bool internalGetClickedExplorerFile(ExplorerFolder* current_folder, int* y_click, int few_x_offset, int few_y_offset, ExplorerFolder** res_folder, int* file_index) {
   if (*y_click == 0) {
     *res_folder = current_folder;
@@ -580,77 +571,8 @@ bool getFileClickedFileExplorer(ExplorerFolder* pwd, int y_click, int few_x_offs
   return internalGetClickedExplorerFile(pwd, &y_click, few_x_offset, few_y_offset, res_folder, file_index);
 }
 
-void handleOpenedFileClick(FileContainer* files, int* current_file, IO_FileID** io_file, FileNode*** root, Cursor** cursor, Cursor** select_cursor, Cursor** old_cur,
-                           int** desired_column,
-                           int** screen_x, int** screen_y, int** old_screen_x, int** old_screen_y, History** history_root, History*** history_frame, MEVENT m_event,
-                           int* current_file_offset, WINDOW* ofw, bool* refresh_few, bool* refresh_ofw, bool* refresh_edw, bool* refresh_local_vars) {
-  int file_count = getOpenedFileCount(files);
-  if (m_event.bstate & BUTTON4_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
-    // Move Up
-    (*current_file_offset)--;
-    if (*current_file_offset < 0)
-      *current_file_offset = 0;
-    *refresh_ofw = true;
-  }
-  if (m_event.bstate & BUTTON5_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
-    // Move Down
-    (*current_file_offset)++;
-    if (*current_file_offset > file_count - 1)
-      *current_file_offset = file_count - 1;
-    *refresh_ofw = true;
-  }
 
-
-  if (!(m_event.bstate & BUTTON1_PRESSED))
-    return;
-
-  // Char offset for the window
-  int current_char_offset = ofw->_begx;
-
-  if (*current_file_offset != 0) {
-    current_char_offset += strlen("< | ");
-  }
-
-  for (int i = *current_file_offset; i < file_count && i < MAX_OPENED_FILE; i++) {
-    if (isFileContainerEmpty(files + i) == true)
-      break;
-
-    current_char_offset += strlen(basename(files[i].io_file.path_args));
-
-    if (*current_file_offset != 0 && m_event.x < ofw->_begx + 3) {
-      (*current_file_offset)--;
-      assert(*current_file_offset >= 0);
-      *refresh_ofw = true;
-      break;
-    }
-
-    if (current_char_offset + strlen(FILE_NAME_SEPARATOR) > COLS && m_event.x > COLS - 4) {
-      (*current_file_offset)++;
-      assert(*current_file_offset < MAX_OPENED_FILE);
-      *refresh_ofw = true;
-      break;
-    }
-
-    if (m_event.x < current_char_offset + (strlen(FILE_NAME_SEPARATOR) / 2)) {
-      // Don't change anything if the file clicked is currently the file opened.
-      if (*current_file == i)
-        break;
-
-      *current_file = i;
-      *refresh_local_vars = true;
-      *refresh_ofw = true;
-      break;
-    }
-
-
-    current_char_offset += strlen(FILE_NAME_SEPARATOR);
-  }
-}
-
-
-void setDesiredColumn(Cursor cursor, int* desired_column) {
-  *desired_column = cursor.line_id.absolute_column;
-}
+////// -------------- RESIZE FUNCTIONS --------------
 
 void resizeEditorWindows(WINDOW** ftw, WINDOW** lnw, int y_file_editor, int lnw_width, int few_width) {
   delwin(*ftw);
@@ -663,4 +585,102 @@ void resizeOpenedFileWindow(WINDOW** ofw, bool* refresh_ofw, int edws_offset_y, 
   delwin(*ofw);
   *ofw = newwin(edws_offset_y, 0, 0, few_width);
   *refresh_ofw = true;
+}
+
+
+////// -------------- UTILS FUNCTIONS --------------
+
+
+void moveScreenToMatchCursor(WINDOW* w, Cursor cursor, int* screen_x, int* screen_y) {
+  int current_lines = w->_maxy;
+  int current_columns = w->_maxx;
+
+  if (cursor.file_id.absolute_row - (*screen_y + current_lines) + 1 >= 0) {
+    *screen_y = cursor.file_id.absolute_row - current_lines + 2;
+    if (*screen_y < 1) *screen_y = 1;
+  }
+  else if (cursor.file_id.absolute_row < *screen_y + 1) {
+    *screen_y = cursor.file_id.absolute_row - 1;
+    if (*screen_y < 1) *screen_y = 1;
+  }
+
+  int screen_x_wide_char = getScreenXForCursor(cursor, *screen_x) + *screen_x;
+  if (screen_x_wide_char - (*screen_x + current_columns - 8) >= 0) {
+    *screen_x = screen_x_wide_char - current_columns + 8;
+    if (*screen_x < 1) *screen_x = 1;
+  }
+  else if (screen_x_wide_char - 5 < *screen_x) {
+    *screen_x = screen_x_wide_char - 5;
+    if (*screen_x < 1) {
+      *screen_x = 1;
+    }
+  }
+}
+
+void centerCursorOnScreen(WINDOW* w, Cursor cursor, int* screen_x, int* screen_y) {
+  // center for y, but right for x.
+  *screen_x = cursor.line_id.absolute_column - (COLS /*/ 2*/);
+  *screen_y = cursor.file_id.absolute_row - (LINES / 2);
+
+  if (*screen_x < 1)
+    *screen_x = 1;
+  if (*screen_y < 1)
+    *screen_y = 1;
+
+  // To match right for x.
+  moveScreenToMatchCursor(w, cursor, screen_x, screen_y);
+}
+
+
+int getScreenXForCursor(Cursor cursor, int screen_x) {
+  Cursor initial = cursor;
+  Cursor old_cursor = cursor;
+  int atAdd = 0;
+  int size;
+
+
+  if (cursor.line_id.absolute_column != 0 && (size = charPrintSize(getCharForLineIdentifier(cursor.line_id))) >= 2) {
+    atAdd += size - 1;
+  }
+  cursor = moveLeft(cursor);
+
+
+  while (screen_x <= cursor.line_id.absolute_column && areCursorEqual(cursor, old_cursor) == false
+         && cursor.file_id.absolute_row == old_cursor.file_id.absolute_row) {
+    assert(cursor.line_id.absolute_column != 0);
+    Char_U8 current_ch = getCharForLineIdentifier(cursor.line_id);
+    if ((size = charPrintSize(current_ch)) >= 2) {
+      atAdd += size - 1;
+    }
+
+    old_cursor = cursor;
+    cursor = moveLeft(cursor);
+  }
+
+  return initial.line_id.absolute_column - screen_x + 1 + atAdd;
+}
+
+LineIdentifier getLineIdForScreenX(LineIdentifier line_id, int screen_x, int x_click) {
+  line_id = tryToReachAbsColumn(line_id, screen_x - 1);
+
+  int current_column = 0;
+  int x_el = 0;
+
+  while (hasElementAfterLine(line_id) == true && current_column <= x_click) {
+    line_id = tryToReachAbsColumn(line_id, line_id.absolute_column + 1);
+    int size = charPrintSize(getCharForLineIdentifier(line_id));
+    if (size <= 0) size = 1; // TODO handle non UTF_8 char.
+    current_column += size;
+    x_el++;
+  }
+
+  if (x_click >= current_column)
+    x_el++;
+
+  return tryToReachAbsColumn(line_id, screen_x + x_el - 2);
+}
+
+
+void setDesiredColumn(Cursor cursor, int* desired_column) {
+  *desired_column = cursor.line_id.absolute_column;
 }
