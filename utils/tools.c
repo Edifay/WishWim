@@ -1,8 +1,10 @@
 #include "tools.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <linux/limits.h>
 #include <sys/time.h>
 
 time_val timeInMilliseconds(void) {
@@ -64,4 +66,33 @@ void printToNcursesNCharFromString(WINDOW* w, char* str, int n) {
   for (int i = 0; i < n && str[i] != '\0'; i++) {
     wprintw(w, "%c", str[i]);
   }
+}
+
+
+char* whereis(char* prog) {
+  char command[15 + strlen(prog)];
+  sprintf(command, "whereis %s", prog);
+
+  FILE* f = popen(command, "r");
+  if (f == NULL) {
+    return NULL;
+  }
+
+  char* path = malloc(PATH_MAX);
+  char tmp_shit[PATH_MAX];
+  int scan_res = fscanf(f, " %s %s ", tmp_shit, path);
+  if (scan_res != 2) {
+    free(path);
+    return NULL;
+  }
+  fclose(f);
+
+  return path;
+}
+
+
+void getLocalURI(char* realive_abs_path, char* uri) {
+  char abs_path[PATH_MAX];
+  realpath(realive_abs_path, abs_path);
+  sprintf(uri, "file://%s", abs_path);
 }

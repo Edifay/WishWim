@@ -18,7 +18,6 @@
 
 #define CTRL_KEY(k) ((k)&0x1f)
 
-
 int main(int file_count, char** file_names) {
   // remove first args which is the executable file name.
   file_names++;
