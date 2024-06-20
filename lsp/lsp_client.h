@@ -10,7 +10,8 @@
 
 typedef enum {
   REQUEST,
-  NOTIFICATION
+  NOTIFICATION,
+  RESPONSE
 } PACKET_TYPE;
 
 typedef struct {
@@ -24,19 +25,21 @@ typedef struct {
 
 //////// ---------------- JSON TOOLS ---------------------
 
-void printToStdioJSON(cJSON *json);
+void printToStdioJSON(cJSON* json);
 
 
 //////// --------------- Low Layer JSON-RPC --------------------------
 
-bool openLSPServer(char* name, LSP_Server* server);
+bool openLSPServer(char* name, char* command_args, LSP_Server* server);
 
 void closeLSPServer(LSP_Server* server);
 
 char* readPacket(LSP_Server* server);
+
 cJSON* readPacketAsJSON(LSP_Server* server);
 
 int sendPacket(LSP_Server* server, char* method, char* params, PACKET_TYPE type);
+
 int sendPacketWithJSON(LSP_Server* server, char* method, cJSON* content, PACKET_TYPE type);
 
 //////// ----------------- Created Functions ---------------
@@ -44,13 +47,17 @@ int sendPacketWithJSON(LSP_Server* server, char* method, cJSON* content, PACKET_
 
 void initializeLspServer(LSP_Server* lsp, char* client_name, char* client_version, char* current_workspace);
 
-
-
-
 cJSON* extractPacketResult(cJSON* response_obj);
 
-int getRequestID(cJSON *request_body);
+int getRequestID(cJSON* request_body);
 
-PACKET_TYPE getPacketType(cJSON *content);
+char* getRequestMethod(cJSON* request_body);
+
+cJSON* getNotificationParams(cJSON* notification_body);
+
+
+PACKET_TYPE getRequestType(cJSON* content);
+
+void notifyLspFileDidOpen(LSP_Server lsp, char* file_name, char* file_content);
 
 #endif //CLIENT_H

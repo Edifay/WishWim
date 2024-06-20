@@ -27,7 +27,7 @@ void printToStdioJSON(cJSON* json) {
 int id = 0;
 
 // https://stackoverflow.com/questions/6171552/popen-simultaneous-read-and-write
-bool openLSPServer(char* name, LSP_Server* server) {
+bool openLSPServer(char* name, char* command_args, LSP_Server* server) {
   char* path = whereis(name);
   if (path == NULL) {
     return false;
@@ -63,8 +63,8 @@ bool openLSPServer(char* name, LSP_Server* server) {
     close(server->inpipefd[0]);
 
 
-    char command[PATH_MAX + strlen(" --log=error")];
-    sprintf(command, "%s 2> lsp_logs.txt", name);
+    char command[strlen(name) + strlen(command_args) + strlen(" 2> lsp_logs.txt ") + 1 /*null char*/];
+    sprintf(command, "%s %s 2> lsp_logs.txt", name, command_args);
 
     // system(command);
     // execl(pathMemSafe, "", (char *)NULL);
@@ -153,18 +153,17 @@ char* readPacket(LSP_Server* server) {
   assert(content != NULL);
 
   content[0] = '{'; // We already read the first '{'
-  n = read(server->inpipefd[0], content + 1, content_length - 1);
+  n = 0;
+  while (n != content_length - 1) {
+    n += read(server->inpipefd[0], content + 1 + n, content_length - 1 - n);
+  }
+  content[content_length] = '\0';
+  assert(n= content_length - 1);
 
 #ifdef LOGS
   printf("Readed bytes : %d\n", n);
 #endif
   // If we didn't read the right number of bytes exit. May improve by the use of the buf.
-  if (n != content_length - 1) {
-    printf("Error while reading from lsp-server : %s.\n", server->name);
-    exit(0);
-  }
-
-  content[content_length] = '\0';
 
   // fwrite(content, 1, content_length, stdout);
   // printf("\n");
@@ -175,6 +174,15 @@ char* readPacket(LSP_Server* server) {
 cJSON* readPacketAsJSON(LSP_Server* server) {
   char* content_str = readPacket(server);
   cJSON* at_return = cJSON_Parse(content_str);
+  if (getRequestType(at_return) != RESPONSE) {
+    if (strcmp("window/logMessage", getRequestMethod(at_return)) == 0) {
+      cJSON* message_obj = cJSON_GetObjectItem(getNotificationParams(at_return), "message");
+      printf("Server log : %s\n", cJSON_GetStringValue(message_obj));
+      cJSON_Delete(at_return);
+      free(content_str);
+      return readPacketAsJSON(server);
+    }
+  }
   free(content_str);
   return at_return;
 }
@@ -222,12 +230,21 @@ int sendPacketWithJSON(LSP_Server* server, char* method, cJSON* content, PACKET_
   return temp_id;
 }
 
-PACKET_TYPE getPacketType(cJSON* content) {
+PACKET_TYPE getRequestType(cJSON* content) {
+  cJSON* id_obj = cJSON_GetObjectItem(content, "id");
   cJSON* method_obj = cJSON_GetObjectItem(content, "method");
-  if (method_obj == NULL) {
+  if (id_obj != NULL && method_obj == NULL) {
+    return RESPONSE;
+  }
+  if (method_obj != NULL && id_obj == NULL) {
+    return NOTIFICATION;
+  }
+  if (method_obj != NULL && id_obj != NULL) {
     return REQUEST;
   }
-  return NOTIFICATION;
+
+  // If there something wrong with server happened. Or something not handled.
+  assert(false);
 }
 
 
@@ -272,9 +289,43 @@ cJSON* extractPacketResult(cJSON* response_obj) {
 }
 
 int getRequestID(cJSON* request_body) {
-  assert(getPacketType(request_body) == REQUEST);
+  assert(getRequestType(request_body) == REQUEST || getRequestType(request_body) == RESPONSE);
   cJSON* id_obj = cJSON_GetObjectItem(request_body, "id");
   assert(id_obj != NULL);
-  int id = cJSON_GetNumberValue(id_obj);
-  return id;
+  int current_id = cJSON_GetNumberValue(id_obj);
+  return current_id;
+}
+
+char* getRequestMethod(cJSON* request_body) {
+  assert(getRequestType(request_body) == REQUEST ||getRequestType(request_body) == NOTIFICATION);
+  cJSON* method_obj = cJSON_GetObjectItem(request_body, "method");
+  assert(method_obj != NULL);
+  char* method_name = cJSON_GetStringValue(method_obj);
+  return method_name;
+}
+
+
+cJSON* getNotificationParams(cJSON* notification_body) {
+  assert(getRequestType(notification_body) == NOTIFICATION);
+  cJSON* param_obj = cJSON_GetObjectItem(notification_body, "params");
+  return param_obj;
+}
+
+
+void notifyLspFileDidOpen(LSP_Server lsp, char* file_name, char* file_content) {
+  cJSON* request_content = cJSON_CreateObject();
+  cJSON* text_document = cJSON_AddObjectToObject(request_content, "textDocument");
+
+  char uri[PATH_MAX];
+  getLocalURI(file_name, uri);
+  cJSON_AddStringToObject(text_document, "uri", uri);
+  cJSON_AddStringToObject(text_document, "languageId", "c");
+  cJSON_AddNumberToObject(text_document, "version", 1);
+
+
+  cJSON_AddStringToObject(text_document, "text", file_content);
+
+  sendPacketWithJSON(&lsp, "textDocument/didOpen", request_content, NOTIFICATION);
+
+  cJSON_Delete(request_content);
 }
