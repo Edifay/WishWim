@@ -421,9 +421,10 @@ int main(int file_count, char** file_names) {
         }
         else {
           deleteSelectionWithHist(history_frame, cursor, select_cursor);
+          tmp = *cursor;
           *cursor = insertCharInLineC(*cursor, readChar_U8FromInput(c));
           setDesiredColumn(*cursor, desired_column);
-          saveAction(history_frame, createInsertAction(*old_cur, *cursor));
+          saveAction(history_frame, createInsertAction(tmp, *cursor));
         }
         break;
     }
