@@ -96,9 +96,9 @@ void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor se
       // determine if the char is selected or not.
       bool selected_style = isCursorDisabled(select_cursor) == false && isCursorBetweenOthers(cursorOf(file_cur, begin_screen_line_cur), select_cursor, cursor);
 
-      // wattr_set(ftw, A_NORMAL, 0 , NULL);
-      if (selected_style)
-        wattron(ftw, A_STANDOUT|A_DIM);
+      if (selected_style) {
+        wattr_set(ftw, A_NORMAL, DEFAULT_COLOR_HOVER_PAIR, 0);
+      }
 
       if (ch.t[0] == '\t') {
         for (int i = 0; i < TAB_SIZE; i++) {
@@ -110,8 +110,9 @@ void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor se
         printChar_U8ToNcurses(ftw, ch);
       }
 
-      if (selected_style)
-        wattroff(ftw, A_STANDOUT|A_DIM);
+      if (selected_style) {
+        wattr_set(ftw, A_NORMAL, 0, NULL);
+      }
 
       // move to next column
       begin_screen_line_cur.relative_column++;
@@ -124,9 +125,9 @@ void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor se
       if (isCursorDisabled(select_cursor) == false
           && isCursorBetweenOthers(cursorOf(file_cur, begin_screen_line_cur), select_cursor, cursor)) {
         // if line selected
-        wattron(ftw, A_STANDOUT|A_DIM);
+        wattr_set(ftw, A_NORMAL, DEFAULT_COLOR_HOVER_PAIR, 0);
         wprintw(ftw, " ");
-        wattroff(ftw, A_STANDOUT|A_DIM);
+        wattr_set(ftw, A_NORMAL, 0, NULL);
       }
     }
 
@@ -366,7 +367,7 @@ void handleEditorClick(int edws_offset_x, int edws_offset_y, Cursor* cursor, Cur
   }
 }
 
-int handleOpenedFileSelectClick(FileContainer* files, int* file_count, int* current_file, MEVENT m_event, int* current_file_offset, WINDOW* ofw, bool *refresh_ofw) {
+int handleOpenedFileSelectClick(FileContainer* files, int* file_count, int* current_file, MEVENT m_event, int* current_file_offset, WINDOW* ofw, bool* refresh_ofw) {
   // Char offset for the window
   int current_char_offset = ofw->_begx;
 
@@ -382,7 +383,6 @@ int handleOpenedFileSelectClick(FileContainer* files, int* file_count, int* curr
       assert(*current_file_offset >= 0);
       *refresh_ofw = true;
       break;
-
     }
 
     if (current_char_offset + strlen(FILE_NAME_SEPARATOR) > COLS && m_event.x > COLS - 4) {
@@ -684,4 +684,48 @@ LineIdentifier getLineIdForScreenX(LineIdentifier line_id, int screen_x, int x_c
 
 void setDesiredColumn(Cursor cursor, int* desired_column) {
   *desired_column = cursor.line_id.absolute_column;
+}
+
+////// ---------------- COLOR FUNCTIONS ---------------
+
+
+void initColorsForTheme(HighlightThemeList theme_list, int* color_index, int* color_pair) {
+  // Setup color sheme.
+  for (int i = 0; i < theme_list.size; i++) {
+    init_color((*color_index)++, theme_list.groups[i].color.r, theme_list.groups[i].color.g, theme_list.groups[i].color.b);
+    init_pair(*color_pair, *color_index - 1, COLOR_BLACK);
+    theme_list.groups[i].color_n = *color_pair;
+
+    init_color((*color_index)++, theme_list.groups[i].color_hover.r, theme_list.groups[i].color_hover.g, theme_list.groups[i].color_hover.b);
+    init_pair(*color_pair + 1000, *color_index - 1, COLOR_HOVER);
+    theme_list.groups[i].color_hover_n = *color_pair + 1000;
+    (*color_pair)++;
+  }
+}
+
+void highlightFilePart(WINDOW* ftw, int start_row, int start_column, int length, attr_t attr, NCURSES_PAIRS_T color, Cursor cursor, Cursor select, Cursor* tmp, int screen_y,
+                       int screen_x) {
+  // Support wide char.
+  int offset = 0;
+  *tmp = tryToReachAbsPosition(*tmp, start_row + 1, start_column);
+  for (int i = 0; i < length && hasElementAfterLine(tmp->line_id) == true; i++) {
+    // Move the cursor to the current char printed.
+    *tmp = tryToReachAbsPosition(*tmp, start_row + 1, start_column + i + 1);
+    if (tmp->line_id.absolute_column == 0) continue;
+    int size = charPrintSize(getCharAtCursor(*tmp));
+
+    attr_t current_char_attr = attr;
+    NCURSES_PAIRS_T current_char_color = color;
+    if (areCursorEqual(moveLeft(*tmp), cursor)) {
+      current_char_attr |= A_STANDOUT;
+    }
+    else if (isCursorDisabled(select) == false && isCursorBetweenOthers(*tmp, cursor, select)) {
+      current_char_color += 1000;
+    }
+    int mov_res = wmove(ftw, start_row - screen_y + 1, start_column - screen_x + 1 + offset);
+    if (mov_res != ERR) {
+      wchgat(ftw, size, current_char_attr, current_char_color, NULL);
+    }
+    offset += size;
+  }
 }

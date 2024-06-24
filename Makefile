@@ -10,7 +10,7 @@ modules= \
 	data-structure/utf_8_extractor.o data-structure/file_structure.o data-structure/file_management.o utils/tools.o    \
 	io_management/io_manager.o utils/key_management.o utils/clipboard_manager.o io_management/viewport_history.o         \
 	data-structure/state_control.o data-structure/term_handler.o io_management/io_explorer.o advanced/lsp/lsp_client.o \
-	advanced/tree-sitter/scm_parser.o  advanced/tree-sitter/tree_manager.o\
+	advanced/tree-sitter/scm_parser.o  advanced/tree-sitter/tree_manager.o advanced/theme.o\
 	lib/tree-sitter/libtree-sitter.a \
 	lib/tree-sitter-c/libtree-sitter-c.a \
 	lib/tree-sitter-python/libtree-sitter-python.a

@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <ctype.h>
+#include <limits.h>
 #include <locale.h>
 #include <ncurses.h>
 #include <stdlib.h>
@@ -8,6 +9,7 @@
 #include <wchar.h>
 #include <bits/time.h>
 
+#include "advanced/theme.h"
 #include "advanced/tree-sitter/scm_parser.h"
 #include "advanced/tree-sitter/tree_manager.h"
 #include "data-structure/file_management.h"
@@ -28,20 +30,21 @@
 
 
 void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_length, long* args) {
-  // Un abstracting args.
+  // Un-abstracting args.
   TreePathSeq* seq = ((TreePathSeq *)args[0]);
-  char* source = (char *)args[1];
-  WINDOW* ftw = (WINDOW *)args[2];
-  int* screen_x = (int *)args[3];
-  int* screen_y = (int *)args[4];
-  int width = (int)args[5];
-  int height = (int)args[6];
-  Cursor cursor = *((Cursor *)args[7]);
-  Cursor select = *((Cursor *)args[8]);
-  Cursor* tmp = (Cursor *)args[9];
+  HighlightThemeList* theme_list = ((HighlightThemeList *)args[1]);
+  char* source = (char *)args[2];
+  WINDOW* ftw = (WINDOW *)args[3];
+  int* screen_x = (int *)args[4];
+  int* screen_y = (int *)args[5];
+  int width = (int)args[6];
+  int height = (int)args[7];
+  Cursor cursor = *((Cursor *)args[8]);
+  Cursor select = *((Cursor *)args[9]);
+  Cursor* tmp = (Cursor *)args[10];
   if (tmp == NULL) {
     tmp = malloc(sizeof(Cursor));
-    args[9] = (long)tmp;
+    args[10] = (long)tmp;
     *tmp = cursor;
   }
 
@@ -58,54 +61,24 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
     // If a group was found.
     if (result != NULL) {
       attr_t attr = A_NORMAL;
-      NCURSES_PAIRS_T colors;
+      NCURSES_PAIRS_T color;
 
+      bool found = false;
       // Setup style for group found.
-      if (strcmp(result, "function") == 0) {
-        attr = A_NORMAL;
-        colors = 1;
+      for (int i = 0; i < theme_list->size; i++) {
+        if (strcmp(theme_list->groups[i].group, result) == 0) {
+          attr = getAttrForTheme(theme_list->groups[i]);
+          color = theme_list->groups[i].color_n;
+
+          found = true;
+          break;
+        }
       }
-      else if (strcmp(result, "comment") == 0) {
-        attr = A_DIM | A_ITALIC;
-        colors = 0;
-      }
-      else if (strcmp(result, "keyword") == 0) {
-        attr = A_NORMAL;
-        colors = 2;
-      }
-      else if (strcmp(result, "string") == 0) {
-        attr = A_NORMAL;
-        colors = 3;
-      }
-      else if (strcmp(result, "type") == 0) {
-        attr = A_NORMAL;
-        colors = 4;
-      }
-      else if (strcmp(result, "property") == 0) {
-        attr = A_NORMAL;
-        colors = 5;
-      }
-      else if (strcmp(result, "label") == 0) {
-        attr = A_NORMAL;
-        colors = 5;
-      }
-      else if (strcmp(result, "number") == 0) {
-        attr = A_NORMAL;
-        colors = 5;
-      }
-      else if (strcmp(result, "variable") == 0) {
-        attr = A_NORMAL;
-        colors = 6;
-      }
-      else if (strcmp(result, "constant") == 0) {
-        attr = A_ITALIC;
-        colors = 6;
-      }
-      else {
-        // Break if no color was defined for this group.
+
+      if (found == false) {
+        // Quit if no group was found.
         break;
       }
-
 
       TSPoint start_point = ts_node_start_point(node);
       TSPoint end_point = ts_node_end_point(node);
@@ -119,147 +92,44 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
       // Simple line node.
       if (start_point.row == end_point.row) {
         int length = end_point.column - start_point.column;
-
-        // Support wide char.
-        int offset = 0;
-
-        for (int i = 0; i < length; i++) {
-          // Move the cursor to the current char printed.
-          *tmp = tryToReachAbsPosition(*tmp, start_point.row + 1, start_point.column + i + 1);
-          if (tmp->line_id.absolute_column == 0)
-            continue;
-          int size = charPrintSize(getCharAtCursor(*tmp));
-          // int size = 1;
-          attr_t current_char_attr = attr;
-          NCURSES_PAIRS_T current_char_color = colors;
-          if (areCursorEqual(moveLeft(*tmp), cursor)) {
-            current_char_attr |= A_STANDOUT;
-          }
-          else if (isCursorDisabled(select) == false && isCursorBetweenOthers(*tmp, cursor, select)) {
-            current_char_attr |= A_STANDOUT | A_DIM;
-          }
-          int mov_res = wmove(ftw, start_point.row - *screen_y + 1, start_point.column - *screen_x + 1 + offset);
-          if (mov_res != ERR) {
-            wchgat(ftw, size, current_char_attr, current_char_color, NULL);
-          }
-          offset += size;
-        }
+        highlightFilePart(ftw, start_point.row, start_point.column, length, attr, color, cursor, select, tmp, *screen_y, *screen_x);
       }
       else // Mutiple line node.
       {
         // First line
-        // for (int i = 0; i <)
-        int offset = 0;
-
-        *tmp = tryToReachAbsPosition(*tmp, start_point.row + 1, start_point.column + 1);
-        for (int i = 0; hasElementAfterLine(tmp->line_id) == true; i++) {
-          // Move the cursor to the current char printed.
-          *tmp = tryToReachAbsPosition(*tmp, start_point.row + 1, start_point.column + i + 1);
-          if (tmp->line_id.absolute_column == 0)
-            continue;
-          int size = charPrintSize(getCharAtCursor(*tmp));
-
-          // Check for verify char status (selected or cursor on).
-          attr_t current_char_attr = attr;
-          if (areCursorEqual(moveLeft(*tmp), cursor)) {
-            current_char_attr |= A_STANDOUT;
-          }
-          else if (isCursorDisabled(select) == false && isCursorBetweenOthers(*tmp, cursor, select)) {
-            current_char_attr |= A_STANDOUT | A_DIM;
-          }
-
-          // Edit Attr
-          int mov_res = wmove(ftw, start_point.row - *screen_y + 1, start_point.column - *screen_x + 1 + offset);
-          if (mov_res != ERR) {
-            wchgat(ftw, size, current_char_attr, colors, NULL);
-          }
-          offset += size;
-        }
-
+        highlightFilePart(ftw, start_point.row, start_point.column, INT_MAX, attr, color, cursor, select, tmp, *screen_y, *screen_x);
 
         // Between lines.
         int ligne_between = end_point.row - start_point.row - 1;
         for (int i = 1; i < ligne_between + 1; i++) {
-          offset = 0;
-
-          *tmp = tryToReachAbsPosition(*tmp, start_point.row + 1 + i, 0);
-          for (int j = 0; hasElementAfterLine(tmp->line_id) == true; j++) {
-            // Move the cursor to the current char printed.
-            *tmp = tryToReachAbsPosition(*tmp, start_point.row + 1 + i, j + 1);
-            if (tmp->line_id.absolute_column == 0)
-              continue;
-            int size = charPrintSize(getCharAtCursor(*tmp));
-
-            // Check for verify char status (selected or cursor on).
-            attr_t current_char_attr = attr;
-            if (areCursorEqual(moveLeft(*tmp), cursor)) {
-              current_char_attr |= A_STANDOUT;
-            }
-            else if (isCursorDisabled(select) == false && isCursorBetweenOthers(*tmp, cursor, select)) {
-              current_char_attr |= A_STANDOUT | A_DIM;
-            }
-
-            // Edit Attr
-            int mov_res = wmove(ftw, start_point.row - *screen_y + 1 + i, 1 + offset - *screen_x);
-            if (mov_res != ERR) {
-              wchgat(ftw, size, current_char_attr, colors, NULL);
-            }
-            offset += size;
-          }
+          highlightFilePart(ftw, start_point.row + i, 0, INT_MAX, attr, color, cursor, select, tmp, *screen_y, *screen_x);
         }
 
         // End line
-        // wmove(ftw, end_point.row - *screen_y + 1, *screen_x - 1);
-        // wchgat(ftw, end_point.column, attr, colors, NULL);
-        offset = 0;
-
-        for (int i = 0; i < end_point.column; i++) {
-          // Move the cursor to the current char printed.
-          *tmp = tryToReachAbsPosition(*tmp, end_point.row + 1, i + 1);
-          if (tmp->line_id.absolute_column == 0)
-            continue;
-          int size = charPrintSize(getCharAtCursor(*tmp));
-
-          // Check for verify char status (selected or cursor on).
-          attr_t current_char_attr = attr;
-          if (areCursorEqual(moveLeft(*tmp), cursor)) {
-            current_char_attr |= A_STANDOUT;
-          }
-          else if (isCursorDisabled(select) == false && isCursorBetweenOthers(*tmp, cursor, select)) {
-            current_char_attr |= A_STANDOUT | A_DIM;
-          }
-
-          // Edit Attr
-          int mov_res = wmove(ftw, end_point.row - *screen_y + 1, +offset - *screen_x + 1);
-          if (mov_res != ERR) {
-            wchgat(ftw, size, current_char_attr, colors, NULL);
-          }
-          offset += size;
-        }
+        highlightFilePart(ftw, end_point.row, 0, end_point.column, attr, color, cursor, select, tmp, *screen_y, *screen_x);
       }
-
 
       break;
       // End if group found.
     }
 
-
     seq = seq->next;
   }
 }
 
-long* args_fct;
-char* file_content = NULL;
-TSTree* tree = NULL;
-TSParser* parser = NULL;
-const TSLanguage* lang = NULL;
 
 int main(int file_count, char** file_names) {
+  char* file_content = NULL;
+  TSTree* tree = NULL;
+  TSParser* parser = NULL;
+  const TSLanguage* lang = NULL;
   TreePathSeq highlight_queries;
   initTreePathSeq(&highlight_queries);
   bool res_parse = parseSCMFile(&highlight_queries, "/home/arnaud/Dev/WishWim/lib/tree-sitter-c/queries/highlights.scm");
   if (res_parse == false) return 1;
   sortTreePathSeqByDecreasingSize(&highlight_queries);
+  HighlightThemeList theme_list;
+  getThemeFromFile("/home/arnaud/Dev/WishWim/theme.al", &theme_list);
 
 
   // TODO MAIN FUNCTION BEGIN
@@ -303,15 +173,20 @@ int main(int file_count, char** file_names) {
 
   // Init ncurses
   initscr();
+
   start_color();
   // Init some colors.
-  init_pair(1, COLOR_RED,COLOR_BLACK);
-  init_pair(2, COLOR_MAGENTA,COLOR_BLACK);
-  init_pair(3, COLOR_GREEN,COLOR_BLACK);
-  init_pair(4, COLOR_YELLOW,COLOR_BLACK);
-  init_pair(5, COLOR_CYAN,COLOR_BLACK);
-  init_pair(6, COLOR_BLUE,COLOR_BLACK);
-  init_pair(7, COLOR_GREEN,COLOR_BLACK);
+  int color_index = 100;
+  int color_pair = 2;
+
+  init_color(COLOR_HOVER, 390, 390, 390);
+
+  // Default color.
+  init_pair(1, COLOR_WHITE, COLOR_BLACK);
+  init_pair(1001, COLOR_WHITE, COLOR_HOVER);
+
+
+  initColorsForTheme(theme_list, &color_index, &color_pair);
 
 
   ftw = newwin(0, 0, ofw_height, few_width);
@@ -419,8 +294,6 @@ int main(int file_count, char** file_names) {
         ts_parser_set_language(parser, lang);
 
 
-        // exit(0);
-        // saveFile(*root, io_file);
         FILE* f = fopen(io_file->path_abs, "rb");
         fseek(f, 0, SEEK_END);
         long fsize = ftell(f);
@@ -448,17 +321,18 @@ int main(int file_count, char** file_names) {
       assert(path != NULL);
 
 
-      args_fct = malloc(10 * sizeof(long *));
+      long* args_fct = malloc(11 * sizeof(long *));
       args_fct[0] = (long)&highlight_queries;
-      args_fct[1] = (long)file_content;
-      args_fct[2] = (long)ftw;
-      args_fct[3] = (long)screen_x;
-      args_fct[4] = (long)screen_y;
-      args_fct[5] = (long)ftw->_maxx;
-      args_fct[6] = (long)ftw->_maxy;
-      args_fct[7] = (long)cursor;
-      args_fct[8] = (long)select_cursor;
-      args_fct[9] = (long)NULL;
+      args_fct[1] = (long)&theme_list;
+      args_fct[2] = (long)file_content;
+      args_fct[3] = (long)ftw;
+      args_fct[4] = (long)screen_x;
+      args_fct[5] = (long)screen_y;
+      args_fct[6] = (long)ftw->_maxx;
+      args_fct[7] = (long)ftw->_maxy;
+      args_fct[8] = (long)cursor;
+      args_fct[9] = (long)select_cursor;
+      args_fct[10] = (long)NULL;
 
       clock_t t;
       t = clock();
@@ -466,13 +340,12 @@ int main(int file_count, char** file_names) {
       t = clock() - t;
       double time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
 
-
-      // printf("fun() took %f seconds to execute \n", time_taken);
-      free((Cursor *)args_fct[9]);
+      free((Cursor *)args_fct[10]);
       free(args_fct);
 
       wrefresh(lnw);
       wrefresh(ftw);
+      // printf("fun() took %f seconds to execute \n\r", time_taken);
     }
 
 
@@ -670,6 +543,11 @@ int main(int file_count, char** file_names) {
           goto end;
         }
         saveFile(*root, io_file);
+        free(file_content);
+        file_content = NULL;
+        ts_parser_delete(parser);
+        ts_language_delete(lang);
+        parser = NULL;
         assert(io_file->status == EXIST);
         setlastFilePosition(io_file->path_abs, cursor->file_id.absolute_row, cursor->line_id.absolute_column, *screen_x, *screen_y);
         saveCurrentStateControl(*history_root, *history_frame, io_file->path_abs);
@@ -805,6 +683,7 @@ end:
   ts_parser_delete(parser);
   ts_language_delete(lang);
   destroyTreePathSeq(&highlight_queries);
+  destroyThemeList(&theme_list);
 
   return 0;
 }
