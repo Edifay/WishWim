@@ -18,7 +18,7 @@ bool getThemeFromFile(char* file_name, HighlightThemeList* list) {
   int scan_res = 8;
   while (scan_res == 8) {
     HighlightTheme theme;
-    scan_res = fscanf(f, " @%s ( %d , %d , %d ) ( %d , %d , %d ) \"%s\"", theme.group, &theme.color.r, &theme.color.g, &theme.color.b, &theme.color_hover.r, &theme.color_hover.g,
+    scan_res = fscanf(f, " @%s ( %hd , %hd , %hd ) ( %hd , %hd , %hd ) \"%s\"", theme.group, &theme.color.r, &theme.color.g, &theme.color.b, &theme.color_hover.r, &theme.color_hover.g,
                       &theme.color_hover.b, &theme.attr);
     if (scan_res == 8) {
       addToHiglightThemeList(list, theme);

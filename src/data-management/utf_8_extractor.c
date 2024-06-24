@@ -5,7 +5,6 @@
 #include <wchar.h>
 #include <__stddef_wchar_t.h>
 
-#include "term_handler.h"
 #include "../utils/constants.h"
 
 /* Unix call, use 'man wcwidth' to see explication. */

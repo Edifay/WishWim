@@ -11,7 +11,7 @@
 #include "advanced/lsp/lsp_client.h"
 #include "advanced/tree-sitter/scm_parser.h"
 #include "utils/tools.h"
-#include "lib/tree-sitter/lib/include/tree_sitter/api.h"
+#include "../lib/tree-sitter/lib/include/tree_sitter/api.h"
 #include "advanced/tree-sitter/tree_manager.h"
 
 //     if (poll(&(struct pollfd){.fd = lsp.inpipefd[0], .events = POLLIN}, 1, 0) == 1) {

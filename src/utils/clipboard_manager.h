@@ -1,7 +1,7 @@
 #ifndef CLIPBOARD_MANAGER_H
 #define CLIPBOARD_MANAGER_H
 
-#include "../data-structure/file_structure.h"
+#include "../data-management/file_structure.h"
 
 bool saveToClipBoard(Cursor begin, Cursor end);
 

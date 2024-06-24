@@ -2,7 +2,8 @@
 #define TREE_MANAGER_H
 #include <regex.h>
 
-#include "../../lib/tree-sitter/lib/include/tree_sitter/api.h"
+#include "../../../lib/tree-sitter/lib/include/tree_sitter/api.h"
+#include "../theme.h"
 
 
 typedef enum {
@@ -22,10 +23,32 @@ struct TreePath_ {
 
 typedef struct TreePath_ TreePath;
 
+struct TreePathSeq_ {
+  TreePath* value;
+  struct TreePathSeq_* next;
+};
+
+typedef struct TreePathSeq_ TreePathSeq;
+
+
+////// ------------------- TREE HANDLER -------------------
+
+// TODO implement a parser abstraction.
+typedef struct {
+  char lang_name[100];
+  TSLanguage* lang;
+  TSParser* parser;
+  TreePathSeq highlight_queries;
+  HighlightThemeList theme_list;
+} ParserContainer;
+
 
 const TSLanguage* tree_sitter_c(void);
 
 const TSLanguage* tree_sitter_python(void);
+
+
+////// ------------------- TREE UTILS -------------------
 
 int lengthTreePath(TreePath* tree_path);
 

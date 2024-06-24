@@ -1,6 +1,5 @@
 #include <assert.h>
 #include <ctype.h>
-#include <limits.h>
 #include <locale.h>
 #include <ncurses.h>
 #include <stdlib.h>
@@ -12,113 +11,25 @@
 #include "advanced/theme.h"
 #include "advanced/tree-sitter/scm_parser.h"
 #include "advanced/tree-sitter/tree_manager.h"
-#include "data-structure/file_management.h"
-#include "data-structure/file_structure.h"
-#include "data-structure/state_control.h"
-#include "data-structure/term_handler.h"
+#include "data-management/file_management.h"
+#include "data-management/file_structure.h"
+#include "data-management/state_control.h"
 #include "io_management/io_explorer.h"
 #include "io_management/viewport_history.h"
 #include "io_management/io_manager.h"
-#include "lib/tree-sitter/lib/include/tree_sitter/api.h"
 #include "utils/clipboard_manager.h"
 #include "utils/key_management.h"
 #include "utils/constants.h"
+#include "terminal/term_handler.h"
+#include "terminal/highlight.h"
+#include "terminal/click_handler.h"
+#include "../lib/tree-sitter/lib/include/tree_sitter/api.h"
 
 #define CTRL_KEY(k) ((k)&0x1f)
 
-#define USE_COLOR true
-
-
-void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_length, long* args) {
-  // Un-abstracting args.
-  TreePathSeq* seq = ((TreePathSeq *)args[0]);
-  HighlightThemeList* theme_list = ((HighlightThemeList *)args[1]);
-  char* source = (char *)args[2];
-  WINDOW* ftw = (WINDOW *)args[3];
-  int* screen_x = (int *)args[4];
-  int* screen_y = (int *)args[5];
-  int width = (int)args[6];
-  int height = (int)args[7];
-  Cursor cursor = *((Cursor *)args[8]);
-  Cursor select = *((Cursor *)args[9]);
-  Cursor* tmp = (Cursor *)args[10];
-  if (tmp == NULL) {
-    tmp = malloc(sizeof(Cursor));
-    args[10] = (long)tmp;
-    *tmp = cursor;
-  }
-
-
-  // Get litteral string for current node.
-  int char_nb = ts_node_end_byte(node) - ts_node_start_byte(node);
-  char litteral_text_node[char_nb + 1];
-  strncpy(litteral_text_node, source + ts_node_start_byte(node), char_nb);
-  litteral_text_node[char_nb] = '\0';
-
-  while (seq != NULL) {
-    char* result = isTreePathMatchingQuery(litteral_text_node, tree_path, tree_path_length, seq->value);
-
-    // If a group was found.
-    if (result != NULL) {
-      attr_t attr = A_NORMAL;
-      NCURSES_PAIRS_T color;
-
-      bool found = false;
-      // Setup style for group found.
-      for (int i = 0; i < theme_list->size; i++) {
-        if (strcmp(theme_list->groups[i].group, result) == 0) {
-          attr = getAttrForTheme(theme_list->groups[i]);
-          color = theme_list->groups[i].color_n;
-
-          found = true;
-          break;
-        }
-      }
-
-      if (found == false) {
-        // Quit if no group was found.
-        break;
-      }
-
-      TSPoint start_point = ts_node_start_point(node);
-      TSPoint end_point = ts_node_end_point(node);
-
-
-      if (!USE_COLOR) {
-        // quit if color are disabled.
-        break;
-      }
-
-      // Simple line node.
-      if (start_point.row == end_point.row) {
-        int length = end_point.column - start_point.column;
-        highlightFilePart(ftw, start_point.row, start_point.column, length, attr, color, cursor, select, tmp, *screen_y, *screen_x);
-      }
-      else // Mutiple line node.
-      {
-        // First line
-        highlightFilePart(ftw, start_point.row, start_point.column, INT_MAX, attr, color, cursor, select, tmp, *screen_y, *screen_x);
-
-        // Between lines.
-        int ligne_between = end_point.row - start_point.row - 1;
-        for (int i = 1; i < ligne_between + 1; i++) {
-          highlightFilePart(ftw, start_point.row + i, 0, INT_MAX, attr, color, cursor, select, tmp, *screen_y, *screen_x);
-        }
-
-        // End line
-        highlightFilePart(ftw, end_point.row, 0, end_point.column, attr, color, cursor, select, tmp, *screen_y, *screen_x);
-      }
-
-      break;
-      // End if group found.
-    }
-
-    seq = seq->next;
-  }
-}
-
 
 int main(int file_count, char** file_names) {
+  // TODO create an abstraction of parser. Refactor this.
   char* file_content = NULL;
   TSTree* tree = NULL;
   TSParser* parser = NULL;
@@ -129,7 +40,7 @@ int main(int file_count, char** file_names) {
   if (res_parse == false) return 1;
   sortTreePathSeqByDecreasingSize(&highlight_queries);
   HighlightThemeList theme_list;
-  getThemeFromFile("/home/arnaud/Dev/WishWim/theme.al", &theme_list);
+  getThemeFromFile("/home/arnaud/Dev/WishWim/assets/theme.al", &theme_list);
 
 
   // TODO MAIN FUNCTION BEGIN
@@ -157,7 +68,6 @@ int main(int file_count, char** file_names) {
   bool refresh_few = true; // Need to reprint file explorer window
   WINDOW* focus_w = NULL; // Used to set the window where start mouse drag
 
-
   // EDW Datas
 
   // OFW Datas
@@ -173,34 +83,30 @@ int main(int file_count, char** file_names) {
 
   // Init ncurses
   initscr();
-
-  start_color();
-  // Init some colors.
-  int color_index = 100;
-  int color_pair = 2;
-
-  init_color(COLOR_HOVER, 390, 390, 390);
-
-  // Default color.
-  init_pair(1, COLOR_WHITE, COLOR_BLACK);
-  init_pair(1001, COLOR_WHITE, COLOR_HOVER);
-
-
-  initColorsForTheme(theme_list, &color_index, &color_pair);
-
-
   ftw = newwin(0, 0, ofw_height, few_width);
   lnw = newwin(0, 0, 0, few_width);
   ofw = newwin(ofw_height, 0, 0, few_width);
+  // Keyboard setup
   raw();
   keypad(stdscr, TRUE);
-  mouseinterval(0);
-  mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
   noecho();
   curs_set(0);
+  // Mouse setup
+  mouseinterval(0);
+  mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
   timeout(100);
   printf("\033[?1003h"); // enable mouse tracking
   fflush(stdout);
+  // Color setup
+  start_color();
+  int color_index = 100;
+  int color_pair = 2;
+  // Default color.
+  init_color(COLOR_HOVER, 390, 390, 390);
+  init_pair(1, COLOR_WHITE, COLOR_BLACK);
+  init_pair(1001, COLOR_WHITE, COLOR_HOVER);
+  // Dynamic theme color
+  initColorsForTheme(theme_list, &color_index, &color_pair);
 
   // Fill files with args
   for (int i = 0; i < file_count; i++) {

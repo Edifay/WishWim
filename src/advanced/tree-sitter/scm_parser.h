@@ -6,12 +6,6 @@
 
 #define MAX_LENGTH_SYMBOL 4096
 
-struct TreePathSeq_ {
-  TreePath* value;
-  struct TreePathSeq_* next;
-};
-
-typedef struct TreePathSeq_ TreePathSeq;
 
 void initTreePathSeq(TreePathSeq* seq);
 

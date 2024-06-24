@@ -6,9 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "term_handler.h"
 #include "../io_management/viewport_history.h"
 #include "../utils/constants.h"
+#include "../terminal/term_handler.h"
+
 
 ////// -------------- FILE CONTAINER --------------
 
