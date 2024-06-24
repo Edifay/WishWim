@@ -96,6 +96,7 @@ void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor se
       // determine if the char is selected or not.
       bool selected_style = isCursorDisabled(select_cursor) == false && isCursorBetweenOthers(cursorOf(file_cur, begin_screen_line_cur), select_cursor, cursor);
 
+      // wattr_set(ftw, A_NORMAL, 0 , NULL);
       if (selected_style)
         wattron(ftw, A_STANDOUT|A_DIM);
 

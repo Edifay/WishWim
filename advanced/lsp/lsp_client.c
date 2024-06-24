@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <linux/limits.h>
 #include <sys/prctl.h>
-#include "../utils/tools.h"
+#include "../../utils/tools.h"
 
 
 //////// ---------------- JSON TOOLS ---------------------
@@ -158,7 +158,7 @@ char* readPacket(LSP_Server* server) {
     n += read(server->inpipefd[0], content + 1 + n, content_length - 1 - n);
   }
   content[content_length] = '\0';
-  assert(n= content_length - 1);
+  assert(n == content_length - 1);
 
 #ifdef LOGS
   printf("Readed bytes : %d\n", n);

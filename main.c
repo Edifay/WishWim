@@ -3,8 +3,13 @@
 #include <locale.h>
 #include <ncurses.h>
 #include <stdlib.h>
+#include <string.h>
+#include <time.h>
 #include <wchar.h>
+#include <bits/time.h>
 
+#include "advanced/tree-sitter/scm_parser.h"
+#include "advanced/tree-sitter/tree_manager.h"
 #include "data-structure/file_management.h"
 #include "data-structure/file_structure.h"
 #include "data-structure/state_control.h"
@@ -12,13 +17,252 @@
 #include "io_management/io_explorer.h"
 #include "io_management/viewport_history.h"
 #include "io_management/io_manager.h"
+#include "lib/tree-sitter/lib/include/tree_sitter/api.h"
 #include "utils/clipboard_manager.h"
 #include "utils/key_management.h"
 #include "utils/constants.h"
 
 #define CTRL_KEY(k) ((k)&0x1f)
 
+#define USE_COLOR true
+
+
+void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_length, long* args) {
+  // Un abstracting args.
+  TreePathSeq* seq = ((TreePathSeq *)args[0]);
+  char* source = (char *)args[1];
+  WINDOW* ftw = (WINDOW *)args[2];
+  int* screen_x = (int *)args[3];
+  int* screen_y = (int *)args[4];
+  int width = (int)args[5];
+  int height = (int)args[6];
+  Cursor cursor = *((Cursor *)args[7]);
+  Cursor select = *((Cursor *)args[8]);
+  Cursor* tmp = (Cursor *)args[9];
+  if (tmp == NULL) {
+    tmp = malloc(sizeof(Cursor));
+    args[9] = (long)tmp;
+    *tmp = cursor;
+  }
+
+
+  // Get litteral string for current node.
+  int char_nb = ts_node_end_byte(node) - ts_node_start_byte(node);
+  char litteral_text_node[char_nb + 1];
+  strncpy(litteral_text_node, source + ts_node_start_byte(node), char_nb);
+  litteral_text_node[char_nb] = '\0';
+
+  while (seq != NULL) {
+    char* result = isTreePathMatchingQuery(litteral_text_node, tree_path, tree_path_length, seq->value);
+
+    // If a group was found.
+    if (result != NULL) {
+      attr_t attr = A_NORMAL;
+      NCURSES_PAIRS_T colors;
+
+      // Setup style for group found.
+      if (strcmp(result, "function") == 0) {
+        attr = A_NORMAL;
+        colors = 1;
+      }
+      else if (strcmp(result, "comment") == 0) {
+        attr = A_DIM | A_ITALIC;
+        colors = 0;
+      }
+      else if (strcmp(result, "keyword") == 0) {
+        attr = A_NORMAL;
+        colors = 2;
+      }
+      else if (strcmp(result, "string") == 0) {
+        attr = A_NORMAL;
+        colors = 3;
+      }
+      else if (strcmp(result, "type") == 0) {
+        attr = A_NORMAL;
+        colors = 4;
+      }
+      else if (strcmp(result, "property") == 0) {
+        attr = A_NORMAL;
+        colors = 5;
+      }
+      else if (strcmp(result, "label") == 0) {
+        attr = A_NORMAL;
+        colors = 5;
+      }
+      else if (strcmp(result, "number") == 0) {
+        attr = A_NORMAL;
+        colors = 5;
+      }
+      else if (strcmp(result, "variable") == 0) {
+        attr = A_NORMAL;
+        colors = 6;
+      }
+      else if (strcmp(result, "constant") == 0) {
+        attr = A_ITALIC;
+        colors = 6;
+      }
+      else {
+        // Break if no color was defined for this group.
+        break;
+      }
+
+
+      TSPoint start_point = ts_node_start_point(node);
+      TSPoint end_point = ts_node_end_point(node);
+
+
+      if (!USE_COLOR) {
+        // quit if color are disabled.
+        break;
+      }
+
+      // Simple line node.
+      if (start_point.row == end_point.row) {
+        int length = end_point.column - start_point.column;
+
+        // Support wide char.
+        int offset = 0;
+
+        for (int i = 0; i < length; i++) {
+          // Move the cursor to the current char printed.
+          *tmp = tryToReachAbsPosition(*tmp, start_point.row + 1, start_point.column + i + 1);
+          if (tmp->line_id.absolute_column == 0)
+            continue;
+          int size = charPrintSize(getCharAtCursor(*tmp));
+          // int size = 1;
+          attr_t current_char_attr = attr;
+          NCURSES_PAIRS_T current_char_color = colors;
+          if (areCursorEqual(moveLeft(*tmp), cursor)) {
+            current_char_attr |= A_STANDOUT;
+          }
+          else if (isCursorDisabled(select) == false && isCursorBetweenOthers(*tmp, cursor, select)) {
+            current_char_attr |= A_STANDOUT | A_DIM;
+          }
+          int mov_res = wmove(ftw, start_point.row - *screen_y + 1, start_point.column - *screen_x + 1 + offset);
+          if (mov_res != ERR) {
+            wchgat(ftw, size, current_char_attr, current_char_color, NULL);
+          }
+          offset += size;
+        }
+      }
+      else // Mutiple line node.
+      {
+        // First line
+        // for (int i = 0; i <)
+        int offset = 0;
+
+        *tmp = tryToReachAbsPosition(*tmp, start_point.row + 1, start_point.column + 1);
+        for (int i = 0; hasElementAfterLine(tmp->line_id) == true; i++) {
+          // Move the cursor to the current char printed.
+          *tmp = tryToReachAbsPosition(*tmp, start_point.row + 1, start_point.column + i + 1);
+          if (tmp->line_id.absolute_column == 0)
+            continue;
+          int size = charPrintSize(getCharAtCursor(*tmp));
+
+          // Check for verify char status (selected or cursor on).
+          attr_t current_char_attr = attr;
+          if (areCursorEqual(moveLeft(*tmp), cursor)) {
+            current_char_attr |= A_STANDOUT;
+          }
+          else if (isCursorDisabled(select) == false && isCursorBetweenOthers(*tmp, cursor, select)) {
+            current_char_attr |= A_STANDOUT | A_DIM;
+          }
+
+          // Edit Attr
+          int mov_res = wmove(ftw, start_point.row - *screen_y + 1, start_point.column - *screen_x + 1 + offset);
+          if (mov_res != ERR) {
+            wchgat(ftw, size, current_char_attr, colors, NULL);
+          }
+          offset += size;
+        }
+
+
+        // Between lines.
+        int ligne_between = end_point.row - start_point.row - 1;
+        for (int i = 1; i < ligne_between + 1; i++) {
+          offset = 0;
+
+          *tmp = tryToReachAbsPosition(*tmp, start_point.row + 1 + i, 0);
+          for (int j = 0; hasElementAfterLine(tmp->line_id) == true; j++) {
+            // Move the cursor to the current char printed.
+            *tmp = tryToReachAbsPosition(*tmp, start_point.row + 1 + i, j + 1);
+            if (tmp->line_id.absolute_column == 0)
+              continue;
+            int size = charPrintSize(getCharAtCursor(*tmp));
+
+            // Check for verify char status (selected or cursor on).
+            attr_t current_char_attr = attr;
+            if (areCursorEqual(moveLeft(*tmp), cursor)) {
+              current_char_attr |= A_STANDOUT;
+            }
+            else if (isCursorDisabled(select) == false && isCursorBetweenOthers(*tmp, cursor, select)) {
+              current_char_attr |= A_STANDOUT | A_DIM;
+            }
+
+            // Edit Attr
+            int mov_res = wmove(ftw, start_point.row - *screen_y + 1 + i, 1 + offset - *screen_x);
+            if (mov_res != ERR) {
+              wchgat(ftw, size, current_char_attr, colors, NULL);
+            }
+            offset += size;
+          }
+        }
+
+        // End line
+        // wmove(ftw, end_point.row - *screen_y + 1, *screen_x - 1);
+        // wchgat(ftw, end_point.column, attr, colors, NULL);
+        offset = 0;
+
+        for (int i = 0; i < end_point.column; i++) {
+          // Move the cursor to the current char printed.
+          *tmp = tryToReachAbsPosition(*tmp, end_point.row + 1, i + 1);
+          if (tmp->line_id.absolute_column == 0)
+            continue;
+          int size = charPrintSize(getCharAtCursor(*tmp));
+
+          // Check for verify char status (selected or cursor on).
+          attr_t current_char_attr = attr;
+          if (areCursorEqual(moveLeft(*tmp), cursor)) {
+            current_char_attr |= A_STANDOUT;
+          }
+          else if (isCursorDisabled(select) == false && isCursorBetweenOthers(*tmp, cursor, select)) {
+            current_char_attr |= A_STANDOUT | A_DIM;
+          }
+
+          // Edit Attr
+          int mov_res = wmove(ftw, end_point.row - *screen_y + 1, +offset - *screen_x + 1);
+          if (mov_res != ERR) {
+            wchgat(ftw, size, current_char_attr, colors, NULL);
+          }
+          offset += size;
+        }
+      }
+
+
+      break;
+      // End if group found.
+    }
+
+
+    seq = seq->next;
+  }
+}
+
+long* args_fct;
+char* file_content = NULL;
+TSTree* tree = NULL;
+TSParser* parser = NULL;
+const TSLanguage* lang = NULL;
+
 int main(int file_count, char** file_names) {
+  TreePathSeq highlight_queries;
+  initTreePathSeq(&highlight_queries);
+  bool res_parse = parseSCMFile(&highlight_queries, "/home/arnaud/Dev/WishWim/lib/tree-sitter-c/queries/highlights.scm");
+  if (res_parse == false) return 1;
+  sortTreePathSeqByDecreasingSize(&highlight_queries);
+
+
+  // TODO MAIN FUNCTION BEGIN
   // remove first args which is the executable file name.
   file_names++;
   file_count--;
@@ -59,6 +303,17 @@ int main(int file_count, char** file_names) {
 
   // Init ncurses
   initscr();
+  start_color();
+  // Init some colors.
+  init_pair(1, COLOR_RED,COLOR_BLACK);
+  init_pair(2, COLOR_MAGENTA,COLOR_BLACK);
+  init_pair(3, COLOR_GREEN,COLOR_BLACK);
+  init_pair(4, COLOR_YELLOW,COLOR_BLACK);
+  init_pair(5, COLOR_CYAN,COLOR_BLACK);
+  init_pair(6, COLOR_BLUE,COLOR_BLACK);
+  init_pair(7, COLOR_GREEN,COLOR_BLACK);
+
+
   ftw = newwin(0, 0, ofw_height, few_width);
   lnw = newwin(0, 0, 0, few_width);
   ofw = newwin(ofw_height, 0, 0, few_width);
@@ -68,6 +323,7 @@ int main(int file_count, char** file_names) {
   mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
   noecho();
   curs_set(0);
+  timeout(100);
   printf("\033[?1003h"); // enable mouse tracking
   fflush(stdout);
 
@@ -95,42 +351,141 @@ int main(int file_count, char** file_names) {
   History* history_root; // Root of History object for the current File
   History** history_frame; // Current node of the History. Before -> Undo, After -> Redo.
 
-  bool refresh_local_vars = false; // Need to re-set local vars
 
-  // Setup current locals vars to files[current_file]
-  setupLocalVars(files, current_file, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y, &history_root,
-                 &history_frame);
-
-  // First print
-  printEditor(ftw, lnw, ofw, *cursor, *select_cursor, *screen_x, *screen_y);
-  // print file opened explorer
-  if (ofw_height != 0)
-    printOpenedFile(files, file_count, current_file, current_file_offset, ofw);
-
-  refresh();
-  wrefresh(ftw);
-  wrefresh(lnw);
-  if (ofw_height != 0)
-    wrefresh(ofw);
-  wrefresh(few);
-
+  bool refresh_local_vars = true; // Need to re-set local vars
 
   // Start automated-machine
-  *old_cur = *cursor;
   Cursor tmp;
   MEVENT m_event;
   bool mouse_drag = false;
   while (true) {
+    //// --------------- Post Processing -----------------
+
+    if (refresh_local_vars == true) {
+      setupLocalVars(files, current_file, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y, &history_root,
+                     &history_frame);
+      refresh_local_vars = false;
+    }
+
+    // flag cursor change
+    if (!areCursorEqual(*cursor, *old_cur)) {
+      *old_cur = *cursor;
+      moveScreenToMatchCursor(ftw, *cursor, screen_x, screen_y);
+    }
+
+    // flag screen_x change
+    if (*old_screen_x != *screen_x) {
+      *old_screen_x = *screen_x;
+    }
+
+
+    // flag screen_y change
+    if (*old_screen_y != *screen_y) {
+      *old_screen_y = *screen_y;
+      // resize line_w to match with line_number_length
+      int new_lnw_width = numberOfDigitOfNumber(*screen_y + ftw->_maxy) + 1 /* +1 for the line */;
+      if (new_lnw_width != ftw->_begx) {
+        resizeEditorWindows(&ftw, &lnw, ofw_height, new_lnw_width, few_width);
+      }
+    }
+
+    //// --------------- Paint GUI -----------------
+
+    refresh();
+
+    // Refresh File Explorer Window
+    if (refresh_few == true && few_width != 0 && few != NULL) {
+      printFileExplorer(&pwd, few, few_x_offset, few_y_offset, few_selected_line);
+      wrefresh(few);
+      refresh_few = false;
+    }
+
+    // Refresh File Opened Window
+    if ((refresh_ofw == true || files[current_file].io_file.status == NONE) && ofw_height != 0) {
+      printOpenedFile(files, file_count, current_file, current_file_offset, ofw);
+      wrefresh(ofw);
+      refresh_ofw = false;
+    }
+
+    // Refresh Editor Windows
+    if (refresh_edw == true) {
+      printEditor(ftw, lnw, ofw, *cursor, *select_cursor, *screen_x, *screen_y);
+
+
+      if (parser == NULL) {
+        parser = ts_parser_new();
+        // Set the parser's language (JSON in this case).
+        lang = tree_sitter_c();
+        ts_parser_set_language(parser, lang);
+
+
+        // exit(0);
+        // saveFile(*root, io_file);
+        FILE* f = fopen(io_file->path_abs, "rb");
+        fseek(f, 0, SEEK_END);
+        long fsize = ftell(f);
+        fseek(f, 0, SEEK_SET); /* same as rewind(f); */
+
+        file_content = realloc(file_content, fsize + 1);
+        fread(file_content, fsize, 1, f);
+
+        fclose(f);
+
+        file_content[fsize] = 0;
+
+        ts_tree_delete(tree);
+        tree = ts_parser_parse_string(
+          parser,
+          NULL,
+          file_content,
+          strlen(file_content)
+        );
+      }
+
+      TSNode root_node = ts_tree_root_node(tree);
+
+      TreePath path[100];
+      assert(path != NULL);
+
+
+      args_fct = malloc(10 * sizeof(long *));
+      args_fct[0] = (long)&highlight_queries;
+      args_fct[1] = (long)file_content;
+      args_fct[2] = (long)ftw;
+      args_fct[3] = (long)screen_x;
+      args_fct[4] = (long)screen_y;
+      args_fct[5] = (long)ftw->_maxx;
+      args_fct[6] = (long)ftw->_maxy;
+      args_fct[7] = (long)cursor;
+      args_fct[8] = (long)select_cursor;
+      args_fct[9] = (long)NULL;
+
+      clock_t t;
+      t = clock();
+      treeForEachNodeSized(*screen_y, ftw->_maxy, root_node, path, 0, checkMatchForHighlight, args_fct);
+      t = clock() - t;
+      double time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
+
+
+      // printf("fun() took %f seconds to execute \n", time_taken);
+      free((Cursor *)args_fct[9]);
+      free(args_fct);
+
+      wrefresh(lnw);
+      wrefresh(ftw);
+    }
+
+
     assert(checkFileIntegrity(*root) == true);
-    int c;
 
-    // Force first resize.
-    if (*old_screen_y != *screen_y)
-      goto resize;
-
-    c = getch();
+  read_input:
+    int c = getch();
     switch (c) {
       // ---------------------- NCURSES THINGS ----------------------
+
+      case ERR:
+        // TODO Here check to do background operation.
+        goto read_input;
 
       case BEGIN_MOUSE_LISTEN:
       case MOUSE_IN_OUT:
@@ -154,7 +509,7 @@ int main(int file_count, char** file_names) {
 
           // Avoid refreshing when it's just mouse movement with no change.
           if (m_event.bstate == NO_EVENT_MOUSE /*No event state*/ && mouse_drag == false) {
-            continue;
+            goto read_input;
           }
 
 
@@ -429,62 +784,6 @@ int main(int file_count, char** file_names) {
         break;
     }
 
-    //// --------------- Post Processing -----------------
-
-
-    if (refresh_local_vars == true) {
-      setupLocalVars(files, current_file, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y, &history_root,
-                     &history_frame);
-      refresh_local_vars = false;
-    }
-
-    // flag cursor change
-    if (!areCursorEqual(*cursor, *old_cur)) {
-      *old_cur = *cursor;
-      moveScreenToMatchCursor(ftw, *cursor, screen_x, screen_y);
-    }
-
-    // flag screen_x change
-    if (*old_screen_x != *screen_x) {
-      *old_screen_x = *screen_x;
-    }
-
-    // flag screen_y change
-    if (*old_screen_y != *screen_y) {
-    resize:
-      *old_screen_y = *screen_y;
-      // resize line_w to match with line_number_length
-      int new_lnw_width = numberOfDigitOfNumber(*screen_y + ftw->_maxy) + 1 /* +1 for the line */;
-      if (new_lnw_width != ftw->_begx) {
-        resizeEditorWindows(&ftw, &lnw, ofw_height, new_lnw_width, few_width);
-      }
-    }
-
-    //// --------------- Paint GUI -----------------
-
-    refresh();
-
-    // Refresh File Explorer Window
-    if (refresh_few == true && few_width != 0 && few != NULL) {
-      printFileExplorer(&pwd, few, few_x_offset, few_y_offset, few_selected_line);
-      wrefresh(few);
-      refresh_few = false;
-    }
-
-    // Refresh File Opened Window
-    if ((refresh_ofw == true || files[current_file].io_file.status == NONE) && ofw_height != 0) {
-      printOpenedFile(files, file_count, current_file, current_file_offset, ofw);
-      wrefresh(ofw);
-      refresh_ofw = false;
-    }
-
-    // Refresh Editor Windows
-    if (refresh_edw == true) {
-      printEditor(ftw, lnw, ofw, *cursor, *select_cursor, *screen_x, *screen_y);
-      wrefresh(ftw);
-      wrefresh(lnw);
-    }
-
     // While end.
   }
 
@@ -500,5 +799,12 @@ end:
   }
   destroyFolder(&pwd);
   free(files);
+  // TODO change
+  free(file_content);
+  ts_tree_delete(tree);
+  ts_parser_delete(parser);
+  ts_language_delete(lang);
+  destroyTreePathSeq(&highlight_queries);
+
   return 0;
 }

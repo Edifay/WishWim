@@ -1647,3 +1647,14 @@ Cursor concatNeighbordsLinesC(Cursor cursor) {
 
   return cursorOf(newLineId, lastNode);
 }
+
+
+Cursor tryToReachAbsPosition(Cursor cursor, int row, int column) {
+  FileIdentifier new_file_id = tryToReachAbsRow(cursor.file_id, row);
+  LineIdentifier new_line_id = tryToReachAbsColumn(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), column);
+  return cursorOf(new_file_id, new_line_id);
+}
+
+Char_U8 getCharAtCursor(Cursor cursor) {
+  return getCharForLineIdentifier(cursor.line_id);
+}

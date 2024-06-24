@@ -18,7 +18,6 @@ void initHistory(History* history) {
 }
 
 
-// TODO implement
 Cursor undo(History** history_p, Cursor cursor) {
   History* history = *history_p;
 
@@ -28,7 +27,6 @@ Cursor undo(History** history_p, Cursor cursor) {
   }
 
   time_val canceled_time_action = history->action.time;
-  // TODO implement keep reverse action to redo.
   cursor = doReverseAction(&history->action, cursor);
   history->action.time = canceled_time_action;
 

@@ -228,4 +228,9 @@ Cursor insertNewLineInLineC(Cursor cursor);
 
 Cursor concatNeighbordsLinesC(Cursor cursor);
 
+Cursor tryToReachAbsPosition(Cursor cursor, int row, int column);
+
+Char_U8 getCharAtCursor(Cursor cursor);
+
+
 #endif

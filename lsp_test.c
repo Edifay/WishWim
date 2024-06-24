@@ -3,108 +3,88 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <cjson/cJSON.h>
-#include <pthread.h>
 #include <poll.h>
 #include <string.h>
 #include <unistd.h>
 #include <linux/limits.h>
 
-#include "../../.config/tree-sitter/tree-sitter-c/src/tree_sitter/parser.h"
-#include "lsp/lsp_client.h"
+#include "advanced/lsp/lsp_client.h"
+#include "advanced/tree-sitter/scm_parser.h"
 #include "utils/tools.h"
-#include "tree-sitter/lib/include/tree_sitter/api.h"
-
-#include <regex.h>
+#include "lib/tree-sitter/lib/include/tree_sitter/api.h"
+#include "advanced/tree-sitter/tree_manager.h"
 
 //     if (poll(&(struct pollfd){.fd = lsp.inpipefd[0], .events = POLLIN}, 1, 0) == 1) {
-
-typedef enum {
-  SYMBOL,
-  FIELD,
-  REGEX,
-  GROUP
-} PATH_TYPE;
-
-struct TreePath_ {
-  PATH_TYPE type;
-  const regex_t* reg;
-  const char* name;
-  const char* color_group;
-  const struct TreePath_* next;
-};
-
-typedef struct TreePath_ TreePath;
-
-struct TreePathSeq_ {
-  TreePath* value;
-  struct TreePathSeq_* next;
-};
-
-typedef struct TreePathSeq_ TreePathSeq;
-
-void explore(TSNode root_node, TreePath* path_symbol, int offset) {
-  const char* name = ts_node_type(root_node);
-  // printf("Before %p %ld \n", name, (long)name);
-  // exit(0);
-  path_symbol[offset].type = SYMBOL;
-  path_symbol[offset].name = name;
-  path_symbol[offset].color_group = NULL;
-  path_symbol[offset].next = NULL;
-  path_symbol[offset].reg = NULL;
-
-  for (int i = 0; i < offset; i++) {
-    // printf(" ");
-  }
-  for (int i = 0; i < offset + 1; i++) {
-    if (path_symbol[i].type == SYMBOL || path_symbol[i].type == FIELD)
-      printf("%s", path_symbol[i].name);
-    if (i != offset) {
-      if (path_symbol[i].type == SYMBOL)
-        printf(".");
-      else
-        printf(":");
-    }
-  }
-  printf("\n");
-
-  // if (ts_node_named_child_count(root_node) == ts_node_child_count(root_node)) {
-  // printf("CHILD NODE WITH NON NAMED CHILD.\n");
-  // exit(0);
-  // }
-
-  for (int i = 0; i < ts_node_child_count(root_node); i++) {
-    TSNode current_child = ts_node_child(root_node, i);
-
-
-    if (ts_node_is_named(current_child)) {
-      if (ts_node_field_name_for_child(root_node, i) != NULL) {
-        offset++;
-        path_symbol[offset].type = FIELD;
-        path_symbol[offset].name = name;
-        path_symbol[offset].color_group = NULL;
-        path_symbol[offset].next = NULL;
-        path_symbol[offset].reg = NULL;
-      }
-      explore(current_child, path_symbol, offset + 1);
-      if (ts_node_field_name_for_child(root_node, i) != NULL) {
-        offset--;
-      }
-    }
-    else {
-      // If is not named. Like keywords.
-    }
-  }
-}
 
 
 // Declare the `tree_sitter_json` function, which is
 // implemented by the `tree-sitter-json` library.
-const TSLanguage* tree_sitter_c(void);
 
-const TSLanguage* tree_sitter_python(void);
 
+
+void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_length, long* args) {
+  TreePathSeq* seq = ((TreePathSeq *)args[0]);
+  char* source = (char *)args[1];
+  // printf("Current : ");
+  // for (int i = tree_path_length; i != 0; i--) {
+  // if (tree_path[i].type == SYMBOL || tree_path[i].type == FIELD) {
+  // if (i != tree_path_length) {
+  // if (tree_path[i].type == SYMBOL)
+  // printf(".");
+  // else if (tree_path[i].type == FIELD)
+  // printf(":");
+  // }
+  // printf("%s", tree_path[i].name);
+  // }
+  // }
+  // printf("\n");
+  // printf("\n");
+  // printf("\n");
+  while (seq != NULL) {
+    // Get litteral string for current node.
+    int char_nb = ts_node_end_byte(node) - ts_node_start_byte(node);
+    // printf("Begin %d -> End %d\n", ts_node_end_byte(root_node), ts_node_start_byte(root_node));
+    // printf("Print size : %d\n", char_nb);
+    char* litteral_text_node = malloc(char_nb + 1);
+    strncpy(litteral_text_node, source + ts_node_start_byte(node), char_nb);
+    litteral_text_node[char_nb] = '\0';
+    // printf("Litteral : %s\n", current_text);
+
+
+    char* result = isTreePathMatchingQuery(litteral_text_node, tree_path, tree_path_length, seq->value);
+
+    // printf("\nQuery : ");
+    // printTreePath(seq->value);
+    // printf("\n");
+
+    free(litteral_text_node);
+
+    if (result != NULL) {
+      printf("Found group %s\n", result);
+      break;
+    }
+    seq = seq->next;
+  }
+  // printf("\n\n_____________________________\n\n");
+}
 
 int main(int argc, char** args) {
+  TreePathSeq highlight_queries;
+  initTreePathSeq(&highlight_queries);
+  bool res_parse = parseSCMFile(&highlight_queries, "lib/tree-sitter-c/queries/highlights.scm");
+
+  if (res_parse == false)
+    return 1;
+  // @function (identifier) function: (call_expression)
+
+  // printTreePathSeq(&highlight_queries);
+
+
+  printf("\n\n\n----------------------------------\n\n\n");
+  sortTreePathSeqByDecreasingSize(&highlight_queries);
+
+  // printTreePathSeq(&highlight_queries);
+
   TSParser* parser = ts_parser_new();
 
   // Set the parser's language (JSON in this case).
@@ -138,8 +118,16 @@ int main(int argc, char** args) {
 
   TreePath* path = malloc(100 * sizeof(TreePath));
   assert(path != NULL);
-  explore(root_node, path, 0);
+
+  long* args_fct = malloc(2 * sizeof(long *));
+  args_fct[0] = (long)&highlight_queries;
+  args_fct[1] = (long)file_content;
+  // TODO implement arg function.
+  treeForEachNode(root_node, path, 0, checkMatchForHighlight, args_fct);
+
+
   free(path);
+  free(args_fct);
 
   // printf("Context [%d, %d] - [%d, %d]\n", ts_node_start_point(root_node).row, ts_node_start_point(root_node).column, ts_node_end_point(root_node).row, ts_node_end_point(root_node).column);
 
@@ -152,6 +140,8 @@ int main(int argc, char** args) {
 
   ts_tree_delete(tree);
   ts_parser_delete(parser);
+  destroyTreePathSeq(&highlight_queries);
+
 
   if (1)
     return 0;
@@ -161,8 +151,8 @@ int main(int argc, char** args) {
   LSP_Server lsp;
 
   // bool result = openLSPServer("pyright-langserver", "--stdio", &lsp);
-  bool result = openLSPServer("pylsp", "-v", &lsp);
-  // bool result = openLSPServer("clangd", "", &lsp);
+  // bool result = openLSPServer("pylsp", "-v", &lsp);
+  bool result = openLSPServer("clangd", "", &lsp);
   if (result == false) {
     printf("Failed to open lsp-server.\n");
     return 1;
