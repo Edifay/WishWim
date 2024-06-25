@@ -1,20 +1,22 @@
 # cJSON : https://github.com/DaveGamble/cJSON?tab=readme-ov-file#cmake
 
 CC=clang
-CFLAGS=-g -fsanitize=address # -lncurses # -Wall -Wextra -Werror -gdwarf-4
-LDFLAGS +=-fsanitize=address
+CFLAGS=-g -O3 #-fsanitize=address # -lncurses # -Wall -Wextra -Werror -gdwarf-4
+#LDFLAGS +=-fsanitize=address
 
 executable= al #lsp_test #test_line.o test_file.o  test_line test_file  # utils/debug.o
 modules= \
-	lib/tree-sitter/libtree-sitter.a \
-	lib/tree-sitter-c/libtree-sitter-c.a \
-	lib/tree-sitter-python/libtree-sitter-python.a \
-	\
 	src/data-management/utf_8_extractor.o src/data-management/file_structure.o src/data-management/file_management.o src/utils/tools.o    \
 	src/io_management/io_manager.o src/utils/key_management.o src/utils/clipboard_manager.o src/io_management/viewport_history.o         \
 	src/data-management/state_control.o src/terminal/term_handler.o src/io_management/io_explorer.o src/advanced/lsp/lsp_client.o \
 	src/advanced/tree-sitter/scm_parser.o  src/advanced/tree-sitter/tree_manager.o src/advanced/theme.o src/terminal/highlight.o\
-	src/terminal/click_handler.o src/config/config.o
+	src/terminal/click_handler.o src/config/config.o \
+	\
+	lib/tree-sitter/libtree-sitter.a \
+	lib/tree-sitter-c/libtree-sitter-c.a \
+	lib/tree-sitter-python/libtree-sitter-python.a \
+#	lib/tree-sitter-c/src/parser.o \
+#	lib/tree-sitter-python/src/parser.o  lib/tree-sitter-python/src/scanner.o\
 
 
 
@@ -37,7 +39,6 @@ lib/tree-sitter-python/libtree-sitter-python.a:
 
 lib/tree-sitter/libtree-sitter.a:
 	cd lib/tree-sitter/ && $(MAKE)
-
 
 %.o : %.c %.h
 	$(CC) $(CFLAGS) -c $< -o $@

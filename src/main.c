@@ -9,7 +9,6 @@
 #include <bits/time.h>
 
 #include "advanced/theme.h"
-#include "advanced/tree-sitter/scm_parser.h"
 #include "advanced/tree-sitter/tree_manager.h"
 #include "data-management/file_management.h"
 #include "data-management/file_structure.h"
@@ -24,30 +23,31 @@
 #include "terminal/highlight.h"
 #include "terminal/click_handler.h"
 #include "../lib/tree-sitter/lib/include/tree_sitter/api.h"
+#include "config/config.h"
 
 #define CTRL_KEY(k) ((k)&0x1f)
 
+int color_pair = 2;
+int color_index = 100;
+cJSON* config;
 
 int main(int file_count, char** file_names) {
   // TODO create an abstraction of parser. Refactor this.
   char* file_content = NULL;
-  TSTree* tree = NULL;
-  TSParser* parser = NULL;
-  const TSLanguage* lang = NULL;
-  TreePathSeq highlight_queries;
-  initTreePathSeq(&highlight_queries);
-  bool res_parse = parseSCMFile(&highlight_queries, "/home/arnaud/Dev/WishWim/lib/tree-sitter-c/queries/highlights.scm");
-  if (res_parse == false) return 1;
-  sortTreePathSeqByDecreasingSize(&highlight_queries);
-  HighlightThemeList theme_list;
-  getThemeFromFile("/home/arnaud/Dev/WishWim/assets/theme.al", &theme_list);
-
+  bool need_reparse = true;
 
   // TODO MAIN FUNCTION BEGIN
   // remove first args which is the executable file name.
   file_names++;
   file_count--;
   setlocale(LC_ALL, "");
+
+  // Load config
+  config = loadConfig();
+
+  // Parser Datas
+  ParserList parsers;
+  initParserList(&parsers);
 
   // Containers of current opened buffers.
   FileContainer* files = malloc(sizeof(FileContainer) * max(1, file_count));
@@ -99,14 +99,10 @@ int main(int file_count, char** file_names) {
   fflush(stdout);
   // Color setup
   start_color();
-  int color_index = 100;
-  int color_pair = 2;
   // Default color.
   init_color(COLOR_HOVER, 390, 390, 390);
   init_pair(1, COLOR_WHITE, COLOR_BLACK);
   init_pair(1001, COLOR_WHITE, COLOR_HOVER);
-  // Dynamic theme color
-  initColorsForTheme(theme_list, &color_index, &color_pair);
 
   // Fill files with args
   for (int i = 0; i < file_count; i++) {
@@ -117,6 +113,8 @@ int main(int file_count, char** file_names) {
     file_count = 1;
     setupFileContainer("", files);
   }
+
+  printf("Bonjour !");
 
   // Setup redirection of vars to use with out pass though file_container obj.
   IO_FileID* io_file; // Describe the IO file on OS
@@ -131,7 +129,9 @@ int main(int file_count, char** file_names) {
   int* old_screen_y; // old screen_y used to flag screen_y changes
   History* history_root; // Root of History object for the current File
   History** history_frame; // Current node of the History. Before -> Undo, After -> Redo.
+  FileHighlightDatas* highlight_data;
 
+  int ceci;
 
   bool refresh_local_vars = true; // Need to re-set local vars
 
@@ -144,7 +144,7 @@ int main(int file_count, char** file_names) {
 
     if (refresh_local_vars == true) {
       setupLocalVars(files, current_file, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y, &history_root,
-                     &history_frame);
+                     &history_frame, &highlight_data);
       refresh_local_vars = false;
     }
 
@@ -192,44 +192,99 @@ int main(int file_count, char** file_names) {
     if (refresh_edw == true) {
       printEditor(ftw, lnw, ofw, *cursor, *select_cursor, *screen_x, *screen_y);
 
+      ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_name);
 
-      if (parser == NULL) {
-        parser = ts_parser_new();
-        // Set the parser's language (JSON in this case).
-        lang = tree_sitter_c();
-        ts_parser_set_language(parser, lang);
+      double inter_time_taken = 0;
 
+      if (true || highlight_data->is_active == true && (need_reparse == true || highlight_data->tree == NULL)) {
+        clock_t inter_t;
+        inter_t = clock();
 
-        FILE* f = fopen(io_file->path_abs, "rb");
-        fseek(f, 0, SEEK_END);
-        long fsize = ftell(f);
-        fseek(f, 0, SEEK_SET); /* same as rewind(f); */
+        int n_bytes;
 
-        file_content = realloc(file_content, fsize + 1);
-        fread(file_content, fsize, 1, f);
+        FileNode* current_file_node = *root;
+        int relative_file = 0;
+        while (current_file_node != NULL) {
+          if (relative_file == current_file_node->element_number) {
+            current_file_node = current_file_node->next;
+            relative_file = 0;
+            continue;
+          }
+          n_bytes++;
+          LineNode* current_line_node = current_file_node->lines + relative_file;
 
-        fclose(f);
+          int relative_line = 0;
+          while (current_line_node != NULL) {
+            if (relative_line == current_line_node->element_number) {
+              current_line_node = current_line_node->next;
+              relative_line = 0;
+              continue;
+            }
+            n_bytes += sizeChar_U8(current_line_node->ch[relative_line]);
+            relative_line++;
+          }
 
-        file_content[fsize] = 0;
+          relative_file++;
+        }
 
-        ts_tree_delete(tree);
-        tree = ts_parser_parse_string(
-          parser,
-          NULL,
+        file_content = realloc(file_content, n_bytes);
+
+        current_file_node = *root;
+        relative_file = 0;
+        int current_index = 0;
+        while (current_file_node != NULL) {
+          if (relative_file == current_file_node->element_number) {
+            current_file_node = current_file_node->next;
+            relative_file = 0;
+            continue;
+          }
+          LineNode* current_line_node = current_file_node->lines + relative_file;
+
+          int relative_line = 0;
+          while (current_line_node != NULL) {
+            if (relative_line == current_line_node->element_number) {
+              current_line_node = current_line_node->next;
+              relative_line = 0;
+              continue;
+            }
+            for (int i = 0; i < sizeChar_U8(current_line_node->ch[relative_line]); i++) {
+              file_content[current_index++] = current_line_node->ch[relative_line].t[i];
+            }
+            relative_line++;
+          }
+
+          relative_file++;
+          file_content[current_index++] = '\n';
+        }
+
+        // TODO implement ts_tree_edit using state_control to get the action dones.
+        // TSInputEdit edit;
+        // ts_tree_edit(highlight_data->tree, )
+        highlight_data->tree = ts_parser_parse_string(
+          parser->parser,
+          highlight_data->tree,
           file_content,
-          strlen(file_content)
+          n_bytes
         );
+        need_reparse = false;
+
+        inter_t = clock() - inter_t;
+        inter_time_taken = ((double)inter_t) / CLOCKS_PER_SEC; // in seconds
+
+        // printf("fun() took %f seconds to parse \n\r", time_taken);
+
+        // exit(0);
       }
 
-      TSNode root_node = ts_tree_root_node(tree);
+      TSNode root_node = ts_tree_root_node(highlight_data->tree);
 
       TreePath path[100];
       assert(path != NULL);
 
 
       long* args_fct = malloc(11 * sizeof(long *));
-      args_fct[0] = (long)&highlight_queries;
-      args_fct[1] = (long)&theme_list;
+      args_fct[0] = (long)&parser->highlight_queries;
+      args_fct[1] = (long)&parser->theme_list;
       args_fct[2] = (long)file_content;
       args_fct[3] = (long)ftw;
       args_fct[4] = (long)screen_x;
@@ -251,7 +306,7 @@ int main(int file_count, char** file_names) {
 
       wrefresh(lnw);
       wrefresh(ftw);
-      // printf("fun() took %f seconds to execute \n\r", time_taken);
+      // printf("fun() took %f seconds to execute \n\r", inter_time_taken);
     }
 
 
@@ -449,11 +504,7 @@ int main(int file_count, char** file_names) {
           goto end;
         }
         saveFile(*root, io_file);
-        free(file_content);
-        file_content = NULL;
-        ts_parser_delete(parser);
-        ts_language_delete(lang);
-        parser = NULL;
+        need_reparse = true;
         assert(io_file->status == EXIST);
         setlastFilePosition(io_file->path_abs, cursor->file_id.absolute_row, cursor->line_id.absolute_column, *screen_x, *screen_y);
         saveCurrentStateControl(*history_root, *history_frame, io_file->path_abs);
@@ -585,11 +636,7 @@ end:
   free(files);
   // TODO change
   free(file_content);
-  ts_tree_delete(tree);
-  ts_parser_delete(parser);
-  ts_language_delete(lang);
-  destroyTreePathSeq(&highlight_queries);
-  destroyThemeList(&theme_list);
-
+  cJSON_Delete(config);
+  destroyParserList(&parsers);
   return 0;
 }

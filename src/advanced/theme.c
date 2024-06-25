@@ -26,6 +26,7 @@ bool getThemeFromFile(char* file_name, HighlightThemeList* list) {
   }
 
   fclose(f);
+  return true;
 }
 
 void initHighlightThemeList(HighlightThemeList* list) {

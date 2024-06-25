@@ -3,6 +3,7 @@
 
 #include "file_structure.h"
 #include "state_control.h"
+#include "../advanced/tree-sitter/tree_manager.h"
 
 
 typedef struct {
@@ -18,6 +19,7 @@ typedef struct {
   int old_screen_y; // old screen_y used to flag screen_y changes
   History history_root; // Root of History object for the current File
   History* history_frame; // Current node of the History. Before -> Undo, After -> Redo.
+  FileHighlightDatas highlight_data;
 } FileContainer;
 
 
@@ -39,7 +41,7 @@ Cursor createRoot(IO_FileID file);
 void setupFileContainer(char *args, FileContainer *container);
 
 void setupLocalVars(FileContainer* files, int current_file, IO_FileID** io_file, FileNode*** root, Cursor** cursor, Cursor** select_cursor, Cursor** old_cur, int** desired_column,
-                    int** screen_x, int** screen_y, int** old_screen_x, int** old_screen_y, History** history_root, History*** history_frame);
+                    int** screen_x, int** screen_y, int** old_screen_x, int** old_screen_y, History** history_root, History*** history_frame, FileHighlightDatas **highlight_data);
 
 bool isFileContainerEmpty(FileContainer *container);
 

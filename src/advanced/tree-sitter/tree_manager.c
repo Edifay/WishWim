@@ -4,6 +4,98 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <linux/limits.h>
+
+#include "scm_parser.h"
+#include "../../terminal/highlight.h"
+#include "../../utils/constants.h"
+#include "../../../lib/tree-sitter/lib/include/tree_sitter/api.h"
+
+
+
+void initParserList(ParserList* list) {
+  list->size = 0;
+  list->list = NULL;
+}
+
+void addParserToParserList(ParserList* list, ParserContainer new_parser) {
+  list->size++;
+  list->list = realloc(list->list, list->size * sizeof(ParserContainer));
+  list->list[list->size - 1] = new_parser;
+}
+
+void destroyParserList(ParserList* list) {
+  for (int i = 0; i < list->size; i++) {
+    ts_parser_delete(list->list[i].parser);
+    ts_language_delete(list->list[i].lang);
+    destroyTreePathSeq(&list->list[i].highlight_queries);
+    destroyThemeList(&list->list[i].theme_list);
+  }
+  free(list->list);
+  list->list = NULL;
+  list->size = 0;
+}
+
+ParserContainer* getParserForLanguage(ParserList* list, char* language) {
+  for (int i = 0; i < list->size; i++) {
+    if (strcmp(list->list[i].lang_name, language) == 0) {
+      return list->list + i;
+    }
+  }
+
+  ParserContainer new_parser;
+  bool result = loadNewParser(&new_parser, language);
+  if (result == false) {
+    return NULL;
+  }
+
+  addParserToParserList(list, new_parser);
+
+  return list->list + list->size - 1;
+}
+
+bool loadNewParser(ParserContainer* container, char* language) {
+  if (strcmp(language, "c") == 0 || strcmp(language, "python") == 0) {
+    strcpy(container->lang_name, language);
+
+    char *load_path = cJSON_GetStringValue(cJSON_GetObjectItem(config, "default_path"));
+
+    char path[PATH_MAX];
+    // Theme
+    sprintf(path, "%s/theme", load_path);
+
+    bool res = getThemeFromFile(path, &container->theme_list);
+    if (res == false) {
+      printf("Unable to load theme from file '%s'. You can edit path in config file.\n", path);
+      return false;
+    }
+
+    // Queries
+    sprintf(path, "%s/queries/highlights-%s.scm", load_path, container->lang_name);
+    res = parseSCMFile(&container->highlight_queries, path);
+    if (res == false) {
+      destroyThemeList(&container->theme_list);
+      printf("Unable to load queries from file '%s'. You can edit path in config file.\n", path);
+      return false;
+    }
+
+    // Post processing
+    initColorsForTheme(container->theme_list, &color_index, &color_pair);
+    sortTreePathSeqByDecreasingSize(&container->highlight_queries);
+
+    // parsers
+    if (strcmp(language, "c") == 0) {
+      container->lang = tree_sitter_c();
+    }
+    else if (strcmp(language, "python") == 0) {
+      container->lang = tree_sitter_python();
+    }
+    container->parser = ts_parser_new();
+    ts_parser_set_language(container->parser, container->lang);
+    return true;
+  }
+  return false;
+}
 
 
 int lengthTreePath(TreePath* tree_path) {

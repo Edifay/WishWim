@@ -36,16 +36,36 @@ typedef struct TreePathSeq_ TreePathSeq;
 // TODO implement a parser abstraction.
 typedef struct {
   char lang_name[100];
-  TSLanguage* lang;
+  const TSLanguage* lang;
   TSParser* parser;
   TreePathSeq highlight_queries;
   HighlightThemeList theme_list;
 } ParserContainer;
 
+typedef struct {
+  ParserContainer* list;
+  int size;
+} ParserList;
+
+typedef struct {
+  char lang_name[100];
+  bool is_active;
+  TSTree* tree;
+} FileHighlightDatas;
 
 const TSLanguage* tree_sitter_c(void);
 
 const TSLanguage* tree_sitter_python(void);
+
+void initParserList(ParserList* list);
+
+void destroyParserList(ParserList *list);
+
+void addParserToParserList(ParserList* list, ParserContainer new_parser);
+
+ParserContainer* getParserForLanguage(ParserList* list, char* language);
+
+bool loadNewParser(ParserContainer* container, char* language);
 
 
 ////// ------------------- TREE UTILS -------------------

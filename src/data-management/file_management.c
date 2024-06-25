@@ -20,6 +20,7 @@ void destroyFileContainer(FileContainer* container) {
   }
   destroyFullFile(container->root);
   destroyEndOfHistory(&container->history_root);
+  ts_tree_delete(container->highlight_data.tree);
 }
 
 void openNewFile(char* file_path, FileContainer** files, int* file_count, int* current_file, bool* refresh_ofw, bool* refresh_local_vars) {
@@ -92,11 +93,19 @@ void setupFileContainer(char* path, FileContainer* container) {
   assert(container->root->prev == NULL);
   fetchSavedCursorPosition(container->io_file, &container->cursor, &container->screen_x, &container->screen_y);
   loadCurrentStateControl(&container->history_root, &container->history_frame, container->io_file);
+
+  // TODO refactor end of this fuction.
+  container->highlight_data.is_active = container->io_file.status == EXIST;
+  // TODO refactor using a function getFileType().
+  char* dot = strrchr(container->io_file.path_abs, '.');
+  if (dot != NULL)
+    strncpy(container->highlight_data.lang_name, dot + 1, 99);
+  container->highlight_data.tree = NULL;
 }
 
 
 void setupLocalVars(FileContainer* files, int current_file, IO_FileID** io_file, FileNode*** root, Cursor** cursor, Cursor** select_cursor, Cursor** old_cur, int** desired_column,
-                    int** screen_x, int** screen_y, int** old_screen_x, int** old_screen_y, History** history_root, History*** history_frame) {
+                    int** screen_x, int** screen_y, int** old_screen_x, int** old_screen_y, History** history_root, History*** history_frame, FileHighlightDatas** highlight_data) {
   *io_file = &files[current_file].io_file; // Describe the IO file on OS
   *root = &files[current_file].root; // The root of the File object
   *cursor = &files[current_file].cursor; // The current cursor for the root File
@@ -109,6 +118,7 @@ void setupLocalVars(FileContainer* files, int current_file, IO_FileID** io_file,
   *old_screen_y = &files[current_file].old_screen_y; // old screen_y used to flag screen_y changes
   *history_root = &files[current_file].history_root; // Root of History object for the current File
   *history_frame = &files[current_file].history_frame; // Current node of the History. Before -> Undo, After -> Redo.
+  *highlight_data = &files[current_file].highlight_data;
   **old_screen_y = -1;
 }
 

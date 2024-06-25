@@ -109,6 +109,7 @@ void pushRegex(TreePathSeq* seq, char* name) {
 
 
 bool parseSCMFile(TreePathSeq* seq, char* file_name) {
+  initTreePathSeq(seq);
   FILE* f = fopen(file_name, "r");
   if (f == NULL) {
     printf("Unable to parse %s file.\n\r", file_name);
