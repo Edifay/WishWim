@@ -20,10 +20,10 @@ int numberOfDigitOfNumber(int n);
 
 unsigned long long hashFileName(char* fileName);
 
-void printToNcursesNCharFromString(WINDOW *w, char *str, int n);
+void printToNcursesNCharFromString(WINDOW* w, char* str, int n);
 
-char* whereis(char *prog);
+char* whereis(char* prog);
 
-void getLocalURI(char *realive_abs_path, char *uri);
+void getLocalURI(char* realive_abs_path, char* uri);
 
 #endif //TOOLS_H

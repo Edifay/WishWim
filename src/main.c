@@ -3,7 +3,6 @@
 #include <locale.h>
 #include <ncurses.h>
 #include <stdlib.h>
-#include <string.h>
 #include <time.h>
 #include <wchar.h>
 #include <bits/time.h>
@@ -34,7 +33,6 @@ cJSON* config;
 int main(int file_count, char** file_names) {
   // TODO create an abstraction of parser. Refactor this.
   char* file_content = NULL;
-  bool need_reparse = true;
 
   // TODO MAIN FUNCTION BEGIN
   // remove first args which is the executable file name.
@@ -114,8 +112,6 @@ int main(int file_count, char** file_names) {
     setupFileContainer("", files);
   }
 
-  printf("Bonjour !");
-
   // Setup redirection of vars to use with out pass though file_container obj.
   IO_FileID* io_file; // Describe the IO file on OS
   FileNode** root; // The root of the File object
@@ -138,6 +134,7 @@ int main(int file_count, char** file_names) {
   // Start automated-machine
   Cursor tmp;
   MEVENT m_event;
+  History* old_history_frame;
   bool mouse_drag = false;
   while (true) {
     //// --------------- Post Processing -----------------
@@ -146,6 +143,7 @@ int main(int file_count, char** file_names) {
       setupLocalVars(files, current_file, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y, &history_root,
                      &history_frame, &highlight_data);
       refresh_local_vars = false;
+      old_history_frame = *history_frame;
     }
 
     // flag cursor change
@@ -196,12 +194,39 @@ int main(int file_count, char** file_names) {
 
       double inter_time_taken = 0;
 
-      if (true || highlight_data->is_active == true && (need_reparse == true || highlight_data->tree == NULL)) {
+      if (highlight_data->is_active == true && (old_history_frame != *history_frame || highlight_data->tree == NULL)) {
+        //printf("Parse !\r\n");
         clock_t inter_t;
         inter_t = clock();
 
-        int n_bytes;
+        int relative_loc = 0;
 
+        History* current_hist = *history_frame;
+        while (current_hist != NULL && current_hist != old_history_frame) {
+          current_hist = current_hist->next;
+          relative_loc++;
+        }
+        if (current_hist == NULL) {
+          relative_loc = 0;
+        }
+        // If it wasn't found on the right.
+        if (relative_loc == 0) {
+          current_hist = *history_frame;
+          while (current_hist != NULL && current_hist != old_history_frame) {
+            current_hist = current_hist->prev;
+            relative_loc--;
+          }
+          // Wasn't found on the right AND on the left.
+          if (current_hist == NULL) {
+            printf("File state problem.\r\n");
+            exit(0);
+          }
+        }
+
+        //printf("Rela%dtive_loc \r\n", relative_loc);
+
+
+        int n_bytes;
         FileNode* current_file_node = *root;
         int relative_file = 0;
         while (current_file_node != NULL) {
@@ -260,13 +285,14 @@ int main(int file_count, char** file_names) {
         // TODO implement ts_tree_edit using state_control to get the action dones.
         // TSInputEdit edit;
         // ts_tree_edit(highlight_data->tree, )
+        TSTree* old_tree = highlight_data->tree;
         highlight_data->tree = ts_parser_parse_string(
           parser->parser,
           highlight_data->tree,
           file_content,
           n_bytes
         );
-        need_reparse = false;
+        ts_tree_delete(old_tree);
 
         inter_t = clock() - inter_t;
         inter_time_taken = ((double)inter_t) / CLOCKS_PER_SEC; // in seconds
@@ -274,6 +300,7 @@ int main(int file_count, char** file_names) {
         // printf("fun() took %f seconds to parse \n\r", time_taken);
 
         // exit(0);
+        old_history_frame = *history_frame;
       }
 
       TSNode root_node = ts_tree_root_node(highlight_data->tree);
@@ -504,7 +531,6 @@ int main(int file_count, char** file_names) {
           goto end;
         }
         saveFile(*root, io_file);
-        need_reparse = true;
         assert(io_file->status == EXIST);
         setlastFilePosition(io_file->path_abs, cursor->file_id.absolute_row, cursor->line_id.absolute_column, *screen_x, *screen_y);
         saveCurrentStateControl(*history_root, *history_frame, io_file->path_abs);
