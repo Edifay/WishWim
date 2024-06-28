@@ -12,7 +12,6 @@
 #include "../../../lib/tree-sitter/lib/include/tree_sitter/api.h"
 
 
-
 void initParserList(ParserList* list) {
   list->size = 0;
   list->list = NULL;
@@ -58,7 +57,7 @@ bool loadNewParser(ParserContainer* container, char* language) {
   if (strcmp(language, "c") == 0 || strcmp(language, "python") == 0) {
     strcpy(container->lang_name, language);
 
-    char *load_path = cJSON_GetStringValue(cJSON_GetObjectItem(config, "default_path"));
+    char* load_path = cJSON_GetStringValue(cJSON_GetObjectItem(config, "default_path"));
 
     char path[PATH_MAX];
     // Theme
@@ -272,7 +271,7 @@ void treeForEachNode(TSNode root_node, TreePath* path_symbol, int offset, void (
 }
 
 // Put offset to 0 if you call by your own this function.
-void treeForEachNodeSized(int y_offset, int height, TSNode root_node, TreePath* path_symbol, int offset,
+void treeForEachNodeSized(int y_offset, int x_offset, int height, int width, TSNode root_node, TreePath* path_symbol, int offset,
                           void (*func)(TSNode node, TreePath tree_path[], int tree_path_length, long* args), void* args) {
   const char* name = ts_node_type(root_node);
   path_symbol[offset].type = SYMBOL;
@@ -292,6 +291,9 @@ void treeForEachNodeSized(int y_offset, int height, TSNode root_node, TreePath* 
     if (y_offset + height < begin.row || end.row < y_offset - 1) {
       continue;
     }
+    if (begin.row == end.row && (x_offset + width < begin.column || end.column < x_offset - 1)) {
+      continue;
+    }
     const char* field = ts_node_field_name_for_child(root_node, i);
     if (field != NULL) {
       offset++;
@@ -300,9 +302,29 @@ void treeForEachNodeSized(int y_offset, int height, TSNode root_node, TreePath* 
       path_symbol[offset].next = NULL;
       path_symbol[offset].reg = NULL;
     }
-    treeForEachNodeSized(y_offset, height, current_child, path_symbol, offset + 1, func, args);
+    treeForEachNodeSized(y_offset, x_offset, height, width, current_child, path_symbol, offset + 1, func, args);
     if (field != NULL) {
       offset--;
     }
   }
+}
+
+
+void detectLanguage(FileHighlightDatas* data, IO_FileID io_file) {
+  char* dot = strrchr(io_file.path_args, '.');
+  if (dot != NULL)
+    strncpy(data->lang_name, dot + 1, 99);
+
+  if (strcmp(data->lang_name, "h") == 0 || strcmp(data->lang_name, "c") == 0) {
+    strcpy(data->lang_name, "c");
+  }
+  else if (strcmp(data->lang_name, "py") == 0) {
+    strcpy(data->lang_name, "python");
+  }
+
+  ParserContainer* parser = getParserForLanguage(&parsers, data->lang_name);
+  if(parser != NULL) {
+    data->is_active = true;
+  }
+  data->tree = NULL;
 }

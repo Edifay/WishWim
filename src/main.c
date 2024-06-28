@@ -1,8 +1,10 @@
 #include <assert.h>
 #include <ctype.h>
+#include <limits.h>
 #include <locale.h>
 #include <ncurses.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <wchar.h>
 #include <bits/time.h>
@@ -29,12 +31,10 @@
 int color_pair = 2;
 int color_index = 100;
 cJSON* config;
+ParserList parsers;
+
 
 int main(int file_count, char** file_names) {
-  // TODO create an abstraction of parser. Refactor this.
-  char* file_content = NULL;
-
-  // TODO MAIN FUNCTION BEGIN
   // remove first args which is the executable file name.
   file_names++;
   file_count--;
@@ -44,7 +44,6 @@ int main(int file_count, char** file_names) {
   config = loadConfig();
 
   // Parser Datas
-  ParserList parsers;
   initParserList(&parsers);
 
   // Containers of current opened buffers.
@@ -127,11 +126,10 @@ int main(int file_count, char** file_names) {
   History** history_frame; // Current node of the History. Before -> Undo, After -> Redo.
   FileHighlightDatas* highlight_data;
 
-  int ceci;
-
   bool refresh_local_vars = true; // Need to re-set local vars
 
   // Start automated-machine
+  char* tmp_file_dump = NULL; // used to realloc instead of malloc and free.
   Cursor tmp;
   MEVENT m_event;
   History* old_history_frame;
@@ -192,148 +190,308 @@ int main(int file_count, char** file_names) {
 
       ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_name);
 
+      double time_taken;
       double inter_time_taken = 0;
 
-      if (highlight_data->is_active == true && (old_history_frame != *history_frame || highlight_data->tree == NULL)) {
-        //printf("Parse !\r\n");
-        clock_t inter_t;
-        inter_t = clock();
+      // If highlight is enable on this file.
+      if (highlight_data->is_active == true) {
+        clock_t t;
+        t = clock();
+        // If it needed to reparse the current file. Looking for state changes.
+        if (old_history_frame != *history_frame || highlight_data->tree == NULL) {
+          //printf("Parse !\r\n");
+          clock_t inter_t;
+          inter_t = clock();
 
-        int relative_loc = 0;
+          int relative_loc = 0;
 
-        History* current_hist = *history_frame;
-        while (current_hist != NULL && current_hist != old_history_frame) {
-          current_hist = current_hist->next;
-          relative_loc++;
-        }
-        if (current_hist == NULL) {
-          relative_loc = 0;
-        }
-        // If it wasn't found on the right.
-        if (relative_loc == 0) {
-          current_hist = *history_frame;
+          History* current_hist = *history_frame;
           while (current_hist != NULL && current_hist != old_history_frame) {
-            current_hist = current_hist->prev;
-            relative_loc--;
+            current_hist = current_hist->next;
+            relative_loc++;
           }
-          // Wasn't found on the right AND on the left.
           if (current_hist == NULL) {
-            printf("File state problem.\r\n");
-            exit(0);
+            relative_loc = 0;
           }
-        }
-
-        //printf("Rela%dtive_loc \r\n", relative_loc);
-
-
-        int n_bytes;
-        FileNode* current_file_node = *root;
-        int relative_file = 0;
-        while (current_file_node != NULL) {
-          if (relative_file == current_file_node->element_number) {
-            current_file_node = current_file_node->next;
-            relative_file = 0;
-            continue;
+          // If it wasn't found on the right.
+          if (relative_loc == 0) {
+            current_hist = *history_frame;
+            while (current_hist != NULL && current_hist != old_history_frame) {
+              current_hist = current_hist->prev;
+              relative_loc--;
+            }
+            // Wasn't found on the right AND on the left.
+            if (current_hist == NULL) {
+              printf("File state problem.\r\n");
+              exit(0);
+            }
           }
-          n_bytes++;
-          LineNode* current_line_node = current_file_node->lines + relative_file;
 
-          int relative_line = 0;
-          while (current_line_node != NULL) {
-            if (relative_line == current_line_node->element_number) {
-              current_line_node = current_line_node->next;
-              relative_line = 0;
+          // printf("Rela%dtive_loc \r\n", relative_loc);
+
+          ActionImprovedWithBytes improved_history[abs(relative_loc)];
+          current_hist = *history_frame;
+          for (int i = 0; i < abs(relative_loc); i++) {
+            improved_history[i].history_frame = current_hist;
+            improved_history[i].byte_start = -1;
+            improved_history[i].byte_end = -1;
+            if (relative_loc > 0) {
+              current_hist = current_hist->next;
+            }
+            else if (relative_loc < 0) {
+              current_hist = current_hist->prev;
+            }
+          }
+
+          relative_loc = -relative_loc;
+
+
+          int n_bytes = 0;
+          FileNode* current_file_node = *root;
+          int relative_file = 0;
+          int abs_file = 1;
+          while (current_file_node != NULL) {
+            if (relative_file == current_file_node->element_number) {
+              current_file_node = current_file_node->next;
+              relative_file = 0;
               continue;
             }
-            n_bytes += sizeChar_U8(current_line_node->ch[relative_line]);
-            relative_line++;
+            n_bytes++;
+            LineNode* current_line_node = current_file_node->lines + relative_file;
+
+            // Cur at begin of the line representing none char.
+            for (int i = 0; i < abs(relative_loc); i++) {
+              switch (improved_history[i].history_frame->action.action) {
+                case ACTION_NONE:
+                  break;
+                case INSERT:
+                  if (improved_history[i].history_frame->action.cur_end.file_id.absolute_row == abs_file
+                      && improved_history[i].history_frame->action.cur_end.line_id.absolute_column == 0) {
+                    improved_history[i].byte_end = n_bytes;
+                  }
+                case DELETE:
+                case DELETE_ONE:
+                  if (improved_history[i].history_frame->action.cur.file_id.absolute_row == abs_file
+                      && improved_history[i].history_frame->action.cur.line_id.absolute_column == 0) {
+                    improved_history[i].byte_start = n_bytes;
+                  }
+                  break;
+              }
+            }
+
+            int relative_line = 0;
+            int abs_line = 1;
+            while (current_line_node != NULL) {
+              if (relative_line == current_line_node->element_number) {
+                current_line_node = current_line_node->next;
+                relative_line = 0;
+                continue;
+              }
+              n_bytes += sizeChar_U8(current_line_node->ch[relative_line]);
+              // Cursor representing chars.
+              for (int i = 0; i < abs(relative_loc); i++) {
+                switch (improved_history[i].history_frame->action.action) {
+                  case ACTION_NONE:
+                    break;
+                  case INSERT:
+                    if (improved_history[i].history_frame->action.cur_end.file_id.absolute_row == abs_file
+                        && improved_history[i].history_frame->action.cur_end.line_id.absolute_column == abs_line) {
+                      improved_history[i].byte_end = n_bytes;
+                    }
+                  case DELETE:
+                  case DELETE_ONE:
+                    if (improved_history[i].history_frame->action.cur.file_id.absolute_row == abs_file
+                        && improved_history[i].history_frame->action.cur.line_id.absolute_column == abs_line) {
+                      improved_history[i].byte_start = n_bytes;
+                      // printf("MATCH ON [%d, %d]\r\n", abs_file, abs_line);
+                    }
+                    break;
+                }
+              }
+              relative_line++;
+              abs_line++;
+            }
+
+            relative_file++;
+            abs_file++;
           }
 
-          relative_file++;
-        }
+          // printf("Size :%d\r\n", n_bytes);
+          tmp_file_dump = realloc(tmp_file_dump, n_bytes);
 
-        file_content = realloc(file_content, n_bytes);
-
-        current_file_node = *root;
-        relative_file = 0;
-        int current_index = 0;
-        while (current_file_node != NULL) {
-          if (relative_file == current_file_node->element_number) {
-            current_file_node = current_file_node->next;
-            relative_file = 0;
-            continue;
-          }
-          LineNode* current_line_node = current_file_node->lines + relative_file;
-
-          int relative_line = 0;
-          while (current_line_node != NULL) {
-            if (relative_line == current_line_node->element_number) {
-              current_line_node = current_line_node->next;
-              relative_line = 0;
+          current_file_node = *root;
+          relative_file = 0;
+          int current_index = 0;
+          while (current_file_node != NULL) {
+            if (relative_file == current_file_node->element_number) {
+              current_file_node = current_file_node->next;
+              relative_file = 0;
               continue;
             }
-            for (int i = 0; i < sizeChar_U8(current_line_node->ch[relative_line]); i++) {
-              file_content[current_index++] = current_line_node->ch[relative_line].t[i];
+            LineNode* current_line_node = current_file_node->lines + relative_file;
+
+            int relative_line = 0;
+            while (current_line_node != NULL) {
+              if (relative_line == current_line_node->element_number) {
+                current_line_node = current_line_node->next;
+                relative_line = 0;
+                continue;
+              }
+              for (int i = 0; i < sizeChar_U8(current_line_node->ch[relative_line]); i++) {
+                tmp_file_dump[current_index++] = current_line_node->ch[relative_line].t[i];
+              }
+              relative_line++;
             }
-            relative_line++;
+
+            relative_file++;
+            tmp_file_dump[current_index++] = '\n';
           }
 
-          relative_file++;
-          file_content[current_index++] = '\n';
+
+          // TODO implement ts_tree_edit using state_control to get the action dones.
+          assert(abs(relative_loc) <= 1);
+          for (int i = 0; i < abs(relative_loc); i++) {
+            if (relative_loc > 0) {
+              TSInputEdit edit;
+              switch (improved_history[i].history_frame->action.action) {
+                case INSERT:
+                  assert(improved_history[i].byte_start != -1);
+                  assert(improved_history[i].byte_end != -1);
+                  edit.start_byte = improved_history[i].byte_start;
+                  edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row;
+                  edit.start_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
+
+                  edit.old_end_byte = improved_history[i].byte_start;
+                  edit.old_end_point.row = edit.start_point.row;
+                  edit.old_end_point.column = edit.start_point.column;
+
+                  edit.new_end_byte = improved_history[i].byte_end;
+                  edit.new_end_point.row = improved_history[i].history_frame->action.cur_end.file_id.absolute_row;
+                  edit.new_end_point.column = improved_history[i].history_frame->action.cur_end.line_id.absolute_column;
+                  ts_tree_edit(highlight_data->tree, &edit);
+                  break;
+                case DELETE:
+                  assert(improved_history[i].byte_start != -1);
+                  edit.start_byte = improved_history[i].byte_start;
+                  edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row;
+                  edit.start_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
+
+                  int ch_len = strlen(improved_history[i].history_frame->action.ch);
+                  edit.old_end_byte = improved_history[i].byte_start + ch_len;
+
+                  char* ch = improved_history[i].history_frame->action.ch;
+                  int current_row = edit.start_point.row;
+                  int current_column = edit.start_point.column;
+
+                  int current_ch_index = 0;
+                  while (current_ch_index < ch_len) {
+                    if (TAB_CHAR_USE == false) {
+                      assert(ch[current_ch_index] != '\t');
+                    }
+                    if (ch[current_ch_index] == '\n') {
+                      current_row++;
+                      current_column = 0;
+                    }
+                    else {
+                      Char_U8 tmp_ch = readChar_U8FromCharArray(ch + current_ch_index);
+                      current_ch_index += sizeChar_U8(tmp_ch) - 1;
+                      current_column++;
+                    }
+                    current_ch_index++;
+                  }
+
+
+                  edit.old_end_point.row = current_row;
+                  edit.old_end_point.column = current_column;
+
+                  edit.new_end_byte = improved_history[i].byte_start;
+                  edit.new_end_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row;
+                  edit.new_end_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
+                  ts_tree_edit(highlight_data->tree, &edit);
+                  break;
+                case DELETE_ONE:
+                  assert(improved_history[i].byte_start != -1);
+                  edit.start_byte = improved_history[i].byte_start;
+                  edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row;
+                  edit.start_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
+
+                  edit.old_end_byte = improved_history[i].byte_start + 1;
+                  edit.old_end_point.row = edit.start_point.row;
+                  edit.old_end_point.column = edit.start_point.column;
+                  if (improved_history[i].history_frame->action.unique_ch == '\n') {
+                    edit.old_end_point.row++;
+                    edit.old_end_point.column = 0;
+                  }
+                  else {
+                    edit.old_end_point.column++;
+                  }
+
+                  edit.new_end_byte = improved_history[i].byte_start;
+                  edit.new_end_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row;
+                  edit.new_end_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
+                  ts_tree_edit(highlight_data->tree, &edit);
+                  break;
+                case ACTION_NONE:
+                  break;
+              }
+            }
+            else {
+              // TODO implement undo.
+              assert(false);
+            }
+          }
+
+          // TSInputEdit edit;
+          // ts_tree_edit(highlight_data->tree, )
+          TSTree* old_tree = highlight_data->tree;
+          highlight_data->tree = ts_parser_parse_string(
+            parser->parser,
+            highlight_data->tree,
+            tmp_file_dump,
+            n_bytes
+          );
+          ts_tree_delete(old_tree);
+
+          inter_t = clock() - inter_t;
+          inter_time_taken = ((double)inter_t) / CLOCKS_PER_SEC; // in seconds
+
+          // printf("fun() took %f seconds to parse \n\r", time_taken);
+
+          // exit(0);
+          old_history_frame = *history_frame;
         }
 
-        // TODO implement ts_tree_edit using state_control to get the action dones.
-        // TSInputEdit edit;
-        // ts_tree_edit(highlight_data->tree, )
-        TSTree* old_tree = highlight_data->tree;
-        highlight_data->tree = ts_parser_parse_string(
-          parser->parser,
-          highlight_data->tree,
-          file_content,
-          n_bytes
-        );
-        ts_tree_delete(old_tree);
+        TSNode root_node = ts_tree_root_node(highlight_data->tree);
 
-        inter_t = clock() - inter_t;
-        inter_time_taken = ((double)inter_t) / CLOCKS_PER_SEC; // in seconds
+        TreePath path[100];
+        assert(path != NULL);
 
-        // printf("fun() took %f seconds to parse \n\r", time_taken);
 
-        // exit(0);
-        old_history_frame = *history_frame;
+        long* args_fct = malloc(11 * sizeof(long *));
+        args_fct[0] = (long)&parser->highlight_queries;
+        args_fct[1] = (long)&parser->theme_list;
+        args_fct[2] = (long)tmp_file_dump;
+        args_fct[3] = (long)ftw;
+        args_fct[4] = (long)screen_x;
+        args_fct[5] = (long)screen_y;
+        args_fct[6] = (long)ftw->_maxx;
+        args_fct[7] = (long)ftw->_maxy;
+        args_fct[8] = (long)cursor;
+        args_fct[9] = (long)select_cursor;
+        args_fct[10] = (long)NULL;
+
+
+        treeForEachNodeSized(*screen_y, *screen_x, ftw->_maxy + 1, ftw->_maxx + 1, root_node, path, 0, checkMatchForHighlight, args_fct);
+        t = clock() - t;
+        time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
+
+        free((Cursor *)args_fct[10]);
+        free(args_fct);
       }
-
-      TSNode root_node = ts_tree_root_node(highlight_data->tree);
-
-      TreePath path[100];
-      assert(path != NULL);
-
-
-      long* args_fct = malloc(11 * sizeof(long *));
-      args_fct[0] = (long)&parser->highlight_queries;
-      args_fct[1] = (long)&parser->theme_list;
-      args_fct[2] = (long)file_content;
-      args_fct[3] = (long)ftw;
-      args_fct[4] = (long)screen_x;
-      args_fct[5] = (long)screen_y;
-      args_fct[6] = (long)ftw->_maxx;
-      args_fct[7] = (long)ftw->_maxy;
-      args_fct[8] = (long)cursor;
-      args_fct[9] = (long)select_cursor;
-      args_fct[10] = (long)NULL;
-
-      clock_t t;
-      t = clock();
-      treeForEachNodeSized(*screen_y, ftw->_maxy, root_node, path, 0, checkMatchForHighlight, args_fct);
-      t = clock() - t;
-      double time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
-
-      free((Cursor *)args_fct[10]);
-      free(args_fct);
 
       wrefresh(lnw);
       wrefresh(ftw);
-      // printf("fun() took %f seconds to execute \n\r", inter_time_taken);
+      // printf("fun() took %f seconds to execute \n\r", time_taken);
     }
 
 
@@ -508,6 +666,10 @@ int main(int file_count, char** file_names) {
       case CTRL_KEY('c'):
         saveToClipBoard(*cursor, *select_cursor);
         break;
+      case CTRL_KEY('a'):
+        *select_cursor = tryToReachAbsPosition(*cursor, 1, 0);
+        *cursor = tryToReachAbsPosition(*cursor, INT_MAX, INT_MAX);
+        break;
       case CTRL_KEY('x'):
         saveToClipBoard(*cursor, *select_cursor);
         deleteSelectionWithHist(history_frame, cursor, select_cursor);
@@ -661,7 +823,7 @@ end:
   destroyFolder(&pwd);
   free(files);
   // TODO change
-  free(file_content);
+  free(tmp_file_dump);
   cJSON_Delete(config);
   destroyParserList(&parsers);
   return 0;

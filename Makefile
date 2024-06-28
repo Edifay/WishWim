@@ -1,8 +1,8 @@
 # cJSON : https://github.com/DaveGamble/cJSON?tab=readme-ov-file#cmake
 
 CC=clang
-CFLAGS=-g  -fsanitize=address # -lncurses # -Wall -Wextra -Werror -gdwarf-4
-LDFLAGS +=-fsanitize=address
+CFLAGS=-g  -O3#-fsanitize=address # -lncurses # -Wall -Wextra -Werror -gdwarf-4
+#LDFLAGS +=-fsanitize=address
 
 executable= al #lsp_test #test_line.o test_file.o  test_line test_file  # utils/debug.o
 modules= \

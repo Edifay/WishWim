@@ -22,11 +22,14 @@
 #define DEFAULT_COLOR_PAIR 1
 #define DEFAULT_COLOR_HOVER_PAIR 1001
 #include <cjson/cJSON.h>
+#include "../advanced/tree-sitter/tree_manager.h"
 
 
 extern int color_index;
 extern int color_pair;
 
 extern cJSON *config;
+extern ParserList parsers;
+
 
 #endif //CONTANTS_H

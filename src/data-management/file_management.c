@@ -95,12 +95,7 @@ void setupFileContainer(char* path, FileContainer* container) {
   loadCurrentStateControl(&container->history_root, &container->history_frame, container->io_file);
 
   // TODO refactor end of this fuction.
-  container->highlight_data.is_active = container->io_file.status == EXIST;
-  // TODO refactor using a function getFileType().
-  char* dot = strrchr(container->io_file.path_abs, '.');
-  if (dot != NULL)
-    strncpy(container->highlight_data.lang_name, dot + 1, 99);
-  container->highlight_data.tree = NULL;
+  detectLanguage(&container->highlight_data, container->io_file);
 }
 
 

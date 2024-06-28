@@ -4,6 +4,8 @@
 
 #include "../../../lib/tree-sitter/lib/include/tree_sitter/api.h"
 #include "../theme.h"
+#include "../../io_management/io_manager.h"
+#include "../../data-management/state_control.h"
 
 
 typedef enum {
@@ -29,6 +31,12 @@ struct TreePathSeq_ {
 };
 
 typedef struct TreePathSeq_ TreePathSeq;
+
+typedef struct {
+  History *history_frame;
+  int byte_start;
+  int byte_end;
+} ActionImprovedWithBytes;
 
 
 ////// ------------------- TREE HANDLER -------------------
@@ -59,7 +67,7 @@ const TSLanguage* tree_sitter_python(void);
 
 void initParserList(ParserList* list);
 
-void destroyParserList(ParserList *list);
+void destroyParserList(ParserList* list);
 
 void addParserToParserList(ParserList* list, ParserContainer new_parser);
 
@@ -83,8 +91,9 @@ char* isTreePathMatchingQuery(char* last_node_text, TreePath tree_path[], int tr
 // TODO implement match for color group using SCM parse.
 void treeForEachNode(TSNode root_node, TreePath* path_symbol, int offset, void (*func)(TSNode node, TreePath tree_path[], int tree_path_length, long* args), void* args);
 
-void treeForEachNodeSized(int y_offset, int height, TSNode root_node, TreePath* path_symbol, int offset,
+void treeForEachNodeSized(int y_offset, int x_offset, int height, int width, TSNode root_node, TreePath* path_symbol, int offset,
                           void (*func)(TSNode node, TreePath tree_path[], int tree_path_length, long* args), void* args);
 
+void detectLanguage(FileHighlightDatas* data, IO_FileID io_file);
 
 #endif //TREE_MANAGER_H
