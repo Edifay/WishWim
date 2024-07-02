@@ -231,17 +231,24 @@ int main(int file_count, char** file_names) {
           // printf("Rela%dtive_loc \r\n", relative_loc);
 
           ActionImprovedWithBytes improved_history[abs(relative_loc)];
-          current_hist = *history_frame;
+          if (relative_loc <= 0) {
+            current_hist = *history_frame;
+          }
+          else {
+            current_hist = old_history_frame;
+          }
           for (int i = 0; i < abs(relative_loc); i++) {
+            assert(current_hist != NULL);
+            assert(current_hist->action.action != ACTION_NONE);
             improved_history[i].history_frame = current_hist;
             improved_history[i].byte_start = -1;
             improved_history[i].byte_end = -1;
-            if (relative_loc > 0) {
-              current_hist = current_hist->next;
-            }
-            else if (relative_loc < 0) {
-              current_hist = current_hist->prev;
-            }
+            // if (relative_loc > 0) {
+            // current_hist = current_hist->next;
+            // }
+            // else if (relative_loc < 0) {
+            current_hist = current_hist->prev;
+            // }
           }
 
           relative_loc = -relative_loc;
@@ -357,7 +364,7 @@ int main(int file_count, char** file_names) {
           // TODO implement ts_tree_edit using state_control to get the action dones.
           // assert(abs(relative_loc) <= 1);
           for (int i = 0; i < abs(relative_loc); i++) {
-            if (relative_loc > 0) {
+            // if (relative_loc > 0) {
               TSInputEdit edit;
               switch (improved_history[i].history_frame->action.action) {
                 case INSERT:
@@ -458,11 +465,11 @@ int main(int file_count, char** file_names) {
                 case ACTION_NONE:
                   break;
               }
-            }
-            else {
+            // }
+            // else {
               // TODO implement undo.
-              assert(false);
-            }
+              // assert(false);
+            // }
           }
 
           // TSInputEdit edit;
