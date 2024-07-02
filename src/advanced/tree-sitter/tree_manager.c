@@ -323,8 +323,256 @@ void detectLanguage(FileHighlightDatas* data, IO_FileID io_file) {
   }
 
   ParserContainer* parser = getParserForLanguage(&parsers, data->lang_name);
-  if(parser != NULL) {
+  if (parser != NULL) {
     data->is_active = true;
   }
   data->tree = NULL;
+}
+
+
+void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_file_dump, int* n_bytes, History** history_frame, History* old_history_frame) {
+  int relative_loc = 0;
+
+  History* current_hist = *history_frame;
+  while (current_hist != NULL && current_hist != old_history_frame) {
+    current_hist = current_hist->next;
+    relative_loc++;
+  }
+  if (current_hist == NULL) {
+    relative_loc = 0;
+  }
+  // If it wasn't found on the right.
+  if (relative_loc == 0) {
+    current_hist = *history_frame;
+    while (current_hist != NULL && current_hist != old_history_frame) {
+      current_hist = current_hist->prev;
+      relative_loc--;
+    }
+    // Wasn't found on the right AND on the left.
+    if (current_hist == NULL) {
+      printf("File state problem.\r\n");
+      exit(0);
+    }
+  }
+
+  // printf("Rela%dtive_loc \r\n", relative_loc);
+
+  ActionImprovedWithBytes improved_history[abs(relative_loc)];
+  if (relative_loc <= 0) {
+    current_hist = *history_frame;
+  }
+  else {
+    current_hist = old_history_frame;
+  }
+  for (int i = 0; i < abs(relative_loc); i++) {
+    assert(current_hist != NULL);
+    assert(current_hist->action.action != ACTION_NONE);
+    improved_history[i].history_frame = current_hist;
+    improved_history[i].byte_start = -1;
+    improved_history[i].byte_end = -1;
+    current_hist = current_hist->prev;
+  }
+
+  relative_loc = -relative_loc;
+
+
+  *n_bytes = 0;
+  FileNode* current_file_node = *root;
+  int relative_file = 0;
+  int abs_file = 1;
+  while (current_file_node != NULL) {
+    if (relative_file == current_file_node->element_number) {
+      current_file_node = current_file_node->next;
+      relative_file = 0;
+      continue;
+    }
+    (*n_bytes)++;
+    LineNode* current_line_node = current_file_node->lines + relative_file;
+
+    // Cur at begin of the line representing none char.
+    for (int i = 0; i < abs(relative_loc); i++) {
+      switch (improved_history[i].history_frame->action.action) {
+        case ACTION_NONE:
+          break;
+        case INSERT:
+          if (improved_history[i].history_frame->action.cur_end.file_id.absolute_row == abs_file
+              && improved_history[i].history_frame->action.cur_end.line_id.absolute_column == 0) {
+            improved_history[i].byte_end = *n_bytes;
+          }
+        case DELETE:
+        case DELETE_ONE:
+          if (improved_history[i].history_frame->action.cur.file_id.absolute_row == abs_file
+              && improved_history[i].history_frame->action.cur.line_id.absolute_column == 0) {
+            improved_history[i].byte_start = *n_bytes;
+          }
+          break;
+      }
+    }
+
+    int relative_line = 0;
+    int abs_line = 1;
+    while (current_line_node != NULL) {
+      if (relative_line == current_line_node->element_number) {
+        current_line_node = current_line_node->next;
+        relative_line = 0;
+        continue;
+      }
+      *n_bytes += sizeChar_U8(current_line_node->ch[relative_line]);
+      // Cursor representing chars.
+      for (int i = 0; i < abs(relative_loc); i++) {
+        switch (improved_history[i].history_frame->action.action) {
+          case ACTION_NONE:
+            assert(false);
+            break;
+          case INSERT:
+            if (improved_history[i].history_frame->action.cur_end.file_id.absolute_row == abs_file
+                && improved_history[i].history_frame->action.cur_end.line_id.absolute_column == abs_line) {
+              improved_history[i].byte_end = *n_bytes;
+            }
+          case DELETE:
+          case DELETE_ONE:
+            if (improved_history[i].history_frame->action.cur.file_id.absolute_row == abs_file
+                && improved_history[i].history_frame->action.cur.line_id.absolute_column == abs_line) {
+              improved_history[i].byte_start = *n_bytes;
+              // printf("MATCH ON [%d, %d]\r\n", abs_file, abs_line);
+            }
+            break;
+        }
+      }
+      relative_line++;
+      abs_line++;
+    }
+
+    relative_file++;
+    abs_file++;
+  }
+
+  // Check for perf.
+  free(*tmp_file_dump);
+  *tmp_file_dump = NULL;
+  *tmp_file_dump = realloc(*tmp_file_dump, *n_bytes);
+
+  // Dump File Node From ROOT.
+  current_file_node = *root;
+  relative_file = 0;
+  int current_index = 0;
+  while (current_file_node != NULL) {
+    if (relative_file == current_file_node->element_number) {
+      current_file_node = current_file_node->next;
+      relative_file = 0;
+      continue;
+    }
+    LineNode* current_line_node = current_file_node->lines + relative_file;
+
+    int relative_line = 0;
+    while (current_line_node != NULL) {
+      if (relative_line == current_line_node->element_number) {
+        current_line_node = current_line_node->next;
+        relative_line = 0;
+        continue;
+      }
+      for (int i = 0; i < sizeChar_U8(current_line_node->ch[relative_line]); i++) {
+        (*tmp_file_dump)[current_index++] = current_line_node->ch[relative_line].t[i];
+      }
+      relative_line++;
+    }
+
+    relative_file++;
+    (*tmp_file_dump)[current_index++] = '\n';
+  }
+
+
+  // TODO implement something to be able to remove next assert.
+  // It correspond to the fact that it's not possible to undo with multiple Action at once.
+  assert(abs(relative_loc) <= 1 || relative_loc > 0);
+  for (int i = 0; i < abs(relative_loc); i++) {
+    TSInputEdit edit;
+    switch (improved_history[i].history_frame->action.action) {
+      case INSERT:
+        assert(improved_history[i].byte_start != -1);
+        assert(improved_history[i].byte_end != -1);
+        edit.start_byte = improved_history[i].byte_start;
+        edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row - 1;
+        edit.start_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
+
+        edit.old_end_byte = improved_history[i].byte_start;
+        edit.old_end_point.row = edit.start_point.row;
+        edit.old_end_point.column = edit.start_point.column;
+
+        edit.new_end_byte = improved_history[i].byte_end;
+        edit.new_end_point.row = improved_history[i].history_frame->action.cur_end.file_id.absolute_row - 1;
+        edit.new_end_point.column = improved_history[i].history_frame->action.cur_end.line_id.absolute_column;
+      // To force the match with previous node.
+        edit.start_byte--;
+        ts_tree_edit(highlight_data->tree, &edit);
+        break;
+      case DELETE:
+        assert(improved_history[i].byte_start != -1);
+        edit.start_byte = improved_history[i].byte_start;
+        edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row - 1;
+        edit.start_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
+
+        int ch_len = strlen(improved_history[i].history_frame->action.ch);
+        edit.old_end_byte = improved_history[i].byte_start + ch_len;
+
+        char* ch = improved_history[i].history_frame->action.ch;
+        int current_row = edit.start_point.row;
+        int current_column = edit.start_point.column;
+
+        int current_ch_index = 0;
+        while (current_ch_index < ch_len) {
+          if (TAB_CHAR_USE == false) {
+            assert(ch[current_ch_index] != '\t');
+          }
+          if (ch[current_ch_index] == '\n') {
+            current_row++;
+            current_column = 0;
+          }
+          else {
+            Char_U8 tmp_ch = readChar_U8FromCharArray(ch + current_ch_index);
+            current_ch_index += sizeChar_U8(tmp_ch) - 1;
+            current_column++;
+          }
+          current_ch_index++;
+        }
+
+
+        edit.old_end_point.row = current_row;
+        edit.old_end_point.column = current_column;
+
+        edit.new_end_byte = improved_history[i].byte_start;
+        edit.new_end_point.row = edit.start_point.row;
+        edit.new_end_point.column = edit.start_point.column;
+      // To force the match with previous node.
+        edit.start_byte--;
+        ts_tree_edit(highlight_data->tree, &edit);
+        break;
+      case DELETE_ONE:
+        assert(improved_history[i].byte_start != -1);
+        edit.start_byte = improved_history[i].byte_start;
+        edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row - 1;
+        edit.start_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
+
+        edit.old_end_byte = improved_history[i].byte_start + 1;
+        edit.old_end_point.row = edit.start_point.row;
+        edit.old_end_point.column = edit.start_point.column;
+        if (improved_history[i].history_frame->action.unique_ch == '\n') {
+          edit.old_end_point.row++;
+          edit.old_end_point.column = 0;
+        }
+        else {
+          edit.old_end_point.column++;
+        }
+
+        edit.new_end_byte = improved_history[i].byte_start;
+        edit.new_end_point.row = edit.start_point.row;
+        edit.new_end_point.column = edit.start_point.column;
+      // To force the match with previous node.
+        edit.start_byte--;
+        ts_tree_edit(highlight_data->tree, &edit);
+        break;
+      case ACTION_NONE:
+        break;
+    }
+  }
 }

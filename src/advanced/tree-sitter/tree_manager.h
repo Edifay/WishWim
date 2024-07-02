@@ -33,7 +33,7 @@ struct TreePathSeq_ {
 typedef struct TreePathSeq_ TreePathSeq;
 
 typedef struct {
-  History *history_frame;
+  History* history_frame;
   int byte_start;
   int byte_end;
 } ActionImprovedWithBytes;
@@ -94,5 +94,8 @@ void treeForEachNodeSized(int y_offset, int x_offset, int height, int width, TSN
                           void (*func)(TSNode node, TreePath tree_path[], int tree_path_length, long* args), void* args);
 
 void detectLanguage(FileHighlightDatas* data, IO_FileID io_file);
+
+
+void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_file_dump, int* n_bytes, History** history_frame, History* old_history_frame);
 
 #endif //TREE_MANAGER_H
