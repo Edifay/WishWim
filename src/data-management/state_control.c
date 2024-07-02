@@ -218,8 +218,15 @@ Action createDeleteAction(Cursor cur1, Cursor cur2) {
 Action createInsertAction(Cursor cur1, Cursor cur2) {
   Action action;
   action.action = INSERT;
-  action.cur = cur1;
-  action.cur_end = cur2;
+  // Know that cur is the first cursor can be useful.
+  if (isCursorPreviousThanOther(cur2, cur1) == true) {
+    action.cur = cur2;
+    action.cur_end = cur1;
+  }
+  else {
+    action.cur = cur1;
+    action.cur_end = cur2;
+  }
   action.time = timeInMilliseconds();
   action.unique_ch = '\0';
   action.ch = NULL;

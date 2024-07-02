@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 #include <wchar.h>
 #include <bits/time.h>
 
@@ -292,6 +293,7 @@ int main(int file_count, char** file_names) {
               for (int i = 0; i < abs(relative_loc); i++) {
                 switch (improved_history[i].history_frame->action.action) {
                   case ACTION_NONE:
+                    assert(false);
                     break;
                   case INSERT:
                     if (improved_history[i].history_frame->action.cur_end.file_id.absolute_row == abs_file
@@ -317,8 +319,12 @@ int main(int file_count, char** file_names) {
           }
 
           // printf("Size :%d\r\n", n_bytes);
+          // Check for perf.
+          free(tmp_file_dump);
+          tmp_file_dump = NULL;
           tmp_file_dump = realloc(tmp_file_dump, n_bytes);
 
+          // Dump File Node From ROOT.
           current_file_node = *root;
           relative_file = 0;
           int current_index = 0;
@@ -349,7 +355,7 @@ int main(int file_count, char** file_names) {
 
 
           // TODO implement ts_tree_edit using state_control to get the action dones.
-          assert(abs(relative_loc) <= 1);
+          // assert(abs(relative_loc) <= 1);
           for (int i = 0; i < abs(relative_loc); i++) {
             if (relative_loc > 0) {
               TSInputEdit edit;
@@ -358,7 +364,7 @@ int main(int file_count, char** file_names) {
                   assert(improved_history[i].byte_start != -1);
                   assert(improved_history[i].byte_end != -1);
                   edit.start_byte = improved_history[i].byte_start;
-                  edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row;
+                  edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row - 1;
                   edit.start_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
 
                   edit.old_end_byte = improved_history[i].byte_start;
@@ -366,14 +372,20 @@ int main(int file_count, char** file_names) {
                   edit.old_end_point.column = edit.start_point.column;
 
                   edit.new_end_byte = improved_history[i].byte_end;
-                  edit.new_end_point.row = improved_history[i].history_frame->action.cur_end.file_id.absolute_row;
+                  edit.new_end_point.row = improved_history[i].history_frame->action.cur_end.file_id.absolute_row - 1;
                   edit.new_end_point.column = improved_history[i].history_frame->action.cur_end.line_id.absolute_column;
+                  // fprintf(stderr, "Insert EDIT :\n - start_point [%d, %d] %d \n - old_end_point [%d, %d] %d \n - new_end_point [%d, %d] %d \n",
+                          // edit.start_point.row, edit.start_point.column, edit.start_byte,
+                          // edit.old_end_point.row, edit.old_end_point.column, edit.old_end_byte,
+                          // edit.new_end_point.row, edit.new_end_point.column, edit.new_end_byte);
+                // To force the match with previous node.
+                  edit.start_byte--;
                   ts_tree_edit(highlight_data->tree, &edit);
                   break;
                 case DELETE:
                   assert(improved_history[i].byte_start != -1);
                   edit.start_byte = improved_history[i].byte_start;
-                  edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row;
+                  edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row - 1;
                   edit.start_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
 
                   int ch_len = strlen(improved_history[i].history_frame->action.ch);
@@ -405,14 +417,20 @@ int main(int file_count, char** file_names) {
                   edit.old_end_point.column = current_column;
 
                   edit.new_end_byte = improved_history[i].byte_start;
-                  edit.new_end_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row;
-                  edit.new_end_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
+                  edit.new_end_point.row = edit.start_point.row;
+                  edit.new_end_point.column = edit.start_point.column;
+                  // fprintf(stderr, "DELETE EDIT :\n - start_point [%d, %d] %d \n - old_end_point [%d, %d] %d \n - new_end_point [%d, %d] %d \n",
+                          // edit.start_point.row, edit.start_point.column, edit.start_byte,
+                          // edit.old_end_point.row, edit.old_end_point.column, edit.old_end_byte,
+                          // edit.new_end_point.row, edit.new_end_point.column, edit.new_end_byte);
+                // To force the match with previous node.
+                  edit.start_byte--;
                   ts_tree_edit(highlight_data->tree, &edit);
                   break;
                 case DELETE_ONE:
                   assert(improved_history[i].byte_start != -1);
                   edit.start_byte = improved_history[i].byte_start;
-                  edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row;
+                  edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row - 1;
                   edit.start_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
 
                   edit.old_end_byte = improved_history[i].byte_start + 1;
@@ -427,8 +445,14 @@ int main(int file_count, char** file_names) {
                   }
 
                   edit.new_end_byte = improved_history[i].byte_start;
-                  edit.new_end_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row;
-                  edit.new_end_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
+                  edit.new_end_point.row = edit.start_point.row;
+                  edit.new_end_point.column = edit.start_point.column;
+                // To force the match with previous node.
+                  edit.start_byte--;
+                  // fprintf(stderr, "Delete_one EDIT :\n - start_point [%d, %d] %d \n - old_end_point [%d, %d] %d \n - new_end_point [%d, %d] %d \n",
+                          // edit.start_point.row, edit.start_point.column, edit.start_byte,
+                          // edit.old_end_point.row, edit.old_end_point.column, edit.old_end_byte,
+                          // edit.new_end_point.row, edit.new_end_point.column, edit.new_end_byte);
                   ts_tree_edit(highlight_data->tree, &edit);
                   break;
                 case ACTION_NONE:

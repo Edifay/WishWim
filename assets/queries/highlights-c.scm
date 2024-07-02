@@ -18,6 +18,7 @@
 (identifier) @variable
 
 
+"double" @keyword
 "break" @keyword
 "case" @keyword
 "const" @keyword
