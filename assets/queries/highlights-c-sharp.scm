@@ -15,7 +15,7 @@
 (namespace_declaration name: (identifier) @module)
 
 (generic_name (identifier) @type)
-(type_parameter (identifier) @property.definition)
+(type_parameter (identifier) @property)
 (parameter type: (identifier) @type)
 (type_argument_list (identifier) @type)
 (as_expression right: (identifier) @type)
@@ -28,7 +28,7 @@
 
 (base_list (identifier) @type)
 
-(predefined_type) @type.builtin
+(predefined_type) @keyword
 
 ;; Enum
 (enum_member_declaration (identifier) @property.definition)
