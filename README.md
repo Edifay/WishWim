@@ -1,1 +1,3 @@
-If you want to try to make the project read the README in lib/.
+Dependencies :
+  - look for README in lib folder.
+  - install cJSON (link available in Makefile).

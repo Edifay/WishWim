@@ -19,8 +19,10 @@ void destroyFileContainer(FileContainer* container) {
     setlastFilePosition(container->io_file.path_abs, container->cursor.file_id.absolute_row, container->cursor.line_id.absolute_column, container->screen_x, container->screen_y);
   }
   destroyFullFile(container->root);
-  destroyEndOfHistory(&container->history_root);
+  destroyEndOfHistory(container->history_root);
+  free(container->history_root);
   ts_tree_delete(container->highlight_data.tree);
+  free(container->highlight_data.tmp_file_dump);
 }
 
 void openNewFile(char* file_path, FileContainer** files, int* file_count, int* current_file, bool* refresh_ofw, bool* refresh_local_vars) {
@@ -83,7 +85,8 @@ void setupFileContainer(char* path, FileContainer* container) {
   container->screen_y = 1;
   container->old_screen_x = -1;
   container->old_screen_y = -1;
-  container->history_frame = &container->history_root;
+  container->history_root = malloc(sizeof(History));
+  container->history_frame = container->history_root;
 
   container->cursor = createRoot(container->io_file);
   container->select_cursor = disableCursor(container->cursor);
@@ -92,15 +95,15 @@ void setupFileContainer(char* path, FileContainer* container) {
   container->root = container->cursor.file_id.file;
   assert(container->root->prev == NULL);
   fetchSavedCursorPosition(container->io_file, &container->cursor, &container->screen_x, &container->screen_y);
-  loadCurrentStateControl(&container->history_root, &container->history_frame, container->io_file);
+  loadCurrentStateControl(container->history_root, &container->history_frame, container->io_file);
 
-  // TODO refactor end of this fuction.
   detectLanguage(&container->highlight_data, container->io_file);
 }
 
 
 void setupLocalVars(FileContainer* files, int current_file, IO_FileID** io_file, FileNode*** root, Cursor** cursor, Cursor** select_cursor, Cursor** old_cur, int** desired_column,
-                    int** screen_x, int** screen_y, int** old_screen_x, int** old_screen_y, History** history_root, History*** history_frame, FileHighlightDatas** highlight_data) {
+                    int** screen_x, int** screen_y, int** old_screen_x, int** old_screen_y, History*** history_root, History*** history_frame,
+                    FileHighlightDatas** highlight_data) {
   *io_file = &files[current_file].io_file; // Describe the IO file on OS
   *root = &files[current_file].root; // The root of the File object
   *cursor = &files[current_file].cursor; // The current cursor for the root File

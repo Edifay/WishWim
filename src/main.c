@@ -65,7 +65,7 @@ int main(int file_count, char** file_names) {
 
   // OFW Datas
   int current_file_offset = 0;
-  int ofw_height = 0; // Height of Opened Files Window. 0 => Disabled on start.   OPENED_FILE_WINDOW_HEIGHT => Enabled on start.
+  int ofw_height = OPENED_FILE_WINDOW_HEIGHT; // Height of Opened Files Window. 0 => Disabled on start.   OPENED_FILE_WINDOW_HEIGHT => Enabled on start.
 
   // Few Datas
   int few_width = 0; // File explorer width
@@ -123,14 +123,13 @@ int main(int file_count, char** file_names) {
   int* screen_y; // The y coord of the top left corner of the current viewport of the file
   int* old_screen_x; // old screen_x used to flag screen_x changes
   int* old_screen_y; // old screen_y used to flag screen_y changes
-  History* history_root; // Root of History object for the current File
+  History** history_root; // Root of History object for the current File
   History** history_frame; // Current node of the History. Before -> Undo, After -> Redo.
   FileHighlightDatas* highlight_data;
 
   bool refresh_local_vars = true; // Need to re-set local vars
 
   // Start automated-machine
-  char* tmp_file_dump = NULL; // used to realloc instead of malloc and free.
   Cursor tmp;
   MEVENT m_event;
   History* old_history_frame;
@@ -172,13 +171,13 @@ int main(int file_count, char** file_names) {
       ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_name);
 
       int new_dump_size;
-      edit_tree(highlight_data, root, &tmp_file_dump, &new_dump_size, history_frame, old_history_frame);
+      edit_tree(highlight_data, root, &highlight_data->tmp_file_dump, &new_dump_size, history_frame, old_history_frame);
 
       TSTree* old_tree = highlight_data->tree;
       highlight_data->tree = ts_parser_parse_string(
         parser->parser,
         highlight_data->tree,
-        tmp_file_dump,
+        highlight_data->tmp_file_dump,
         new_dump_size
       );
       ts_tree_delete(old_tree);
@@ -221,7 +220,7 @@ int main(int file_count, char** file_names) {
         long* args_fct = malloc(11 * sizeof(long *));
         args_fct[0] = (long)&parser->highlight_queries;
         args_fct[1] = (long)&parser->theme_list;
-        args_fct[2] = (long)tmp_file_dump;
+        args_fct[2] = (long)highlight_data->tmp_file_dump;
         args_fct[3] = (long)ftw;
         args_fct[4] = (long)screen_x;
         args_fct[5] = (long)screen_y;
@@ -253,11 +252,13 @@ int main(int file_count, char** file_names) {
 
   read_input:
     int c = getch();
+
+    // TODO Here check to do background operation.
+
     switch (c) {
       // ---------------------- NCURSES THINGS ----------------------
 
       case ERR:
-        // TODO Here check to do background operation.
         goto read_input;
 
       case BEGIN_MOUSE_LISTEN:
@@ -456,7 +457,7 @@ int main(int file_count, char** file_names) {
         saveFile(*root, io_file);
         assert(io_file->status == EXIST);
         setlastFilePosition(io_file->path_abs, cursor->file_id.absolute_row, cursor->line_id.absolute_column, *screen_x, *screen_y);
-        saveCurrentStateControl(*history_root, *history_frame, io_file->path_abs);
+        saveCurrentStateControl(**history_root, *history_frame, io_file->path_abs);
         break;
 
 
@@ -582,8 +583,6 @@ end:
   }
   destroyFolder(&pwd);
   free(files);
-  // TODO change
-  free(tmp_file_dump);
   cJSON_Delete(config);
   destroyParserList(&parsers);
 

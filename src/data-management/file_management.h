@@ -17,9 +17,9 @@ typedef struct {
   int screen_y; // The y coord of the top left corner of the current viewport of the file
   int old_screen_x; // old screen_x used to flag screen_x changes
   int old_screen_y; // old screen_y used to flag screen_y changes
-  History history_root; // Root of History object for the current File
+  History *history_root; // Root of History object for the current File
   History* history_frame; // Current node of the History. Before -> Undo, After -> Redo.
-  FileHighlightDatas highlight_data;
+  FileHighlightDatas highlight_data; // Object which represent the highlight_data of the current file.
 } FileContainer;
 
 
@@ -41,7 +41,7 @@ Cursor createRoot(IO_FileID file);
 void setupFileContainer(char *args, FileContainer *container);
 
 void setupLocalVars(FileContainer* files, int current_file, IO_FileID** io_file, FileNode*** root, Cursor** cursor, Cursor** select_cursor, Cursor** old_cur, int** desired_column,
-                    int** screen_x, int** screen_y, int** old_screen_x, int** old_screen_y, History** history_root, History*** history_frame, FileHighlightDatas **highlight_data);
+                    int** screen_x, int** screen_y, int** old_screen_x, int** old_screen_y, History*** history_root, History*** history_frame, FileHighlightDatas **highlight_data);
 
 bool isFileContainerEmpty(FileContainer *container);
 

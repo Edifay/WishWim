@@ -247,6 +247,14 @@ void treeForEachNode(TSNode root_node, TreePath* path_symbol, int offset, void (
   path_symbol[offset].next = NULL;
   path_symbol[offset].reg = NULL;
 
+  // for (int i = 0; i < offset; i++) {
+  // fprintf(stderr, " ");
+  // }
+  // fprintf(stderr, "( %s [%d, %d] -> [%d, %d] | [%d] -> [%d] )",
+  // name, ts_node_start_point(root_node).row, ts_node_start_point(root_node).column,
+  // ts_node_end_point(root_node).row, ts_node_end_point(root_node).column,
+  // ts_node_start_byte(root_node), ts_node_end_byte(root_node)
+  // );
   if (func != NULL) {
     func(root_node, path_symbol, offset + 1, args);
   }
@@ -327,6 +335,7 @@ void detectLanguage(FileHighlightDatas* data, IO_FileID io_file) {
     data->is_active = true;
   }
   data->tree = NULL;
+  data->tmp_file_dump = NULL;
 }
 
 
@@ -434,7 +443,6 @@ void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_f
             if (improved_history[i].history_frame->action.cur.file_id.absolute_row == abs_file
                 && improved_history[i].history_frame->action.cur.line_id.absolute_column == abs_line) {
               improved_history[i].byte_start = *n_bytes;
-              // printf("MATCH ON [%d, %d]\r\n", abs_file, abs_line);
             }
             break;
         }
@@ -445,6 +453,10 @@ void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_f
 
     relative_file++;
     abs_file++;
+  }
+
+  if(*n_bytes > MAX_SIZE_FILE_LOGIC) {
+    highlight_data->is_active = false;
   }
 
   // Check for perf.

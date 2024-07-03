@@ -59,6 +59,7 @@ typedef struct {
   char lang_name[100];
   bool is_active;
   TSTree* tree;
+  char* tmp_file_dump;
 } FileHighlightDatas;
 
 const TSLanguage* tree_sitter_c(void);
