@@ -1,0 +1,4 @@
+-std=c11
+-Isrc/wasm
+-Iinclude
+-D TREE_SITTER_FEATURE_WASM

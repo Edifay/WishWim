@@ -1,6 +1,7 @@
 #include "tree_manager.h"
 
 #include <assert.h>
+#include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -54,7 +55,21 @@ ParserContainer* getParserForLanguage(ParserList* list, char* language) {
 }
 
 bool loadNewParser(ParserContainer* container, char* language) {
-  if (strcmp(language, "c") == 0 || strcmp(language, "python") == 0) {
+  if (
+    // ADD_NEW_LANGUAGE
+    strcmp(language, "c") == 0 ||
+    strcmp(language, "python") == 0 ||
+    strcmp(language, "markdown") == 0 ||
+    strcmp(language, "java") == 0 ||
+    strcmp(language, "cpp") == 0 ||
+    strcmp(language, "c-sharp") == 0 ||
+    strcmp(language, "make") == 0 ||
+    strcmp(language, "css") == 0 ||
+    strcmp(language, "dart") == 0 ||
+    strcmp(language, "go") == 0 ||
+    strcmp(language, "javascript") == 0||
+    strcmp(language, "json") == 0
+  ) {
     strcpy(container->lang_name, language);
 
     char* load_path = cJSON_GetStringValue(cJSON_GetObjectItem(config, "default_path"));
@@ -65,7 +80,7 @@ bool loadNewParser(ParserContainer* container, char* language) {
 
     bool res = getThemeFromFile(path, &container->theme_list);
     if (res == false) {
-      printf("Unable to load theme from file '%s'. You can edit path in config file.\n", path);
+      fprintf(stderr, "Unable to load theme from file '%s'. You can edit path in config file.\n", path);
       return false;
     }
 
@@ -74,7 +89,7 @@ bool loadNewParser(ParserContainer* container, char* language) {
     res = parseSCMFile(&container->highlight_queries, path);
     if (res == false) {
       destroyThemeList(&container->theme_list);
-      printf("Unable to load queries from file '%s'. You can edit path in config file.\n", path);
+      fprintf(stderr, "Unable to load queries from file '%s'. You can edit path in config file.\n", path);
       return false;
     }
 
@@ -83,12 +98,43 @@ bool loadNewParser(ParserContainer* container, char* language) {
     sortTreePathSeqByDecreasingSize(&container->highlight_queries);
 
     // parsers
+    // ADD_NEW_LANGUAGE
     if (strcmp(language, "c") == 0) {
       container->lang = tree_sitter_c();
     }
     else if (strcmp(language, "python") == 0) {
       container->lang = tree_sitter_python();
     }
+    else if (strcmp(language, "markdown") == 0) {
+      container->lang = tree_sitter_markdown();
+    }
+    else if (strcmp(language, "java") == 0) {
+      container->lang = tree_sitter_java();
+    }
+    else if (strcmp(language, "cpp") == 0) {
+      container->lang = tree_sitter_cpp();
+    }
+    else if (strcmp(language, "c-sharp") == 0) {
+      container->lang = tree_sitter_c_sharp();
+    }
+    else if (strcmp(language, "make") == 0) {
+      container->lang = tree_sitter_make();
+    }
+    else if (strcmp(language, "css") == 0) {
+      container->lang = tree_sitter_css();
+    }
+    else if (strcmp(language, "dart") == 0) {
+      container->lang = tree_sitter_dart();
+    }
+    else if (strcmp(language, "go") == 0) {
+      container->lang = tree_sitter_go();
+    }
+    else if (strcmp(language, "javascript") == 0) {
+      container->lang = tree_sitter_javascript();
+    }    else if (strcmp(language, "json") == 0) {
+      container->lang = tree_sitter_json();
+    }
+
     container->parser = ts_parser_new();
     ts_parser_set_language(container->parser, container->lang);
     return true;
@@ -250,11 +296,11 @@ void treeForEachNode(TSNode root_node, TreePath* path_symbol, int offset, void (
   // for (int i = 0; i < offset; i++) {
   // fprintf(stderr, " ");
   // }
-  // fprintf(stderr, "( %s [%d, %d] -> [%d, %d] | [%d] -> [%d] )",
-  // name, ts_node_start_point(root_node).row, ts_node_start_point(root_node).column,
-  // ts_node_end_point(root_node).row, ts_node_end_point(root_node).column,
-  // ts_node_start_byte(root_node), ts_node_end_byte(root_node)
-  // );
+  fprintf(stderr, "( %s [%d, %d] -> [%d, %d] | [%d] -> [%d] )",
+          name, ts_node_start_point(root_node).row, ts_node_start_point(root_node).column,
+          ts_node_end_point(root_node).row, ts_node_end_point(root_node).column,
+          ts_node_start_byte(root_node), ts_node_end_byte(root_node)
+  );
   if (func != NULL) {
     func(root_node, path_symbol, offset + 1, args);
   }
@@ -319,15 +365,47 @@ void treeForEachNodeSized(int y_offset, int x_offset, int height, int width, TSN
 
 
 void detectLanguage(FileHighlightDatas* data, IO_FileID io_file) {
-  char* dot = strrchr(io_file.path_args, '.');
-  if (dot != NULL)
-    strncpy(data->lang_name, dot + 1, 99);
-
-  if (strcmp(data->lang_name, "h") == 0 || strcmp(data->lang_name, "c") == 0) {
-    strcpy(data->lang_name, "c");
+  if (strcmp(basename(io_file.path_abs), "Makefile") == 0) {
+    strcpy(data->lang_name, "make");
   }
-  else if (strcmp(data->lang_name, "py") == 0) {
-    strcpy(data->lang_name, "python");
+  else {
+    char* dot = strrchr(io_file.path_args, '.');
+    if (dot != NULL)
+      strncpy(data->lang_name, dot + 1, 99);
+
+    // ADD_NEW_LANGUAGE
+    if (strcmp(data->lang_name, "h") == 0 || strcmp(data->lang_name, "c") == 0) {
+      strcpy(data->lang_name, "c");
+    }
+    else if (strcmp(data->lang_name, "py") == 0) {
+      strcpy(data->lang_name, "python");
+    }
+    else if (strcmp(data->lang_name, "md") == 0) {
+      strcpy(data->lang_name, "markdown");
+    }
+    else if (strcmp(data->lang_name, "java") == 0) {
+      strcpy(data->lang_name, "java");
+    }
+    else if (strcmp(data->lang_name, "cpp") == 0) {
+      strcpy(data->lang_name, "cpp");
+    }
+    else if (strcmp(data->lang_name, "cs") == 0) {
+      strcpy(data->lang_name, "c-sharp");
+    }
+    else if (strcmp(data->lang_name, "css") == 0 || strcmp(data->lang_name, "scss") == 0) {
+      strcpy(data->lang_name, "css");
+    }
+    else if (strcmp(data->lang_name, "dart") == 0) {
+      strcpy(data->lang_name, "dart");
+    }
+    else if (strcmp(data->lang_name, "go") == 0) {
+      strcpy(data->lang_name, "go");
+    }
+    else if (strcmp(data->lang_name, "js") == 0) {
+      strcpy(data->lang_name, "javascript");
+    }else if (strcmp(data->lang_name, "json") == 0) {
+      strcpy(data->lang_name, "json");
+    }
   }
 
   ParserContainer* parser = getParserForLanguage(&parsers, data->lang_name);
@@ -455,7 +533,7 @@ void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_f
     abs_file++;
   }
 
-  if(*n_bytes > MAX_SIZE_FILE_LOGIC) {
+  if (*n_bytes > MAX_SIZE_FILE_LOGIC) {
     highlight_data->is_active = false;
   }
 

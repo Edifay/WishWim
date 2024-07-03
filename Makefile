@@ -1,7 +1,7 @@
 # cJSON : https://github.com/DaveGamble/cJSON?tab=readme-ov-file#cmake
 
 CC=clang
-CFLAGS=-g  -O3#-fsanitize=address # -lncurses # -Wall -Wextra -Werror -gdwarf-4
+CFLAGS=-g #-fsanitize=address # -lncurses # -Wall -Wextra -Werror -gdwarf-4
 #LDFLAGS +=-fsanitize=address
 
 executable= al #lsp_test #test_line.o test_file.o  test_line test_file  # utils/debug.o
@@ -15,8 +15,20 @@ modules= \
 	lib/tree-sitter/libtree-sitter.a \
 	lib/tree-sitter-c/libtree-sitter-c.a \
 	lib/tree-sitter-python/libtree-sitter-python.a \
+	lib/tree-sitter-java/libtree-sitter-java.a \
+	lib/tree-sitter-cpp/libtree-sitter-cpp.a \
+	lib/tree-sitter-c-sharp/target/debug/libtree_sitter_c_sharp.rlib \
+	lib/tree-sitter-make/target/debug/libtree_sitter_make.rlib \
+	lib/tree-sitter-css/target/debug/libtree_sitter_css.rlib \
+	lib/tree-sitter-dart/target/debug/libtree_sitter_dart.rlib \
+	lib/tree-sitter-go/target/debug/libtree_sitter_go.rlib \
+	lib/tree-sitter-javascript/target/debug/libtree_sitter_javascript.rlib \
+	lib/tree-sitter-json/target/debug/libtree_sitter_json.rlib \
+	lib/tree-sitter-markdown/tree-sitter-markdown/libtree-sitter-markdown.a \
+	lib/tree-sitter-markdown/tree-sitter-markdown-inline/libtree-sitter-markdown-inline.a \
 #	lib/tree-sitter-c/src/parser.o \
 #	lib/tree-sitter-python/src/parser.o  lib/tree-sitter-python/src/scanner.o\
+#	lib/tree-sitter-c-sharp/libtree-sitter-c-sharp.a \
 
 
 
@@ -34,11 +46,44 @@ test_line.o: src/test_line.c
 lib/tree-sitter-c/libtree-sitter-c.a:
 	cd lib/tree-sitter-c/ && tree-sitter generate && $(MAKE)
 
+lib/tree-sitter-cpp/libtree-sitter-cpp.a:
+	cd lib/tree-sitter-cpp/ && $(MAKE)
+
+lib/tree-sitter-c-sharp/target/debug/libtree_sitter_c_sharp.rlib:
+	cd lib/tree-sitter-c-sharp/ && cargo build
+
+lib/tree-sitter-make/target/debug/libtree_sitter_make.rlib:
+	cd lib/tree-sitter-make/ && cargo build
+
+lib/tree-sitter-css/target/debug/libtree_sitter_css.rlib:
+	cd lib/tree-sitter-css/ && cargo build
+
+lib/tree-sitter-dart/target/debug/libtree_sitter_dart.rlib:
+	cd lib/tree-sitter-dart/ && cargo build
+
+lib/tree-sitter-go/target/debug/libtree_sitter_go.rlib:
+	cd lib/tree-sitter-go/ && cargo build
+
+lib/tree-sitter-javascript/target/debug/libtree_sitter_javascript.rlib:
+	cd lib/tree-sitter-javascript/ && cargo build
+
+lib/tree-sitter-json/target/debug/libtree_sitter_json.rlib:
+	cd lib/tree-sitter-json/ && cargo build
+
 lib/tree-sitter-python/libtree-sitter-python.a:
 	cd lib/tree-sitter-python/ && tree-sitter generate && $(MAKE)
 
+lib/tree-sitter-java/libtree-sitter-java.a:
+	cd lib/tree-sitter-java/ && tree-sitter generate && $(MAKE)
+
 lib/tree-sitter/libtree-sitter.a:
 	cd lib/tree-sitter/ && $(MAKE)
+
+lib/tree-sitter-markdown/tree-sitter-markdown/libtree-sitter-markdown.a:
+	cd lib/tree-sitter-markdown/tree-sitter-markdown/ && tree-sitter generate && $(MAKE)
+
+lib/tree-sitter-markdown/tree-sitter-markdown-inline/libtree-sitter-markdown-inline.a:
+	cd lib/tree-sitter-markdown/tree-sitter-markdown-inline/ && tree-sitter generate && $(MAKE)
 
 %.o : %.c %.h
 	$(CC) $(CFLAGS) -c $< -o $@

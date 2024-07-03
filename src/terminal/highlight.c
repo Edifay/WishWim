@@ -25,9 +25,10 @@ void initColorsForTheme(HighlightThemeList theme_list, int* color_index, int* co
   }
 }
 
+// TODO patch highlight wrong with wide char BEFORE the word.
 void highlightFilePart(WINDOW* ftw, int start_row, int start_column, int length, attr_t attr, NCURSES_PAIRS_T color, Cursor cursor, Cursor select, Cursor* tmp, int screen_y,
                        int screen_x) {
-  // Support wide char.
+  // Support wide char in the word.
   int offset = 0;
   *tmp = tryToReachAbsPosition(*tmp, start_row + 1, start_column);
   for (int i = 0; i < length && hasElementAfterLine(tmp->line_id) == true; i++) {

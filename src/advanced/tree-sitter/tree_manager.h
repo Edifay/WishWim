@@ -66,6 +66,32 @@ const TSLanguage* tree_sitter_c(void);
 
 const TSLanguage* tree_sitter_python(void);
 
+const TSLanguage* tree_sitter_java(void);
+
+const TSLanguage* tree_sitter_cpp(void);
+
+const TSLanguage* tree_sitter_c_sharp(void);
+
+const TSLanguage* tree_sitter_markdown(void);
+
+const TSLanguage* tree_sitter_markdown_inline(void);
+
+const TSLanguage* tree_sitter_make(void);
+
+const TSLanguage* tree_sitter_css(void);
+
+const TSLanguage* tree_sitter_dart(void);
+
+const TSLanguage* tree_sitter_go(void);
+
+const TSLanguage* tree_sitter_javascript(void);
+
+const TSLanguage* tree_sitter_json(void);
+
+
+
+
+
 void initParserList(ParserList* list);
 
 void destroyParserList(ParserList* list);

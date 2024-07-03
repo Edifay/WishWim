@@ -100,7 +100,7 @@ void pushRegex(TreePathSeq* seq, char* name) {
   seq->value->type = REGEX;
   seq->value->next = tmp;
   seq->value->reg = malloc(sizeof(regex_t));
-  int comp_res = regcomp(seq->value->reg, name, 0);
+  int comp_res = regcomp(seq->value->reg, name, REG_EXTENDED);
   if (comp_res) {
     printf("Error compiling regex %s\n.", name);
     exit(0);

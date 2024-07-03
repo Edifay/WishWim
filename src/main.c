@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
-#include <wchar.h>
 #include <bits/time.h>
 
 #include "advanced/theme.h"
@@ -181,6 +180,9 @@ int main(int file_count, char** file_names) {
         new_dump_size
       );
       ts_tree_delete(old_tree);
+
+      // TreePath symbols[100];
+      // treeForEachNode(ts_tree_root_node(highlight_data->tree), symbols, 0, NULL, NULL);
 
       old_history_frame = *history_frame;
     }

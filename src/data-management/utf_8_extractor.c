@@ -3,7 +3,6 @@
 #include <ncurses.h>
 #include <stdlib.h>
 #include <wchar.h>
-#include <__stddef_wchar_t.h>
 
 #include "../utils/constants.h"
 
