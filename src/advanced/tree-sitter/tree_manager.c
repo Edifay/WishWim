@@ -67,8 +67,10 @@ bool loadNewParser(ParserContainer* container, char* language) {
     strcmp(language, "css") == 0 ||
     strcmp(language, "dart") == 0 ||
     strcmp(language, "go") == 0 ||
-    strcmp(language, "javascript") == 0||
-    strcmp(language, "json") == 0
+    strcmp(language, "javascript") == 0 ||
+    strcmp(language, "json") == 0 ||
+    strcmp(language, "bash") == 0 ||
+    strcmp(language, "query") == 0
   ) {
     strcpy(container->lang_name, language);
 
@@ -131,8 +133,15 @@ bool loadNewParser(ParserContainer* container, char* language) {
     }
     else if (strcmp(language, "javascript") == 0) {
       container->lang = tree_sitter_javascript();
-    }    else if (strcmp(language, "json") == 0) {
+    }
+    else if (strcmp(language, "json") == 0) {
       container->lang = tree_sitter_json();
+    }
+    else if (strcmp(language, "bash") == 0) {
+      container->lang = tree_sitter_bash();
+    }
+    else if (strcmp(language, "query") == 0) {
+      container->lang = tree_sitter_query();
     }
 
     container->parser = ts_parser_new();
@@ -296,11 +305,13 @@ void treeForEachNode(TSNode root_node, TreePath* path_symbol, int offset, void (
   // for (int i = 0; i < offset; i++) {
   // fprintf(stderr, " ");
   // }
+#ifdef PARSE_PRINT
   fprintf(stderr, "( %s [%d, %d] -> [%d, %d] | [%d] -> [%d] )",
           name, ts_node_start_point(root_node).row, ts_node_start_point(root_node).column,
           ts_node_end_point(root_node).row, ts_node_end_point(root_node).column,
           ts_node_start_byte(root_node), ts_node_end_byte(root_node)
   );
+#endif
   if (func != NULL) {
     func(root_node, path_symbol, offset + 1, args);
   }
@@ -403,8 +414,15 @@ void detectLanguage(FileHighlightDatas* data, IO_FileID io_file) {
     }
     else if (strcmp(data->lang_name, "js") == 0) {
       strcpy(data->lang_name, "javascript");
-    }else if (strcmp(data->lang_name, "json") == 0) {
+    }
+    else if (strcmp(data->lang_name, "json") == 0) {
       strcpy(data->lang_name, "json");
+    }
+    else if (strcmp(data->lang_name, "sh") == 0) {
+      strcpy(data->lang_name, "bash");
+    }
+    else if (strcmp(data->lang_name, "scm") == 0) {
+      strcpy(data->lang_name, "query");
     }
   }
 

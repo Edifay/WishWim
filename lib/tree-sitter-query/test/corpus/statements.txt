@@ -1,0 +1,742 @@
+================================================================================
+Named nodes
+================================================================================
+
+(program)
+
+--------------------------------------------------------------------------------
+
+(program
+  (named_node
+    name: (identifier)))
+
+================================================================================
+Anonymous nodes
+================================================================================
+
+(program)
+"it"
+
+";"
+
+--------------------------------------------------------------------------------
+
+(program
+  (named_node
+    name: (identifier))
+  (anonymous_node
+    name: (string
+      (string_content)))
+  (anonymous_node
+    name: (string
+      (string_content))))
+
+================================================================================
+Anonymous nodes (series)
+================================================================================
+
+("it" "blorg")
+
+--------------------------------------------------------------------------------
+
+(program
+  (grouping
+    (anonymous_node
+      name: (string
+        (string_content)))
+    (anonymous_node
+      name: (string
+        (string_content)))))
+
+================================================================================
+Wildcard nodes
+================================================================================
+
+_ @wildcard
+
+(_) @wildcard
+
+(node _ @wildcard)
+
+(program
+  name: (_))
+
+(program
+  name: _)
+
+--------------------------------------------------------------------------------
+
+(program
+  (anonymous_node
+    (capture
+      (identifier)))
+  (named_node
+    (capture
+      (identifier)))
+  (named_node
+    (identifier)
+    (anonymous_node
+      (capture
+        (identifier))))
+  (named_node
+    (identifier)
+    (field_definition
+      (identifier)
+      (named_node)))
+  (named_node
+    (identifier)
+    (field_definition
+      (identifier)
+      (anonymous_node))))
+
+================================================================================
+Field names
+================================================================================
+
+(program
+  name: (identifier))
+
+name: (identifier)
+
+name: [
+  (identifier)
+  (expression)
+]
+
+--------------------------------------------------------------------------------
+
+(program
+  (named_node
+    name: (identifier)
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier))))
+  (field_definition
+    name: (identifier)
+    (named_node
+      name: (identifier)))
+  (field_definition
+    name: (identifier)
+    (list
+      (named_node
+        name: (identifier))
+      (named_node
+        name: (identifier)))))
+
+================================================================================
+Negated fields
+================================================================================
+
+(program
+  field: (identifier) @capture
+  !negated-field)
+
+(program
+  (identifier) @capture
+  !negated-field)
+
+--------------------------------------------------------------------------------
+
+(program
+  (named_node
+    (identifier)
+    (field_definition
+      (identifier)
+      (named_node
+        (identifier)
+        (capture
+          (identifier))))
+    (negated_field
+      (identifier)))
+  (named_node
+    (identifier)
+    (named_node
+      (identifier)
+      (capture
+        (identifier)))
+    (negated_field
+      (identifier))))
+
+================================================================================
+Quantifiers (+)
+================================================================================
+
+(program
+  (identifier)+)
+
+--------------------------------------------------------------------------------
+
+(program
+  (named_node
+    name: (identifier)
+    (named_node
+      name: (identifier)
+      quantifier: (quantifier))))
+
+================================================================================
+Quantifiers (?)
+================================================================================
+
+(program
+  (identifier)?)
+
+--------------------------------------------------------------------------------
+
+(program
+  (named_node
+    name: (identifier)
+    (named_node
+      name: (identifier)
+      quantifier: (quantifier))))
+
+================================================================================
+Quantifiers (*)
+================================================================================
+
+(program
+  (identifier)*)
+
+--------------------------------------------------------------------------------
+
+(program
+  (named_node
+    name: (identifier)
+    (named_node
+      name: (identifier)
+      quantifier: (quantifier))))
+
+================================================================================
+Groups
+================================================================================
+
+((comment) (function_declaration))
+
+((node) [(node) "test"])
+
+--------------------------------------------------------------------------------
+
+(program
+  (grouping
+    (named_node
+      name: (identifier))
+    (named_node
+      name: (identifier)))
+  (grouping
+    (named_node
+      name: (identifier))
+    (list
+      (named_node
+        name: (identifier))
+      (anonymous_node
+        name: (string
+          (string_content))))))
+
+================================================================================
+Captures
+================================================================================
+
+(class_declaration
+  body: (class_body) @class.body @test) @blorg
+
+--------------------------------------------------------------------------------
+
+(program
+  (named_node
+    name: (identifier)
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier)
+        (capture
+          name: (identifier))
+        (capture
+          name: (identifier))))
+    (capture
+      name: (identifier))))
+
+================================================================================
+Lists
+================================================================================
+
+[
+  "?"
+  "+"
+  "-"
+] @ops
+
+(if_statement
+  [
+    condition: (_)
+    consequence: (_)
+    alternative: (_)?
+  ] @conditional.inner) @conditional.outer
+
+--------------------------------------------------------------------------------
+
+(program
+  (list
+    (anonymous_node
+      name: (string
+        (string_content)))
+    (anonymous_node
+      name: (string
+        (string_content)))
+    (anonymous_node
+      name: (string
+        (string_content)))
+    (capture
+      name: (identifier)))
+  (named_node
+    name: (identifier)
+    (list
+      (field_definition
+        name: (identifier)
+        (named_node))
+      (field_definition
+        name: (identifier)
+        (named_node))
+      (field_definition
+        name: (identifier)
+        (named_node
+          quantifier: (quantifier)))
+      (capture
+        name: (identifier)))
+    (capture
+      name: (identifier))))
+
+================================================================================
+Predicates
+================================================================================
+
+((identifier) @v
+  (#eq? @v "test" local))
+
+--------------------------------------------------------------------------------
+
+(program
+  (grouping
+    (named_node
+      name: (identifier)
+      (capture
+        name: (identifier)))
+    (predicate
+      name: (identifier)
+      type: (predicate_type)
+      parameters: (parameters
+        (capture
+          name: (identifier))
+        (string
+          (string_content))
+        (identifier)))))
+
+================================================================================
+Anchor Operator
+================================================================================
+
+((comment) . (function_declaration))
+((identifier) . "and" . (identifier))
+
+("test" . "test")
+((identifier) . "test")
+("test" . (identifier))
+
+((node) . [(node) "test"] . (node))
+((node) [(node) "test"] . (node))
+((node) . [(node) "test"] (node))
+
+((node) . [(node) "test"] [(node)])
+((node) . [(node) "test"] . [(node)])
+
+(array . (identifier))
+(array (identifier) .)
+(array . (identifier) .)
+
+(string . "'")
+(string "'" .)
+(string . "'" . "'" .)
+
+(node (a) . "b" . (c))
+(node . (a) . "b" . (c))
+(node (a) . "b" . (c) .)
+(node . (a) . "b" . (c) .)
+
+(node . name: (identifier))
+(node name: (identifier) .)
+(node . name: (identifier) .)
+
+(node . name: (identifier) (identifier))
+(node name: (identifier) . (identifier))
+(node . name: (identifier) . (identifier) .)
+
+(node . name: (identifier) . another: (identifier) .)
+(node . name: (identifier) . another: (identifier))
+(node name: (identifier) . another: (identifier) .)
+(node name: (identifier) . another: (identifier))
+
+(trailing_anchor ((grouping_anchor) .) .)
+
+--------------------------------------------------------------------------------
+
+(program
+  (grouping
+    (named_node
+      name: (identifier))
+    (named_node
+      name: (identifier)))
+  (grouping
+    (named_node
+      name: (identifier))
+    (anonymous_node
+      name: (string
+        (string_content)))
+    (named_node
+      name: (identifier)))
+  (grouping
+    (anonymous_node
+      name: (string
+        (string_content)))
+    (anonymous_node
+      name: (string
+        (string_content))))
+  (grouping
+    (named_node
+      name: (identifier))
+    (anonymous_node
+      name: (string
+        (string_content))))
+  (grouping
+    (anonymous_node
+      name: (string
+        (string_content)))
+    (named_node
+      name: (identifier)))
+  (grouping
+    (named_node
+      name: (identifier))
+    (list
+      (named_node
+        name: (identifier))
+      (anonymous_node
+        name: (string
+          (string_content))))
+    (named_node
+      name: (identifier)))
+  (grouping
+    (named_node
+      name: (identifier))
+    (list
+      (named_node
+        name: (identifier))
+      (anonymous_node
+        name: (string
+          (string_content))))
+    (named_node
+      name: (identifier)))
+  (grouping
+    (named_node
+      name: (identifier))
+    (list
+      (named_node
+        name: (identifier))
+      (anonymous_node
+        name: (string
+          (string_content))))
+    (named_node
+      name: (identifier)))
+  (grouping
+    (named_node
+      name: (identifier))
+    (list
+      (named_node
+        name: (identifier))
+      (anonymous_node
+        name: (string
+          (string_content))))
+    (list
+      (named_node
+        name: (identifier))))
+  (grouping
+    (named_node
+      name: (identifier))
+    (list
+      (named_node
+        name: (identifier))
+      (anonymous_node
+        name: (string
+          (string_content))))
+    (list
+      (named_node
+        name: (identifier))))
+  (named_node
+    name: (identifier)
+    (named_node
+      name: (identifier)))
+  (named_node
+    name: (identifier)
+    (named_node
+      name: (identifier)))
+  (named_node
+    name: (identifier)
+    (named_node
+      name: (identifier)))
+  (named_node
+    name: (identifier)
+    (anonymous_node
+      name: (string
+        (string_content))))
+  (named_node
+    name: (identifier)
+    (anonymous_node
+      name: (string
+        (string_content))))
+  (named_node
+    name: (identifier)
+    (anonymous_node
+      name: (string
+        (string_content)))
+    (anonymous_node
+      name: (string
+        (string_content))))
+  (named_node
+    name: (identifier)
+    (named_node
+      name: (identifier))
+    (anonymous_node
+      name: (string
+        (string_content)))
+    (named_node
+      name: (identifier)))
+  (named_node
+    name: (identifier)
+    (named_node
+      name: (identifier))
+    (anonymous_node
+      name: (string
+        (string_content)))
+    (named_node
+      name: (identifier)))
+  (named_node
+    name: (identifier)
+    (named_node
+      name: (identifier))
+    (anonymous_node
+      name: (string
+        (string_content)))
+    (named_node
+      name: (identifier)))
+  (named_node
+    name: (identifier)
+    (named_node
+      name: (identifier))
+    (anonymous_node
+      name: (string
+        (string_content)))
+    (named_node
+      name: (identifier)))
+  (named_node
+    name: (identifier)
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier))))
+  (named_node
+    name: (identifier)
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier))))
+  (named_node
+    name: (identifier)
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier))))
+  (named_node
+    name: (identifier)
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier)))
+    (named_node
+      name: (identifier)))
+  (named_node
+    name: (identifier)
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier)))
+    (named_node
+      name: (identifier)))
+  (named_node
+    name: (identifier)
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier)))
+    (named_node
+      name: (identifier)))
+  (named_node
+    name: (identifier)
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier)))
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier))))
+  (named_node
+    name: (identifier)
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier)))
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier))))
+  (named_node
+    name: (identifier)
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier)))
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier))))
+  (named_node
+    name: (identifier)
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier)))
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier))))
+  (named_node
+    name: (identifier)
+    (grouping
+      (named_node
+        name: (identifier)))))
+
+================================================================================
+Strings
+================================================================================
+
+((identifier) @v
+  (#eq? @v "I'm a string; not a comment")
+  (#eq? @v "test\"")
+  (#eq? @v "tes\"\"ting")
+  (#eq? @v "\"test"))
+
+--------------------------------------------------------------------------------
+
+(program
+  (grouping
+    (named_node
+      name: (identifier)
+      (capture
+        name: (identifier)))
+    (predicate
+      name: (identifier)
+      type: (predicate_type)
+      parameters: (parameters
+        (capture
+          name: (identifier))
+        (string
+          (string_content))))
+    (predicate
+      name: (identifier)
+      type: (predicate_type)
+      parameters: (parameters
+        (capture
+          name: (identifier))
+        (string
+          (string_content
+            (escape_sequence)))))
+    (predicate
+      name: (identifier)
+      type: (predicate_type)
+      parameters: (parameters
+        (capture
+          name: (identifier))
+        (string
+          (string_content
+            (escape_sequence)
+            (escape_sequence)))))
+    (predicate
+      name: (identifier)
+      type: (predicate_type)
+      parameters: (parameters
+        (capture
+          name: (identifier))
+        (string
+          (string_content
+            (escape_sequence)))))))
+
+================================================================================
+Comments
+================================================================================
+
+(#match?
+ @foo
+ ; bar
+ "foo")
+
+(node
+  ; Capture the name
+  name: (string))
+
+(string
+  ; wild comment!
+  )
+
+--------------------------------------------------------------------------------
+
+(program
+  (predicate
+    name: (identifier)
+    type: (predicate_type)
+    parameters: (parameters
+      (capture
+        name: (identifier))
+      (comment)
+      (string
+        (string_content))))
+  (named_node
+    name: (identifier)
+    (comment)
+    (field_definition
+      name: (identifier)
+      (named_node
+        name: (identifier))))
+  (named_node
+    name: (identifier)
+    (comment)))
+
+================================================================================
+Supertypes
+================================================================================
+
+(program
+  (named_node
+    name: (identifier)
+    (supertype/subtype)))
+
+--------------------------------------------------------------------------------
+
+(program
+  (named_node
+    name: (identifier)
+    (named_node
+      name: (identifier)
+      (field_definition
+        name: (identifier)
+        (named_node
+          name: (identifier)))
+      (named_node
+        supertype: (identifier)
+        name: (identifier)))))

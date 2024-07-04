@@ -24,8 +24,11 @@ modules= \
 	lib/tree-sitter-go/target/debug/libtree_sitter_go.rlib \
 	lib/tree-sitter-javascript/target/debug/libtree_sitter_javascript.rlib \
 	lib/tree-sitter-json/target/debug/libtree_sitter_json.rlib \
+	lib/tree-sitter-bash/target/debug/libtree_sitter_bash.rlib \
 	lib/tree-sitter-markdown/tree-sitter-markdown/libtree-sitter-markdown.a \
 	lib/tree-sitter-markdown/tree-sitter-markdown-inline/libtree-sitter-markdown-inline.a \
+	lib/tree-sitter-query/target/debug/libtree_sitter_query.rlib \
+#	lib/tree-sitter-markdown/target/debug/libtree_sitter_markdown.rlib \
 #	lib/tree-sitter-c/src/parser.o \
 #	lib/tree-sitter-python/src/parser.o  lib/tree-sitter-python/src/scanner.o\
 #	lib/tree-sitter-c-sharp/libtree-sitter-c-sharp.a \
@@ -69,6 +72,15 @@ lib/tree-sitter-javascript/target/debug/libtree_sitter_javascript.rlib:
 
 lib/tree-sitter-json/target/debug/libtree_sitter_json.rlib:
 	cd lib/tree-sitter-json/ && cargo build
+
+lib/tree-sitter-bash/target/debug/libtree_sitter_bash.rlib:
+	cd lib/tree-sitter-bash/ && cargo build
+
+lib/tree-sitter-markdown/target/debug/libtree_sitter_markdown.rlib:
+	cd lib/tree-sitter-markdown && cargo build
+
+lib/tree-sitter-query/target/debug/libtree_sitter_query.rlib:
+	cd lib/tree-sitter-query/ && cargo build
 
 lib/tree-sitter-python/libtree-sitter-python.a:
 	cd lib/tree-sitter-python/ && tree-sitter generate && $(MAKE)

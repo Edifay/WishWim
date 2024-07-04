@@ -181,9 +181,11 @@ int main(int file_count, char** file_names) {
       );
       ts_tree_delete(old_tree);
 
-      // TreePath symbols[100];
-      // treeForEachNode(ts_tree_root_node(highlight_data->tree), symbols, 0, NULL, NULL);
-
+#ifdef PARSE_PRINT
+      TreePath symbols[100];
+      treeForEachNode(ts_tree_root_node(highlight_data->tree), symbols, 0, NULL, NULL);
+      fprintf(stderr, "\n");
+#endif
       old_history_frame = *history_frame;
     }
 

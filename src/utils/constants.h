@@ -4,6 +4,10 @@
 #include <cjson/cJSON.h>
 #include "../advanced/tree-sitter/tree_manager.h"
 
+
+// #define PARSE_PRINT
+
+
 #define SCROLL_SPEED 3
 #define NO_EVENT_MOUSE 268435456
 

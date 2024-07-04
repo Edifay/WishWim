@@ -1,0 +1,68 @@
+{
+  "name": "tree-sitter-query",
+  "version": "0.4.0",
+  "description": "TS query grammar for tree-sitter",
+  "repository": "tree-sitter-grammars/tree-sitter-query",
+  "author": "Steven Sojka",
+  "maintainers": [
+    "Stephan Seitz"
+  ],
+  "license": "Apache-2.0",
+  "main": "bindings/node",
+  "types": "bindings/node",
+  "keywords": [
+    "incremental",
+    "parsing",
+    "tree-sitter",
+    "query"
+  ],
+  "files": [
+    "grammar.js",
+    "binding.gyp",
+    "types/dsl.d.ts",
+    "bindings/node/*",
+    "queries/**",
+    "src/**"
+  ],
+  "dependencies": {
+    "node-addon-api": "^8.0.0",
+    "node-gyp-build": "^4.8.0"
+  },
+  "peerDependencies": {
+    "tree-sitter": "^0.21.0"
+  },
+  "peerDependenciesMeta": {
+    "tree_sitter": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.22.6",
+    "prebuildify": "^6.0.0"
+  },
+  "overrides": {
+    "tree-sitter": {
+      "node-addon-api": "$node-addon-api"
+    }
+  },
+  "scripts": {
+    "build": "prebuildify --napi --strip",
+    "install": "node-gyp-build",
+    "prestart": "tree-sitter build --wasm -o tree-sitter-query.wasm",
+    "start": "tree-sitter playground",
+    "test": "make test",
+    "version": "make -s update",
+    "prebuildify": "prebuildify --napi --strip"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.query",
+      "injection-regex": "^query$",
+      "highlights": "queries/query/highlights.scm",
+      "injections": "queries/query/injections.scm",
+      "file-types": [
+        "scm"
+      ]
+    }
+  ]
+}

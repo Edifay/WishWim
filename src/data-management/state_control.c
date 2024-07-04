@@ -347,7 +347,9 @@ void loadCurrentStateControl(History* root, History** current_state, IO_FileID i
 
     Action action;
     action.ch = NULL;
-    fscanf(f, "%c%c%c%lld%c", &scan_separtor, &action.action, &scan_separtor, &action.time, &scan_separtor);
+    char tmp_ch_action_read;
+    fscanf(f, "%c%c%c%lld%c", &scan_separtor, &tmp_ch_action_read, &scan_separtor, &action.time, &scan_separtor);
+    action.action = tmp_ch_action_read;
 
     switch (action.action) {
       case DELETE:
@@ -389,3 +391,7 @@ void loadCurrentStateControl(History* root, History** current_state, IO_FileID i
 
   *current_state = state_to_return;
 }
+
+// Current state : n
+// HERE d
+// Time : 1720079095507
