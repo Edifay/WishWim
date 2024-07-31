@@ -27,7 +27,7 @@
 
 #define CTRL_KEY(k) ((k)&0x1f)
 
-int color_pair = 2;
+int color_pair = 3;
 int color_index = 100;
 cJSON* config;
 ParserList parsers;
@@ -93,8 +93,10 @@ int main(int file_count, char** file_names) {
   start_color();
   // Default color.
   init_color(COLOR_HOVER, 390, 390, 390);
-  init_pair(1, COLOR_WHITE, COLOR_BLACK);
-  init_pair(1001, COLOR_WHITE, COLOR_HOVER);
+  init_pair(DEFAULT_COLOR_PAIR, COLOR_WHITE, COLOR_BLACK);
+  init_pair(DEFAULT_COLOR_HOVER_PAIR, COLOR_WHITE, COLOR_HOVER);
+  init_pair(ERROR_COLOR_PAIR, COLOR_RED, COLOR_BLACK);
+  init_pair(ERROR_COLOR_HOVER_PAIR, COLOR_RED, COLOR_HOVER);
 
 
   // Containers of current opened buffers.
@@ -159,8 +161,8 @@ int main(int file_count, char** file_names) {
     if (*old_screen_y != *screen_y) {
       *old_screen_y = *screen_y;
       // resize line_w to match with line_number_length
-      int new_lnw_width = numberOfDigitOfNumber(*screen_y + ftw->_maxy) + 1 /* +1 for the line */;
-      if (new_lnw_width != ftw->_begx) {
+      int new_lnw_width = numberOfDigitOfNumber(*screen_y + getmaxy(ftw)) + 1 /* +1 for the line */;
+      if (new_lnw_width != getbegx(ftw)) {
         resizeEditorWindows(&ftw, &lnw, ofw_height, new_lnw_width, few_width);
       }
     }
@@ -228,8 +230,8 @@ int main(int file_count, char** file_names) {
         args_fct[3] = (long)ftw;
         args_fct[4] = (long)screen_x;
         args_fct[5] = (long)screen_y;
-        args_fct[6] = (long)ftw->_maxx;
-        args_fct[7] = (long)ftw->_maxy;
+        args_fct[6] = (long)getmaxx(ftw);
+        args_fct[7] = (long)getmaxy(ftw);
         args_fct[8] = (long)cursor;
         args_fct[9] = (long)select_cursor;
         args_fct[10] = (long)NULL;
@@ -237,7 +239,7 @@ int main(int file_count, char** file_names) {
         TSNode root_node = ts_tree_root_node(highlight_data->tree);
         TreePath path[100];
 
-        treeForEachNodeSized(*screen_y, *screen_x, ftw->_maxy + 1, ftw->_maxx + 1, root_node, path, 0, checkMatchForHighlight, args_fct);
+        treeForEachNodeSized(*screen_y, *screen_x, getmaxy(ftw) + 1, getmaxx(ftw) + 1, root_node, path, 0, checkMatchForHighlight, args_fct);
 
         t = clock() - t;
         time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
@@ -269,11 +271,11 @@ int main(int file_count, char** file_names) {
       case MOUSE_IN_OUT:
       case KEY_RESIZE:
         // Was there but idk why... => Avoid biggest size only used on time before automated resize.
-        assert((lnw->_maxx + few_width + 1 >= COLS) == false);
+        assert((getmaxx(lnw) + few_width + 1 >= COLS) == false);
       // Resize Opened File Window
         resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
         refresh_ofw = true;
-        resizeEditorWindows(&ftw, &lnw, ofw_height, lnw->_maxx + 1, few_width);
+        resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw) + 1, few_width);
         refresh_edw = true;
         refresh_few = true;
         break;
@@ -303,7 +305,7 @@ int main(int file_count, char** file_names) {
             mouse_drag = true;
           }
 
-          if ((m_event.x < lnw->_begx && focus_w == NULL) || (few != NULL && focus_w == few)) {
+          if ((m_event.x < getbegx(lnw) && focus_w == NULL) || (few != NULL && focus_w == few)) {
             // Click in File Explorer Window
             if (m_event.bstate & BUTTON1_PRESSED) {
               focus_w = few;
@@ -323,7 +325,7 @@ int main(int file_count, char** file_names) {
             if (m_event.bstate & BUTTON1_PRESSED) {
               focus_w = ftw;
             }
-            handleEditorClick(ftw->_begx, ofw_height, cursor, select_cursor, desired_column, screen_x, screen_y, &m_event, mouse_drag);
+            handleEditorClick(getbegx(ftw), ofw_height, cursor, select_cursor, desired_column, screen_x, screen_y, &m_event, mouse_drag);
           }
 
           if (m_event.bstate & BUTTON1_RELEASED) {
@@ -536,14 +538,14 @@ int main(int file_count, char** file_names) {
         }
         else {
           // Close File Explorer Window
-          saved_few_width = few->_maxx + 1;
+          saved_few_width = getmaxx(few) + 1;
           delwin(few);
           few_width = 0;
         }
       // Resize Opened File Window
         resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
       // Resize Editor Window
-        resizeEditorWindows(&ftw, &lnw, ofw_height, lnw->_maxx + 1, few_width);
+        resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw) + 1, few_width);
         break;
       case CTRL_KEY('l'): // Opened File Window Switch
         if (ofw_height == OPENED_FILE_WINDOW_HEIGHT) {
@@ -553,7 +555,7 @@ int main(int file_count, char** file_names) {
           ofw_height = OPENED_FILE_WINDOW_HEIGHT;
         }
         resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
-        resizeEditorWindows(&ftw, &lnw, ofw_height, lnw->_maxx + 1, few_width);
+        resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw) + 1, few_width);
         refresh_ofw = true;
         refresh_edw = true;
         break;

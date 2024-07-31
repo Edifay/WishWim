@@ -89,16 +89,23 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
   while (seq != NULL) {
     char* result = isTreePathMatchingQuery(litteral_text_node, tree_path, tree_path_length, seq->value);
 
+    attr_t attr = A_NORMAL;
+    NCURSES_PAIRS_T color;
+    for (int i = 0; i < tree_path_length; i++) {
+      if (tree_path[i].type == SYMBOL && strcmp("ERROR", tree_path[i].name) == 0) {
+        attr |= A_ITALIC;
+        // color = ERROR_COLOR_PAIR;
+      }
+    }
+
     // If a group was found.
     if (result != NULL) {
-      attr_t attr = A_NORMAL;
-      NCURSES_PAIRS_T color;
-
       bool found = false;
       // Setup style for group found.
       for (int i = 0; i < theme_list->size; i++) {
         if (strcmp(theme_list->groups[i].group, result) == 0) {
-          attr = getAttrForTheme(theme_list->groups[i]);
+          if (attr == A_NORMAL)
+            attr |= getAttrForTheme(theme_list->groups[i]);
           color = theme_list->groups[i].color_n;
 
           found = true;
@@ -106,10 +113,11 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
         }
       }
 
-      if (found == false) {
-        // Quit if no group was found.
-        break;
-      }
+      if (attr == A_NORMAL)
+        if (found == false) {
+          // Quit if no group was found.
+          break;
+        }
 
       TSPoint start_point = ts_node_start_point(node);
       TSPoint end_point = ts_node_end_point(node);

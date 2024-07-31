@@ -77,7 +77,7 @@ void handleEditorClick(int edws_offset_x, int edws_offset_y, Cursor* cursor, Cur
 
 int handleOpenedFileSelectClick(FileContainer* files, int* file_count, int* current_file, MEVENT m_event, int* current_file_offset, WINDOW* ofw, bool* refresh_ofw) {
   // Char offset for the window
-  int current_char_offset = ofw->_begx;
+  int current_char_offset = getbegx(ofw);
 
   if (*current_file_offset != 0) {
     current_char_offset += strlen("< | ");
@@ -86,7 +86,7 @@ int handleOpenedFileSelectClick(FileContainer* files, int* file_count, int* curr
   for (int i = *current_file_offset; i < *file_count; i++) {
     current_char_offset += strlen(basename(files[i].io_file.path_args));
 
-    if (*current_file_offset != 0 && m_event.x < ofw->_begx + 3) {
+    if (*current_file_offset != 0 && m_event.x < getbegx(ofw) + 3) {
       (*current_file_offset)--;
       assert(*current_file_offset >= 0);
       *refresh_ofw = true;
@@ -206,7 +206,7 @@ void handleFileExplorerClick(FileContainer** files, int* file_count, int* curren
       *ofw = newwin(edws_offset_y, 0, 0, *few_width);
       *refresh_ofw = true;
       // Resize Editor Window
-      resizeEditorWindows(ftw, lnw, edws_offset_y, (*lnw)->_maxx + 1, *few_width);
+      resizeEditorWindows(ftw, lnw, edws_offset_y, getmaxx(*lnw) + 1, *few_width);
       *refresh_edw = true;
     }
     *refresh_few = true;

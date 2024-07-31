@@ -22,8 +22,8 @@ void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor se
   wmove(ftw, 0, 0);
   FileIdentifier file_cur = cursor.file_id;
 
-  int current_lines = ftw->_maxy + 1;
-  int current_columns = ftw->_maxx + 1;
+  int current_lines = getmaxy(ftw) + 1;
+  int current_columns = getmaxx(ftw) + 1;
 
   // print text
   for (int row = screen_y; row < screen_y + current_lines; row++) {
@@ -33,7 +33,7 @@ void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor se
     // if the row is couldn't be reached.
     if (file_cur.absolute_row != row) {
       wmove(lnw, row - screen_y, 0);
-      for (int i = 0; i < lnw->_maxx + 1; i++) {
+      for (int i = 0; i < getmaxx(lnw) + 1; i++) {
         wprintw(lnw, " ");
       }
 
@@ -54,7 +54,7 @@ void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor se
       wattron(lnw, A_BOLD);
 
     wmove(lnw, row - screen_y, 0);
-    for (int i = 0; i < lnw->_maxx - lineNumberSize; i++) {
+    for (int i = 0; i < getmaxx(lnw) - lineNumberSize; i++) {
       wprintw(lnw, " ");
     }
     wprintw(lnw, "%s", line_number);
@@ -162,7 +162,7 @@ void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor se
 void printOpenedFile(FileContainer* files, int file_count, int current_file, int current_file_offset, WINDOW* ofw) {
   // The current position of the cursor for the first line.
   wmove(ofw, 0, 0);
-  int current_offset = ofw->_begx;
+  int current_offset = getbegx(ofw);
   if (current_file_offset != 0) {
     current_offset += strlen("< | ");
     wattron(ofw, A_DIM);
@@ -192,7 +192,7 @@ void printOpenedFile(FileContainer* files, int file_count, int current_file, int
     }
     // If the file names overflow the line, print the move right text.
     if (current_offset + strlen(FILE_NAME_SEPARATOR) > COLS) {
-      wmove(ofw, 0, COLS - ofw->_begx - strlen("... | >"));
+      wmove(ofw, 0, COLS - getbegx(ofw) - strlen("... | >"));
       wattron(ofw, A_DIM);
       wprintw(ofw, "... | >");
       wattroff(ofw, A_DIM);
@@ -214,7 +214,7 @@ void printOpenedFile(FileContainer* files, int file_count, int current_file, int
 
 void internalPrintExplorerRec(ExplorerFolder* folder, WINDOW* few, int* few_x_offset, int* few_y_offset, int tree_offset_rec, int* selected_line) {
   // Don't print if not in window.
-  if (few->_cury >= few->_maxy) return;
+  if (getcury(few) >= getmaxy(few)) return;
 
   if (folder->open && folder->discovered == false) {
     discoverFolder(folder);
@@ -229,18 +229,18 @@ void internalPrintExplorerRec(ExplorerFolder* folder, WINDOW* few, int* few_x_of
     }
 
     for (int i = 0; i < tree_offset_rec; i++) {
-      printToNcursesNCharFromString(few, " ", few->_maxx - few->_curx);
+      printToNcursesNCharFromString(few, " ", getmaxx(few) - getcurx(few));
     }
 
     // Print decoration of folder. The decoration describe if the folder is open or not.
-    if (folder->open) printToNcursesNCharFromString(few, "⌄", few->_maxx - few->_curx);
-    else printToNcursesNCharFromString(few, "›", few->_maxx - few->_curx);
+    if (folder->open) printToNcursesNCharFromString(few, "⌄", getmaxx(few) - getcurx(few));
+    else printToNcursesNCharFromString(few, "›", getmaxx(few) - getcurx(few));
 
-    printToNcursesNCharFromString(few, "📁", few->_maxx - few->_curx);
-    printToNcursesNCharFromString(few, basename(folder->path), few->_maxx - few->_curx);
+    printToNcursesNCharFromString(few, "📁", getmaxx(few) - getcurx(few));
+    printToNcursesNCharFromString(few, basename(folder->path), getmaxx(few) - getcurx(few));
     if (*selected_line == 0) {
-      for (int j = few->_curx; j < few->_maxx; j++) {
-        printToNcursesNCharFromString(few, " ", few->_maxx - few->_curx);
+      for (int j = getcurx(few); j < getmaxx(few); j++) {
+        printToNcursesNCharFromString(few, " ", getmaxx(few) - getcurx(few));
       }
       wattroff(few, A_STANDOUT);
     }
@@ -260,7 +260,7 @@ void internalPrintExplorerRec(ExplorerFolder* folder, WINDOW* few, int* few_x_of
   // Print sub files
   for (int i = 0; i < folder->file_count; i++) {
     // Don't print if not in window.
-    if (few->_cury >= few->_maxy) return;
+    if (getcury(few) >= getmaxy(few)) return;
 
     (*selected_line)--;
     if (*few_y_offset == 0) {
@@ -269,13 +269,13 @@ void internalPrintExplorerRec(ExplorerFolder* folder, WINDOW* few, int* few_x_of
         wattron(few, A_STANDOUT);
       }
       for (int j = 0; j < tree_offset_rec + FILE_EXPLORER_TREE_OFFSET + 1/*Add one to balance with the folder decoration*/; j++) {
-        printToNcursesNCharFromString(few, " ", few->_maxx - few->_curx);
+        printToNcursesNCharFromString(few, " ", getmaxx(few) - getcurx(few));
       }
-      printToNcursesNCharFromString(few, "📄", few->_maxx - few->_curx);
-      printToNcursesNCharFromString(few, basename(folder->files[i].path), few->_maxx - few->_curx);
+      printToNcursesNCharFromString(few, "📄", getmaxx(few) - getcurx(few));
+      printToNcursesNCharFromString(few, basename(folder->files[i].path), getmaxx(few) - getcurx(few));
       if (*selected_line == 0) {
-        for (int j = few->_curx; j < few->_maxx; j++) {
-          printToNcursesNCharFromString(few, " ", few->_maxx - few->_curx);
+        for (int j = getcurx(few); j < getmaxx(few); j++) {
+          printToNcursesNCharFromString(few, " ", getmaxx(few) - getcurx(few));
         }
         wattroff(few, A_STANDOUT);
       }
@@ -292,11 +292,11 @@ void printFileExplorer(ExplorerFolder* pwd, WINDOW* few, int few_x_offset, int f
 
   internalPrintExplorerRec(pwd, few, &few_x_offset, &few_y_offset, 0, &selected_line);
   // Clear end of window
-  for (int i = few->_cury; i < few->_maxy + 1; i++) {
+  for (int i = getcury(few); i < getmaxy(few) + 1; i++) {
     wprintw(few, "\n");
   }
-  for (int i = few->_begy; i < few->_maxy + 1; i++) {
-    mvwprintw(few, i, few->_maxx + 1 - 1, "│");
+  for (int i = getbegy(few); i < getmaxy(few) + 1; i++) {
+    mvwprintw(few, i, getmaxx(few) + 1 - 1, "│");
   }
 }
 
@@ -320,8 +320,8 @@ void resizeOpenedFileWindow(WINDOW** ofw, bool* refresh_ofw, int edws_offset_y, 
 
 
 void moveScreenToMatchCursor(WINDOW* w, Cursor cursor, int* screen_x, int* screen_y) {
-  int current_lines = w->_maxy;
-  int current_columns = w->_maxx;
+  int current_lines = getmaxy(w);
+  int current_columns = getmaxx(w);
 
   if (cursor.file_id.absolute_row - (*screen_y + current_lines) + 1 >= 0) {
     *screen_y = cursor.file_id.absolute_row - current_lines + 2;
