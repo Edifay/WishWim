@@ -239,7 +239,7 @@ int main(int file_count, char** file_names) {
         TSNode root_node = ts_tree_root_node(highlight_data->tree);
         TreePath path[100];
 
-        treeForEachNodeSized(*screen_y, *screen_x, getmaxy(ftw) + 1, getmaxx(ftw) + 1, root_node, path, 0, checkMatchForHighlight, args_fct);
+        treeForEachNodeSized(*screen_y, *screen_x, getmaxy(ftw), getmaxx(ftw), root_node, path, 0, checkMatchForHighlight, args_fct);
 
         t = clock() - t;
         time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
@@ -271,11 +271,11 @@ int main(int file_count, char** file_names) {
       case MOUSE_IN_OUT:
       case KEY_RESIZE:
         // Was there but idk why... => Avoid biggest size only used on time before automated resize.
-        assert((getmaxx(lnw) + few_width + 1 >= COLS) == false);
+        assert((getmaxx(lnw) + few_width >= COLS) == false);
       // Resize Opened File Window
         resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
         refresh_ofw = true;
-        resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw) + 1, few_width);
+        resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw), few_width);
         refresh_edw = true;
         refresh_few = true;
         break;
@@ -310,7 +310,8 @@ int main(int file_count, char** file_names) {
             if (m_event.bstate & BUTTON1_PRESSED) {
               focus_w = few;
             }
-            handleFileExplorerClick(&files, &file_count, &current_file, &pwd, &few_y_offset, &few_x_offset, &few_width, &few_selected_line, ofw_height, &few, &ofw, &lnw, &ftw,
+            handleFileExplorerClick(&files, &file_count, &current_file, &pwd, &few_y_offset, &few_x_offset, &few_width, &few_selected_line, ofw_height, ofw_height, &few, &ofw,
+                                    &lnw, &ftw,
                                     m_event, &refresh_few, &refresh_ofw, &refresh_edw, &refresh_local_vars);
           }
           else if ((m_event.y - ofw_height < 0 && focus_w == NULL) || (ofw != NULL && focus_w == ofw)) {
@@ -538,14 +539,14 @@ int main(int file_count, char** file_names) {
         }
         else {
           // Close File Explorer Window
-          saved_few_width = getmaxx(few) + 1;
+          saved_few_width = getmaxx(few);
           delwin(few);
           few_width = 0;
         }
       // Resize Opened File Window
         resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
       // Resize Editor Window
-        resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw) + 1, few_width);
+        resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw), few_width);
         break;
       case CTRL_KEY('l'): // Opened File Window Switch
         if (ofw_height == OPENED_FILE_WINDOW_HEIGHT) {
@@ -555,7 +556,7 @@ int main(int file_count, char** file_names) {
           ofw_height = OPENED_FILE_WINDOW_HEIGHT;
         }
         resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
-        resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw) + 1, few_width);
+        resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw), few_width);
         refresh_ofw = true;
         refresh_edw = true;
         break;
@@ -566,6 +567,7 @@ int main(int file_count, char** file_names) {
           printf("Unsupported touch %d\r\n", c);
         }
         else {
+          fprintf(stderr, "touch %d\r\n", c);
           deleteSelectionWithHist(history_frame, cursor, select_cursor);
           tmp = *cursor;
           *cursor = insertCharInLineC(*cursor, readChar_U8FromInput(c));

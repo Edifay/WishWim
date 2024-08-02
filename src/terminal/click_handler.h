@@ -15,7 +15,7 @@ void handleOpenedFileClick(FileContainer* files, int* file_count, int* current_f
                            bool* refresh_local_vars, bool mouse_drag);
 
 void handleFileExplorerClick(FileContainer** files, int* file_count, int* current_file, ExplorerFolder* pwd, int* few_y_offset, int* few_x_offset, int* few_width,
-                             int* few_selected_line, int edws_offset_y, WINDOW** few, WINDOW** ofw, WINDOW** lnw, WINDOW** ftw, MEVENT m_event, bool* refresh_few,
+                             int* few_selected_line, int edws_offset_y, int ofw_height, WINDOW** few, WINDOW** ofw, WINDOW** lnw, WINDOW** ftw, MEVENT m_event, bool* refresh_few,
                              bool* refresh_ofw, bool* refresh_edw, bool* refresh_local_vars);
 
 // true if found, false if not. if file_index == -1 => Res_folder was clicked. If file_index != -1 => file clicked is res_folder.files[file_index].

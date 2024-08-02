@@ -170,7 +170,7 @@ void handleOpenedFileClick(FileContainer* files, int* file_count, int* current_f
 }
 
 void handleFileExplorerClick(FileContainer** files, int* file_count, int* current_file, ExplorerFolder* pwd, int* few_y_offset, int* few_x_offset, int* few_width,
-                             int* few_selected_line, int edws_offset_y, WINDOW** few, WINDOW** ofw, WINDOW** lnw, WINDOW** ftw, MEVENT m_event, bool* refresh_few,
+                             int* few_selected_line, int edws_offset_y, int ofw_height, WINDOW** few, WINDOW** ofw, WINDOW** lnw, WINDOW** ftw, MEVENT m_event, bool* refresh_few,
                              bool* refresh_ofw, bool* refresh_edw, bool* refresh_local_vars) {
   // ---------- SCROLL ------------
   if (m_event.bstate & BUTTON4_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
@@ -202,12 +202,9 @@ void handleFileExplorerClick(FileContainer** files, int* file_count, int* curren
       delwin(*few);
       *few = newwin(0, *few_width, 0, 0);
       // Resize Opened File Window
-      delwin(*ofw);
-      *ofw = newwin(edws_offset_y, 0, 0, *few_width);
-      *refresh_ofw = true;
+      resizeOpenedFileWindow(ofw, refresh_ofw, edws_offset_y, *few_width);
       // Resize Editor Window
-      resizeEditorWindows(ftw, lnw, edws_offset_y, getmaxx(*lnw) + 1, *few_width);
-      *refresh_edw = true;
+      resizeEditorWindows(ftw, lnw, ofw_height, getmaxx(*lnw), *few_width);
     }
     *refresh_few = true;
   }
