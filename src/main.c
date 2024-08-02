@@ -567,7 +567,6 @@ int main(int file_count, char** file_names) {
           printf("Unsupported touch %d\r\n", c);
         }
         else {
-          fprintf(stderr, "touch %d\r\n", c);
           deleteSelectionWithHist(history_frame, cursor, select_cursor);
           tmp = *cursor;
           *cursor = insertCharInLineC(*cursor, readChar_U8FromInput(c));
