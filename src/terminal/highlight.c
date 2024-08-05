@@ -45,7 +45,7 @@ void highlightFilePart(WINDOW* ftw, int start_row, int start_column, int length,
     else if (isCursorDisabled(select) == false && isCursorBetweenOthers(*tmp, cursor, select)) {
       current_char_color += 1000;
     }
-    int mov_res = wmove(ftw, start_row - screen_y + 1, start_column - screen_x + 1 + offset);
+    int mov_res = wmove(ftw, start_row - screen_y + 1, getScreenXForCursor(*tmp, screen_x) - 1);
     if (mov_res != ERR) {
       wchgat(ftw, size, current_char_attr, current_char_color, NULL);
     }
