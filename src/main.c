@@ -134,6 +134,7 @@ int main(int file_count, char** file_names) {
   Cursor tmp;
   MEVENT m_event;
   History* old_history_frame;
+  long* payload;
   bool mouse_drag = false;
   time_val last_time_mouse_drag = timeInMilliseconds();
   while (true) {
@@ -167,28 +168,9 @@ int main(int file_count, char** file_names) {
       }
     }
 
-    // If it needed to reparse the current file. Looking for state changes.
+    // If it needed to reparse the current file for tree. Looking for state changes.
     if (highlight_data->is_active == true && (old_history_frame != *history_frame || highlight_data->tree == NULL)) {
-      ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_name);
-
-      int new_dump_size;
-      edit_tree(highlight_data, root, &highlight_data->tmp_file_dump, &new_dump_size, history_frame, old_history_frame);
-
-      TSTree* old_tree = highlight_data->tree;
-      highlight_data->tree = ts_parser_parse_string(
-        parser->parser,
-        highlight_data->tree,
-        highlight_data->tmp_file_dump,
-        new_dump_size
-      );
-      ts_tree_delete(old_tree);
-
-#ifdef PARSE_PRINT
-      TreePath symbols[100];
-      treeForEachNode(ts_tree_root_node(highlight_data->tree), symbols, 0, NULL, NULL);
-      fprintf(stderr, "\n");
-#endif
-      old_history_frame = *history_frame;
+      edit_and_parse_tree(root, history_frame, highlight_data, &old_history_frame);
     }
 
     //// --------------- Paint GUI -----------------
@@ -424,12 +406,18 @@ int main(int file_count, char** file_names) {
 
       case CTRL_KEY('z'):
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
-        *cursor = undo(history_frame, *cursor);
+        payload = get_payload_edit_and_parse_tree(&root, &highlight_data);
+        *cursor = undo(history_frame, *cursor, edit_and_parse_tree_from_payload, payload);
+        free(payload);
+        old_history_frame = *history_frame;
         setDesiredColumn(*cursor, desired_column);
         break;
       case CTRL_KEY('y'):
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
-        *cursor = redo(history_frame, *cursor);
+        payload = get_payload_edit_and_parse_tree(&root, &highlight_data);
+        *cursor = redo(history_frame, *cursor, edit_and_parse_tree_from_payload, payload);
+        free(payload);
+        old_history_frame = *history_frame;
         setDesiredColumn(*cursor, desired_column);
         break;
       case CTRL_KEY('c'):

@@ -93,7 +93,6 @@ const TSLanguage* tree_sitter_bash(void);
 const TSLanguage* tree_sitter_query(void);
 
 
-
 void initParserList(ParserList* list);
 
 void destroyParserList(ParserList* list);
@@ -126,5 +125,14 @@ void detectLanguage(FileHighlightDatas* data, IO_FileID io_file);
 
 
 void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_file_dump, int* n_bytes, History** history_frame, History* old_history_frame);
+
+
+void edit_and_parse_tree(FileNode** root, History** history_frame, FileHighlightDatas* highlight_data, History** old_history_frame);
+
+
+long* get_payload_edit_and_parse_tree(FileNode*** root, FileHighlightDatas** highlight_data);
+
+void edit_and_parse_tree_from_payload(History** history_frame, History* *old_history_frame, long* payload);
+
 
 #endif //TREE_MANAGER_H
