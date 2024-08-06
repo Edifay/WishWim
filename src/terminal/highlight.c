@@ -25,17 +25,24 @@ void initColorsForTheme(HighlightThemeList theme_list, int* color_index, int* co
   }
 }
 
-// TODO patch highlight wrong with wide char BEFORE the word.
-void highlightFilePart(WINDOW* ftw, int start_row, int start_column, int length, attr_t attr, NCURSES_PAIRS_T color, Cursor cursor, Cursor select, Cursor* tmp, int screen_y,
-                       int screen_x) {
+void highlightLinePartWithBytes(WINDOW* ftw, int start_row_byte, int start_column_byte, int length_byte, attr_t attr, NCURSES_PAIRS_T color, Cursor cursor, Cursor select,
+                                Cursor* tmp, int screen_y,
+                                int screen_x) {
+  // Convert the byte cursor to Cursor.
+  Cursor converted_cur = byteCursorToCursor(*tmp, start_row_byte, start_column_byte);
+  int start_row = converted_cur.file_id.absolute_row;
+  int start_column = converted_cur.line_id.absolute_column;
+
+
   // Support wide char in the word.
-  int offset = 0;
-  *tmp = tryToReachAbsPosition(*tmp, start_row + 1, start_column);
-  for (int i = 0; i < length && hasElementAfterLine(tmp->line_id) == true; i++) {
+  *tmp = tryToReachAbsPosition(*tmp, start_row, start_column);
+  for (int i = 0; i < length_byte && hasElementAfterLine(tmp->line_id) == true; i++) {
     // Move the cursor to the current char printed.
-    *tmp = tryToReachAbsPosition(*tmp, start_row + 1, start_column + i + 1);
+    *tmp = tryToReachAbsPosition(*tmp, start_row, start_column + i + 1);
     if (tmp->line_id.absolute_column == 0) continue;
-    int size = charPrintSize(getCharAtCursor(*tmp));
+
+    Char_U8 current_ch = getCharAtCursor(*tmp);
+    int size = charPrintSize(current_ch);
 
     attr_t current_char_attr = attr;
     NCURSES_PAIRS_T current_char_color = color;
@@ -45,14 +52,44 @@ void highlightFilePart(WINDOW* ftw, int start_row, int start_column, int length,
     else if (isCursorDisabled(select) == false && isCursorBetweenOthers(*tmp, cursor, select)) {
       current_char_color += 1000;
     }
-    int mov_res = wmove(ftw, start_row - screen_y + 1, getScreenXForCursor(*tmp, screen_x) - 1);
+
+    int mov_res = wmove(ftw, start_row - screen_y, getScreenXForCursor(*tmp, screen_x) - size/*TODO optimize, do not use getScreenXForCursor*/);
     if (mov_res != ERR) {
       wchgat(ftw, size, current_char_attr, current_char_color, NULL);
     }
-    offset += size;
+
+    length_byte += 1 - sizeChar_U8(current_ch);
   }
 }
 
+
+void highlightLinePart(WINDOW* ftw, int start_row, int start_column, int length, attr_t attr, NCURSES_PAIRS_T color, Cursor cursor, Cursor select, Cursor* tmp, int screen_y,
+                       int screen_x) {
+  // Support wide char in the word.
+  *tmp = tryToReachAbsPosition(*tmp, start_row, start_column);
+  for (int i = 0; i < length && hasElementAfterLine(tmp->line_id) == true; i++) {
+    // Move the cursor to the current char printed.
+    *tmp = tryToReachAbsPosition(*tmp, start_row, start_column + i + 1);
+    if (tmp->line_id.absolute_column == 0) continue;
+
+    Char_U8 current_ch = getCharAtCursor(*tmp);
+    int size = charPrintSize(current_ch);
+
+    attr_t current_char_attr = attr;
+    NCURSES_PAIRS_T current_char_color = color;
+    if (areCursorEqual(moveLeft(*tmp), cursor)) {
+      current_char_attr |= A_STANDOUT;
+    }
+    else if (isCursorDisabled(select) == false && isCursorBetweenOthers(*tmp, cursor, select)) {
+      current_char_color += 1000;
+    }
+
+    int mov_res = wmove(ftw, start_row - screen_y, getScreenXForCursor(*tmp, screen_x) - size/*TODO optimize, do not use getScreenXForCursor*/);
+    if (mov_res != ERR) {
+      wchgat(ftw, size, current_char_attr, current_char_color, NULL);
+    }
+  }
+}
 
 void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_length, long* args) {
   // Un-abstracting args.
@@ -130,22 +167,22 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
 
       // Simple line node.
       if (start_point.row == end_point.row) {
-        int length = end_point.column - start_point.column;
-        highlightFilePart(ftw, start_point.row, start_point.column, length, attr, color, cursor, select, tmp, *screen_y, *screen_x);
+        int length_byte = end_point.column - start_point.column;
+        highlightLinePartWithBytes(ftw, start_point.row, start_point.column, length_byte, attr, color, cursor, select, tmp, *screen_y, *screen_x);
       }
       else // Mutiple line node.
       {
         // First line
-        highlightFilePart(ftw, start_point.row, start_point.column, INT_MAX, attr, color, cursor, select, tmp, *screen_y, *screen_x);
+        highlightLinePartWithBytes(ftw, start_point.row, start_point.column, INT_MAX, attr, color, cursor, select, tmp, *screen_y, *screen_x);
 
         // Between lines.
         int ligne_between = end_point.row - start_point.row - 1;
         for (int i = 1; i < ligne_between + 1; i++) {
-          highlightFilePart(ftw, start_point.row + i, 0, INT_MAX, attr, color, cursor, select, tmp, *screen_y, *screen_x);
+          highlightLinePartWithBytes(ftw, start_point.row + i, 0, INT_MAX, attr, color, cursor, select, tmp, *screen_y, *screen_x);
         }
 
         // End line
-        highlightFilePart(ftw, end_point.row, 0, end_point.column, attr, color, cursor, select, tmp, *screen_y, *screen_x);
+        highlightLinePartWithBytes(ftw, end_point.row, 0, end_point.column, attr, color, cursor, select, tmp, *screen_y, *screen_x);
       }
 
       break;

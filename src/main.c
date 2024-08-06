@@ -241,7 +241,7 @@ int main(int file_count, char** file_names) {
   read_input:
     int c = getch();
 
-    // TODO Here check to do background operation.
+    // TODO Here check to do background operation like lsp_servers.
 
     switch (c) {
       // ---------------------- NCURSES THINGS ----------------------

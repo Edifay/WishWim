@@ -338,6 +338,23 @@ Cursor insertCharArrayAtCursor(Cursor cursor, char* chs) {
   return cursor;
 }
 
+
+Cursor byteCursorToCursor(Cursor cursor, int row, int byte_column) {
+  row += 1;
+  cursor = tryToReachAbsPosition(cursor, row, 0);
+
+  int byte_count = 0;
+  while (byte_count < byte_column) {
+    Cursor old_cur = cursor;
+    cursor = moveRight(cursor);
+    if (old_cur.file_id.absolute_row != cursor.file_id.absolute_row || areCursorEqual(old_cur, cursor)) {
+      return old_cur;
+    }
+    byte_count += sizeChar_U8(getCharAtCursor(cursor));
+  }
+  return cursor;
+}
+
 ////// -------------- SELECTION MANAGEMENT --------------
 
 bool isCursorPreviousThanOther(Cursor cursor, Cursor other) {
