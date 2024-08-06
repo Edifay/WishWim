@@ -26,4 +26,6 @@ char* whereis(char* prog);
 
 void getLocalURI(char* realive_abs_path, char* uri);
 
+bool isDir(char *path);
+
 #endif //TOOLS_H

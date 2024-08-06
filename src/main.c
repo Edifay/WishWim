@@ -16,6 +16,7 @@
 #include "io_management/io_explorer.h"
 #include "io_management/viewport_history.h"
 #include "io_management/io_manager.h"
+#include "io_management/dir_settings.h"
 #include "utils/clipboard_manager.h"
 #include "utils/key_management.h"
 #include "utils/constants.h"
@@ -33,8 +34,9 @@ cJSON* config;
 ParserList parsers;
 
 
-int main(int file_count, char** file_names) {
+int main(int file_count, char** args) {
   // remove first args which is the executable file name.
+  char** file_names = args;
   file_names++;
   file_count--;
   setlocale(LC_ALL, "");
@@ -44,11 +46,6 @@ int main(int file_count, char** file_names) {
 
   // Parser Datas
   initParserList(&parsers);
-
-  // Folder used for file explorer.
-  ExplorerFolder pwd;
-  initFolder(getenv("PWD"), &pwd);
-  pwd.open = true;
 
   // Init GUI vars
   WINDOW* ftw = NULL; // File Text Window
@@ -64,7 +61,7 @@ int main(int file_count, char** file_names) {
 
   // OFW Datas
   int current_file_offset = 0;
-  int ofw_height = OPENED_FILE_WINDOW_HEIGHT; // Height of Opened Files Window. 0 => Disabled on start.   OPENED_FILE_WINDOW_HEIGHT => Enabled on start.
+  int ofw_height = 0; // Height of Opened Files Window. 0 => Disabled on start.   OPENED_FILE_WINDOW_HEIGHT => Enabled on start.
 
   // Few Datas
   int few_width = 0; // File explorer width
@@ -99,6 +96,41 @@ int main(int file_count, char** file_names) {
   init_pair(ERROR_COLOR_HOVER_PAIR, COLOR_RED, COLOR_HOVER);
 
 
+  // Detect dir settings
+  DirSettings loaded_settings;
+  bool usingWorkspace = false;
+  if (file_count == 1 || file_count == 0) {
+    char* dir_name = file_count == 0 ? getenv("PWD") : file_names[0];
+    if (isDir(dir_name)) {
+      loaded_settings.dir_path = dir_name;
+      usingWorkspace = true;
+      bool settings_exist = loadDirSettings(dir_name, &loaded_settings);
+      // consume dir name
+      if (file_count == 1) {
+        file_count--;
+        file_names++;
+      }
+      assert(file_count == 0);
+
+      if (settings_exist) {
+        file_count = loaded_settings.file_count;
+        file_names = loaded_settings.files;
+
+        if (loaded_settings.showing_opened_file_window == true) {
+          ofw_height = OPENED_FILE_WINDOW_HEIGHT;
+        }
+        else {
+          ofw_height = 0;
+        }
+        if (loaded_settings.showing_file_explorer_window == true) {
+          ungetch(CTRL_KEY('e'));
+        }
+        // TODO use other fields of settings for UI.
+      }
+    }
+  }
+
+
   // Containers of current opened buffers.
   FileContainer* files = malloc(sizeof(FileContainer) * max(1, file_count));
   int current_file = 0; // The current showed file.
@@ -112,6 +144,17 @@ int main(int file_count, char** file_names) {
     file_count = 1;
     setupFileContainer("", files);
   }
+
+  // Folder used for file explorer.
+  ExplorerFolder pwd;
+  if (usingWorkspace == true) {
+    initFolder(loaded_settings.dir_path, &pwd);
+  }
+  else {
+    initFolder(getenv("PWD"), &pwd);
+  }
+  pwd.open = true;
+
 
   // Setup redirection of vars to use with out pass though file_container obj.
   IO_FileID* io_file; // Describe the IO file on OS
@@ -518,7 +561,7 @@ int main(int file_count, char** file_names) {
 
 
       case CTRL_KEY('e'): // File Explorer Window Switch
-        if (few_width == 0) {
+        if (few == NULL) {
           // Open File Explorer Window
           few_width = saved_few_width;
           few = newwin(0, few_width, 0, 0);
@@ -531,6 +574,7 @@ int main(int file_count, char** file_names) {
           // Close File Explorer Window
           saved_few_width = getmaxx(few);
           delwin(few);
+          few = NULL;
           few_width = 0;
         }
       // Resize Opened File Window
@@ -574,6 +618,14 @@ end:
   printf("\033[?1003l\n"); // Disable mouse movement events, as l = low
   fflush(stdout);
 
+
+  if (usingWorkspace == true) {
+    DirSettings new_settings;
+    getDirSettingsForCurrentDir(&new_settings, files, file_count, ofw_height != 0, few_width != 0, FILE_EXPLORER_WIDTH);
+    saveDirSettings(loaded_settings.dir_path, &new_settings);
+    destroyDirSettings(&new_settings);
+  }
+
   // Destroy all files
   for (int i = 0; i < file_count; i++) {
     destroyFileContainer(files + i);
@@ -582,6 +634,7 @@ end:
   free(files);
   cJSON_Delete(config);
   destroyParserList(&parsers);
+  destroyDirSettings(&loaded_settings);
 
   // We need to sleep a bit before flush input to wait for the terminal to disable mouse tracking.
   usleep(30000);
