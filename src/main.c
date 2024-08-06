@@ -16,7 +16,7 @@
 #include "io_management/io_explorer.h"
 #include "io_management/viewport_history.h"
 #include "io_management/io_manager.h"
-#include "io_management/dir_settings.h"
+#include "io_management/workspace_settings.h"
 #include "utils/clipboard_manager.h"
 #include "utils/key_management.h"
 #include "utils/constants.h"
@@ -97,14 +97,14 @@ int main(int file_count, char** args) {
 
 
   // Detect dir settings
-  DirSettings loaded_settings;
+  WorkspaceSettings loaded_settings;
   bool usingWorkspace = false;
   if (file_count == 1 || file_count == 0) {
     char* dir_name = file_count == 0 ? getenv("PWD") : file_names[0];
     if (isDir(dir_name)) {
       loaded_settings.dir_path = dir_name;
       usingWorkspace = true;
-      bool settings_exist = loadDirSettings(dir_name, &loaded_settings);
+      bool settings_exist = loadWorkspaceSettings(dir_name, &loaded_settings);
       // consume dir name
       if (file_count == 1) {
         file_count--;
@@ -620,10 +620,10 @@ end:
 
 
   if (usingWorkspace == true) {
-    DirSettings new_settings;
-    getDirSettingsForCurrentDir(&new_settings, files, file_count, ofw_height != 0, few_width != 0, FILE_EXPLORER_WIDTH);
-    saveDirSettings(loaded_settings.dir_path, &new_settings);
-    destroyDirSettings(&new_settings);
+    WorkspaceSettings new_settings;
+    getWorkspaceSettingsForCurrentDir(&new_settings, files, file_count, ofw_height != 0, few_width != 0, FILE_EXPLORER_WIDTH);
+    saveWorkspaceSettings(loaded_settings.dir_path, &new_settings);
+    destroyWorkspaceSettings(&new_settings);
   }
 
   // Destroy all files
@@ -634,7 +634,7 @@ end:
   free(files);
   cJSON_Delete(config);
   destroyParserList(&parsers);
-  destroyDirSettings(&loaded_settings);
+  destroyWorkspaceSettings(&loaded_settings);
 
   // We need to sleep a bit before flush input to wait for the terminal to disable mouse tracking.
   usleep(30000);

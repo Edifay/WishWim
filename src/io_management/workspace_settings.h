@@ -19,21 +19,21 @@ typedef struct {
 
   // Dir path
   char *dir_path;
-} DirSettings;
+} WorkspaceSettings;
 
 
-void getDirSettingsForCurrentDir(DirSettings* settings, FileContainer* files, int file_count, bool showing_opened_file_window,
+void getWorkspaceSettingsForCurrentDir(WorkspaceSettings* settings, FileContainer* files, int file_count, bool showing_opened_file_window,
                                  bool showing_file_explorer_window, int file_explorer_size);
 
-void destroyDirSettings(DirSettings* settings);
+void destroyWorkspaceSettings(WorkspaceSettings* settings);
 
-void saveDirSettings(char* dir_path, DirSettings* settings);
+void saveWorkspaceSettings(char* dir_path, WorkspaceSettings* settings);
 
-bool loadDirSettings(char* dir_path, DirSettings* settings);
+bool loadWorkspaceSettings(char* dir_path, WorkspaceSettings* settings);
 
-cJSON* DirSettingsToJSON(DirSettings* settings);
+cJSON* WorkspaceSettingsToJSON(WorkspaceSettings* settings);
 
-void JSONToDirSettings(DirSettings* settings, cJSON* json);
+void JSONToWorkspaceSettings(WorkspaceSettings* settings, cJSON* json);
 
 
 #endif //DIR_SETTINGS_H

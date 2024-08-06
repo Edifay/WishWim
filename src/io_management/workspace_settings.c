@@ -1,10 +1,10 @@
-#include "dir_settings.h"
+#include "workspace_settings.h"
 #include "../config/config.h"
 
 #include <string.h>
 
 
-void getDirSettingsForCurrentDir(DirSettings* settings, FileContainer* files, int file_count, bool showing_opened_file_window,
+void getWorkspaceSettingsForCurrentDir(WorkspaceSettings* settings, FileContainer* files, int file_count, bool showing_opened_file_window,
                                  bool showing_file_explorer_window, int file_explorer_size) {
   settings->file_count = file_count;
   settings->files = malloc(file_count * sizeof(char *));
@@ -19,7 +19,7 @@ void getDirSettingsForCurrentDir(DirSettings* settings, FileContainer* files, in
   settings->showing_opened_file_window = showing_opened_file_window;
 }
 
-void destroyDirSettings(DirSettings* settings) {
+void destroyWorkspaceSettings(WorkspaceSettings* settings) {
   for (int i = 0; i < settings->file_count; i++) {
     free(settings->files[i]);
   }
@@ -34,7 +34,7 @@ void touchDirSettingsFolder() {
   system(command);
 }
 
-void saveDirSettings(char* dir_path, DirSettings* settings) {
+void saveWorkspaceSettings(char* dir_path, WorkspaceSettings* settings) {
   touchDirSettingsFolder();
 
   char abs_dir_path[PATH_MAX];
@@ -50,7 +50,7 @@ void saveDirSettings(char* dir_path, DirSettings* settings) {
     return;
   }
 
-  cJSON* json_settings = DirSettingsToJSON(settings);
+  cJSON* json_settings = WorkspaceSettingsToJSON(settings);
   char* json_text = cJSON_Print(json_settings);
 
   fprintf(f, "%s", json_text);
@@ -61,7 +61,7 @@ void saveDirSettings(char* dir_path, DirSettings* settings) {
   fclose(f);
 }
 
-bool loadDirSettings(char* dir_path, DirSettings* settings) {
+bool loadWorkspaceSettings(char* dir_path, WorkspaceSettings* settings) {
   char abs_dir_path[PATH_MAX];
   realpath(dir_path, abs_dir_path);
 
@@ -95,14 +95,14 @@ bool loadDirSettings(char* dir_path, DirSettings* settings) {
 
   free(file_content);
 
-  JSONToDirSettings(settings, json_settings);
+  JSONToWorkspaceSettings(settings, json_settings);
 
   cJSON_Delete(json_settings);
 
   return true;
 }
 
-cJSON* DirSettingsToJSON(DirSettings* settings) {
+cJSON* WorkspaceSettingsToJSON(WorkspaceSettings* settings) {
   cJSON* json_settings = cJSON_CreateObject();
   cJSON_AddNumberToObject(json_settings, "file_count", settings->file_count);
   cJSON* file_array = cJSON_AddArrayToObject(json_settings, "files");
@@ -116,7 +116,7 @@ cJSON* DirSettingsToJSON(DirSettings* settings) {
   return json_settings;
 }
 
-void JSONToDirSettings(DirSettings* settings, cJSON* json) {
+void JSONToWorkspaceSettings(WorkspaceSettings* settings, cJSON* json) {
   settings->file_count = cJSON_GetNumberValue(cJSON_GetObjectItem(json, "file_count"));
   cJSON* file_array = cJSON_GetObjectItem(json, "files");
   settings->files = malloc(sizeof(char *) * settings->file_count);

@@ -10,7 +10,7 @@ modules= \
 	src/io_management/io_manager.o src/utils/key_management.o src/utils/clipboard_manager.o src/io_management/viewport_history.o         \
 	src/data-management/state_control.o src/terminal/term_handler.o src/io_management/io_explorer.o src/advanced/lsp/lsp_client.o \
 	src/advanced/tree-sitter/scm_parser.o  src/advanced/tree-sitter/tree_manager.o src/advanced/theme.o src/terminal/highlight.o\
-	src/terminal/click_handler.o src/config/config.o src/io_management/dir_settings.o \
+	src/terminal/click_handler.o src/config/config.o src/io_management/workspace_settings.o \
 	\
 	lib/tree-sitter/libtree-sitter.a \
 	lib/tree-sitter-c/libtree-sitter-c.a \
