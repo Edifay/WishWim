@@ -171,6 +171,8 @@ int main(int file_count, char** file_names) {
     // If it needed to reparse the current file for tree. Looking for state changes.
     if (highlight_data->is_active == true && (old_history_frame != *history_frame || highlight_data->tree == NULL)) {
       edit_and_parse_tree(root, history_frame, highlight_data, &old_history_frame);
+      optimizeHistory(*history_root, history_frame);
+      old_history_frame = *history_frame;
     }
 
     //// --------------- Paint GUI -----------------

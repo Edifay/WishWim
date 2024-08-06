@@ -82,9 +82,6 @@ void saveAction(History** history_p, Action action) {
   destroyEndOfHistory(history);
   assert(history->next == NULL);
 
-
-  // TODO implement concat of followed elements.
-
   assert(history != NULL);
   history->next = malloc(sizeof(History));
 
@@ -404,6 +401,105 @@ void loadCurrentStateControl(History* root, History** current_state, IO_FileID i
   *current_state = state_to_return;
 }
 
-// Current state : n
-// HERE d
-// Time : 1720079095507
+
+void optimizeHistory(History* root, History** history_frame) {
+  History* current = root;
+
+  while (current != NULL && current->next != NULL) {
+    History* next = current->next;
+    if (diff2Time(current->action.time, next->action.time) < TIME_CONSIDER_UNIQUE_UNDO && current != *history_frame) {
+      bool is_pos_linked = false;
+      switch (current->action.action) {
+        case DELETE:
+        case DELETE_ONE:
+          switch (next->action.action) {
+            case DELETE_ONE:
+              if (next->action.unique_ch == '\n') {
+                if (current->action.cur.line_id.absolute_column == 0 && next->action.cur.line_id.absolute_column == current->action.cur.file_id.absolute_row - 1) {
+                  // We may don't want to join when line is removed.
+                  is_pos_linked = false;
+                }
+              }
+              else {
+                if (current->action.cur.file_id.absolute_row == next->action.cur.file_id.absolute_row
+                    && current->action.cur.line_id.absolute_column - 1 == next->action.cur.line_id.absolute_column) {
+                  is_pos_linked = true;
+                }
+              }
+
+              if (is_pos_linked) {
+
+                if (next == *history_frame) {
+                  *history_frame = current;
+                }
+
+                if (current->action.action == DELETE_ONE) {
+                  current->action.action = DELETE;
+                  current->action.ch = malloc(3 * sizeof(char));
+                  current->action.ch[0] = next->action.unique_ch;
+                  current->action.ch[1] = current->action.unique_ch;
+                  current->action.ch[2] = '\0';
+                }
+                else {
+                  int old_size = strlen(current->action.ch);
+                  current->action.ch = realloc(current->action.ch, (old_size + 2/*new char and null char*/) * sizeof(char));
+                  memmove(current->action.ch + 1, current->action.ch, old_size);
+                  current->action.ch[0] = next->action.unique_ch;
+                  current->action.ch[old_size + 1] = '\0';
+                }
+
+                current->action.cur = next->action.cur;
+                current->action.time = next->action.time;
+                current->next = next->next;
+                destroyAction(next->action);
+                free(next);
+              }
+              break;
+            default:
+              break;
+          }
+          break;
+
+        case INSERT:
+          switch (next->action.action) {
+            case INSERT:
+              if (next->action.unique_ch == '\n') {
+                // TODO change condition
+                // if (history->action.cur.line_id.absolute_column == 0 && action.cur.line_id.absolute_column == history->action.cur.file_id.absolute_row - 1) {
+                // We may don't want to join when line is removed.
+                // is_pos_linked = false;
+                // }
+              }
+              else {
+                if (current->action.cur_end.file_id.absolute_row == next->action.cur.file_id.absolute_row && current->action.cur_end.line_id.absolute_column == next->action.cur.
+                    line_id.
+                    absolute_column) {
+                  is_pos_linked = true;
+                }
+              }
+
+              if (is_pos_linked) {
+                if (next == *history_frame) {
+                  *history_frame = current;
+                }
+                current->action.cur_end = next->action.cur_end;
+                current->action.time = next->action.time;
+                current->next = next->next;
+                destroyAction(next->action);
+                free(next);
+                return;
+              }
+              break;
+
+            default:
+              break;
+          }
+          break;
+
+        default:
+          break;
+      }
+    }
+    current = current->next;
+  }
+}
