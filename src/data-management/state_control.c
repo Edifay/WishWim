@@ -18,7 +18,7 @@ void initHistory(History* history) {
 }
 
 
-Cursor undo(History** history_p, Cursor cursor) {
+Cursor undo(History** history_p, Cursor cursor, void (*forEachUndo)(History** history_frame, History** old_history_frame, long* payload), long* payload) {
   History* history = *history_p;
 
   // If hisotory is at root return and do nothing. Cannot undo nothing ;).
@@ -30,16 +30,21 @@ Cursor undo(History** history_p, Cursor cursor) {
   cursor = doReverseAction(&history->action, cursor);
   history->action.time = canceled_time_action;
 
+  History* old_history = *history_p;
   *history_p = history->prev;
 
+  if (forEachUndo != NULL) {
+    forEachUndo(history_p, &old_history, payload);
+  }
+
   if (diff2Time(history->action.time, history->prev->action.time) < TIME_CONSIDER_UNIQUE_UNDO) {
-    return undo(history_p, cursor);
+    return undo(history_p, cursor, forEachUndo, payload);
   }
 
   return cursor;
 }
 
-Cursor redo(History** history_p, Cursor cursor) {
+Cursor redo(History** history_p, Cursor cursor, void (*forEachRedo)(History** history_frame, History** old_history_frame, long* payload), long* payload) {
   History* history = *history_p;
 
   // If hisotory is at root return and do nothing. Cannot undo nothing ;).
@@ -47,23 +52,27 @@ Cursor redo(History** history_p, Cursor cursor) {
     return cursor;
   }
 
+  History* old_history = *history_p;
   *history_p = history->next;
   history = *history_p;
 
   time_val canceled_time_action = history->action.time;
-  // TODO implement keep reverse action to redo.
+
   cursor = doReverseAction(&history->action, cursor);
   history->action.time = canceled_time_action;
 
+  if (forEachRedo != NULL) {
+    forEachRedo(history_p, &old_history, payload);
+  }
 
   if (history->next != NULL && diff2Time(history->action.time, history->next->action.time) < TIME_CONSIDER_UNIQUE_UNDO) {
-    return redo(history_p, cursor);
+    return redo(history_p, cursor, forEachRedo, payload);
   }
 
   return cursor;
 }
 
-// TODO implement
+
 void saveAction(History** history_p, Action action) {
   History* history = *history_p;
   if (action.action == ACTION_NONE) {
@@ -392,6 +401,105 @@ void loadCurrentStateControl(History* root, History** current_state, IO_FileID i
   *current_state = state_to_return;
 }
 
-// Current state : n
-// HERE d
-// Time : 1720079095507
+
+void optimizeHistory(History* root, History** history_frame) {
+  History* current = root;
+
+  while (current != NULL && current->next != NULL) {
+    History* next = current->next;
+    if (diff2Time(current->action.time, next->action.time) < TIME_CONSIDER_UNIQUE_UNDO && current != *history_frame) {
+      bool is_pos_linked = false;
+      switch (current->action.action) {
+        case DELETE:
+        case DELETE_ONE:
+          switch (next->action.action) {
+            case DELETE_ONE:
+              if (next->action.unique_ch == '\n') {
+                if (current->action.cur.line_id.absolute_column == 0 && next->action.cur.line_id.absolute_column == current->action.cur.file_id.absolute_row - 1) {
+                  // We may don't want to join when line is removed.
+                  is_pos_linked = false;
+                }
+              }
+              else {
+                if (current->action.cur.file_id.absolute_row == next->action.cur.file_id.absolute_row
+                    && current->action.cur.line_id.absolute_column - 1 == next->action.cur.line_id.absolute_column) {
+                  is_pos_linked = true;
+                }
+              }
+
+              if (is_pos_linked) {
+
+                if (next == *history_frame) {
+                  *history_frame = current;
+                }
+
+                if (current->action.action == DELETE_ONE) {
+                  current->action.action = DELETE;
+                  current->action.ch = malloc(3 * sizeof(char));
+                  current->action.ch[0] = next->action.unique_ch;
+                  current->action.ch[1] = current->action.unique_ch;
+                  current->action.ch[2] = '\0';
+                }
+                else {
+                  int old_size = strlen(current->action.ch);
+                  current->action.ch = realloc(current->action.ch, (old_size + 2/*new char and null char*/) * sizeof(char));
+                  memmove(current->action.ch + 1, current->action.ch, old_size);
+                  current->action.ch[0] = next->action.unique_ch;
+                  current->action.ch[old_size + 1] = '\0';
+                }
+
+                current->action.cur = next->action.cur;
+                current->action.time = next->action.time;
+                current->next = next->next;
+                destroyAction(next->action);
+                free(next);
+              }
+              break;
+            default:
+              break;
+          }
+          break;
+
+        case INSERT:
+          switch (next->action.action) {
+            case INSERT:
+              if (next->action.unique_ch == '\n') {
+                // TODO change condition
+                // if (history->action.cur.line_id.absolute_column == 0 && action.cur.line_id.absolute_column == history->action.cur.file_id.absolute_row - 1) {
+                // We may don't want to join when line is removed.
+                // is_pos_linked = false;
+                // }
+              }
+              else {
+                if (current->action.cur_end.file_id.absolute_row == next->action.cur.file_id.absolute_row && current->action.cur_end.line_id.absolute_column == next->action.cur.
+                    line_id.
+                    absolute_column) {
+                  is_pos_linked = true;
+                }
+              }
+
+              if (is_pos_linked) {
+                if (next == *history_frame) {
+                  *history_frame = current;
+                }
+                current->action.cur_end = next->action.cur_end;
+                current->action.time = next->action.time;
+                current->next = next->next;
+                destroyAction(next->action);
+                free(next);
+                return;
+              }
+              break;
+
+            default:
+              break;
+          }
+          break;
+
+        default:
+          break;
+      }
+    }
+    current = current->next;
+  }
+}

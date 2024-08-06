@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <linux/limits.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 
 time_val timeInMilliseconds(void) {
@@ -95,4 +96,10 @@ void getLocalURI(char* realive_abs_path, char* uri) {
   char abs_path[PATH_MAX];
   realpath(realive_abs_path, abs_path);
   sprintf(uri, "file://%s", abs_path);
+}
+
+bool isDir(char *path) {
+  struct stat file_info;
+  stat(path, &file_info);
+ return S_ISDIR(file_info.st_mode);
 }

@@ -16,6 +16,7 @@
 #include "io_management/io_explorer.h"
 #include "io_management/viewport_history.h"
 #include "io_management/io_manager.h"
+#include "io_management/workspace_settings.h"
 #include "utils/clipboard_manager.h"
 #include "utils/key_management.h"
 #include "utils/constants.h"
@@ -27,14 +28,15 @@
 
 #define CTRL_KEY(k) ((k)&0x1f)
 
-int color_pair = 2;
+int color_pair = 3;
 int color_index = 100;
 cJSON* config;
 ParserList parsers;
 
 
-int main(int file_count, char** file_names) {
+int main(int file_count, char** args) {
   // remove first args which is the executable file name.
+  char** file_names = args;
   file_names++;
   file_count--;
   setlocale(LC_ALL, "");
@@ -44,11 +46,6 @@ int main(int file_count, char** file_names) {
 
   // Parser Datas
   initParserList(&parsers);
-
-  // Folder used for file explorer.
-  ExplorerFolder pwd;
-  initFolder(getenv("PWD"), &pwd);
-  pwd.open = true;
 
   // Init GUI vars
   WINDOW* ftw = NULL; // File Text Window
@@ -64,7 +61,7 @@ int main(int file_count, char** file_names) {
 
   // OFW Datas
   int current_file_offset = 0;
-  int ofw_height = OPENED_FILE_WINDOW_HEIGHT; // Height of Opened Files Window. 0 => Disabled on start.   OPENED_FILE_WINDOW_HEIGHT => Enabled on start.
+  int ofw_height = 0; // Height of Opened Files Window. 0 => Disabled on start.   OPENED_FILE_WINDOW_HEIGHT => Enabled on start.
 
   // Few Datas
   int few_width = 0; // File explorer width
@@ -93,8 +90,45 @@ int main(int file_count, char** file_names) {
   start_color();
   // Default color.
   init_color(COLOR_HOVER, 390, 390, 390);
-  init_pair(1, COLOR_WHITE, COLOR_BLACK);
-  init_pair(1001, COLOR_WHITE, COLOR_HOVER);
+  init_pair(DEFAULT_COLOR_PAIR, COLOR_WHITE, COLOR_BLACK);
+  init_pair(DEFAULT_COLOR_HOVER_PAIR, COLOR_WHITE, COLOR_HOVER);
+  init_pair(ERROR_COLOR_PAIR, COLOR_RED, COLOR_BLACK);
+  init_pair(ERROR_COLOR_HOVER_PAIR, COLOR_RED, COLOR_HOVER);
+
+
+  // Detect dir settings
+  WorkspaceSettings loaded_settings;
+  bool usingWorkspace = false;
+  if (file_count == 1 || file_count == 0) {
+    char* dir_name = file_count == 0 ? getenv("PWD") : file_names[0];
+    if (isDir(dir_name)) {
+      loaded_settings.dir_path = dir_name;
+      usingWorkspace = true;
+      bool settings_exist = loadWorkspaceSettings(dir_name, &loaded_settings);
+      // consume dir name
+      if (file_count == 1) {
+        file_count--;
+        file_names++;
+      }
+      assert(file_count == 0);
+
+      if (settings_exist) {
+        file_count = loaded_settings.file_count;
+        file_names = loaded_settings.files;
+
+        if (loaded_settings.showing_opened_file_window == true) {
+          ofw_height = OPENED_FILE_WINDOW_HEIGHT;
+        }
+        else {
+          ofw_height = 0;
+        }
+        if (loaded_settings.showing_file_explorer_window == true) {
+          ungetch(CTRL_KEY('e'));
+        }
+        // TODO use other fields of settings for UI.
+      }
+    }
+  }
 
 
   // Containers of current opened buffers.
@@ -110,6 +144,17 @@ int main(int file_count, char** file_names) {
     file_count = 1;
     setupFileContainer("", files);
   }
+
+  // Folder used for file explorer.
+  ExplorerFolder pwd;
+  if (usingWorkspace == true) {
+    initFolder(loaded_settings.dir_path, &pwd);
+  }
+  else {
+    initFolder(getenv("PWD"), &pwd);
+  }
+  pwd.open = true;
+
 
   // Setup redirection of vars to use with out pass though file_container obj.
   IO_FileID* io_file; // Describe the IO file on OS
@@ -132,6 +177,7 @@ int main(int file_count, char** file_names) {
   Cursor tmp;
   MEVENT m_event;
   History* old_history_frame;
+  long* payload;
   bool mouse_drag = false;
   time_val last_time_mouse_drag = timeInMilliseconds();
   while (true) {
@@ -159,33 +205,16 @@ int main(int file_count, char** file_names) {
     if (*old_screen_y != *screen_y) {
       *old_screen_y = *screen_y;
       // resize line_w to match with line_number_length
-      int new_lnw_width = numberOfDigitOfNumber(*screen_y + ftw->_maxy) + 1 /* +1 for the line */;
-      if (new_lnw_width != ftw->_begx) {
+      int new_lnw_width = numberOfDigitOfNumber(*screen_y + getmaxy(ftw)) + 1 /* +1 for the line */;
+      if (new_lnw_width != getbegx(ftw)) {
         resizeEditorWindows(&ftw, &lnw, ofw_height, new_lnw_width, few_width);
       }
     }
 
-    // If it needed to reparse the current file. Looking for state changes.
+    // If it needed to reparse the current file for tree. Looking for state changes.
     if (highlight_data->is_active == true && (old_history_frame != *history_frame || highlight_data->tree == NULL)) {
-      ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_name);
-
-      int new_dump_size;
-      edit_tree(highlight_data, root, &highlight_data->tmp_file_dump, &new_dump_size, history_frame, old_history_frame);
-
-      TSTree* old_tree = highlight_data->tree;
-      highlight_data->tree = ts_parser_parse_string(
-        parser->parser,
-        highlight_data->tree,
-        highlight_data->tmp_file_dump,
-        new_dump_size
-      );
-      ts_tree_delete(old_tree);
-
-#ifdef PARSE_PRINT
-      TreePath symbols[100];
-      treeForEachNode(ts_tree_root_node(highlight_data->tree), symbols, 0, NULL, NULL);
-      fprintf(stderr, "\n");
-#endif
+      edit_and_parse_tree(root, history_frame, highlight_data, &old_history_frame);
+      optimizeHistory(*history_root, history_frame);
       old_history_frame = *history_frame;
     }
 
@@ -228,8 +257,8 @@ int main(int file_count, char** file_names) {
         args_fct[3] = (long)ftw;
         args_fct[4] = (long)screen_x;
         args_fct[5] = (long)screen_y;
-        args_fct[6] = (long)ftw->_maxx;
-        args_fct[7] = (long)ftw->_maxy;
+        args_fct[6] = (long)getmaxx(ftw);
+        args_fct[7] = (long)getmaxy(ftw);
         args_fct[8] = (long)cursor;
         args_fct[9] = (long)select_cursor;
         args_fct[10] = (long)NULL;
@@ -237,7 +266,7 @@ int main(int file_count, char** file_names) {
         TSNode root_node = ts_tree_root_node(highlight_data->tree);
         TreePath path[100];
 
-        treeForEachNodeSized(*screen_y, *screen_x, ftw->_maxy + 1, ftw->_maxx + 1, root_node, path, 0, checkMatchForHighlight, args_fct);
+        treeForEachNodeSized(*screen_y, *screen_x, getmaxy(ftw), getmaxx(ftw), root_node, path, 0, checkMatchForHighlight, args_fct);
 
         t = clock() - t;
         time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
@@ -257,7 +286,7 @@ int main(int file_count, char** file_names) {
   read_input:
     int c = getch();
 
-    // TODO Here check to do background operation.
+    // TODO Here check to do background operation like lsp_servers.
 
     switch (c) {
       // ---------------------- NCURSES THINGS ----------------------
@@ -269,11 +298,11 @@ int main(int file_count, char** file_names) {
       case MOUSE_IN_OUT:
       case KEY_RESIZE:
         // Was there but idk why... => Avoid biggest size only used on time before automated resize.
-        assert((lnw->_maxx + few_width + 1 >= COLS) == false);
+        assert((getmaxx(lnw) + few_width >= COLS) == false);
       // Resize Opened File Window
         resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
         refresh_ofw = true;
-        resizeEditorWindows(&ftw, &lnw, ofw_height, lnw->_maxx + 1, few_width);
+        resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw), few_width);
         refresh_edw = true;
         refresh_few = true;
         break;
@@ -303,12 +332,13 @@ int main(int file_count, char** file_names) {
             mouse_drag = true;
           }
 
-          if ((m_event.x < lnw->_begx && focus_w == NULL) || (few != NULL && focus_w == few)) {
+          if ((m_event.x < getbegx(lnw) && focus_w == NULL) || (few != NULL && focus_w == few)) {
             // Click in File Explorer Window
             if (m_event.bstate & BUTTON1_PRESSED) {
               focus_w = few;
             }
-            handleFileExplorerClick(&files, &file_count, &current_file, &pwd, &few_y_offset, &few_x_offset, &few_width, &few_selected_line, ofw_height, &few, &ofw, &lnw, &ftw,
+            handleFileExplorerClick(&files, &file_count, &current_file, &pwd, &few_y_offset, &few_x_offset, &few_width, &few_selected_line, ofw_height, ofw_height, &few, &ofw,
+                                    &lnw, &ftw,
                                     m_event, &refresh_few, &refresh_ofw, &refresh_edw, &refresh_local_vars);
           }
           else if ((m_event.y - ofw_height < 0 && focus_w == NULL) || (ofw != NULL && focus_w == ofw)) {
@@ -323,7 +353,7 @@ int main(int file_count, char** file_names) {
             if (m_event.bstate & BUTTON1_PRESSED) {
               focus_w = ftw;
             }
-            handleEditorClick(ftw->_begx, ofw_height, cursor, select_cursor, desired_column, screen_x, screen_y, &m_event, mouse_drag);
+            handleEditorClick(getbegx(ftw), ofw_height, cursor, select_cursor, desired_column, screen_x, screen_y, &m_event, mouse_drag);
           }
 
           if (m_event.bstate & BUTTON1_RELEASED) {
@@ -421,12 +451,18 @@ int main(int file_count, char** file_names) {
 
       case CTRL_KEY('z'):
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
-        *cursor = undo(history_frame, *cursor);
+        payload = get_payload_edit_and_parse_tree(&root, &highlight_data);
+        *cursor = undo(history_frame, *cursor, edit_and_parse_tree_from_payload, payload);
+        free(payload);
+        old_history_frame = *history_frame;
         setDesiredColumn(*cursor, desired_column);
         break;
       case CTRL_KEY('y'):
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
-        *cursor = redo(history_frame, *cursor);
+        payload = get_payload_edit_and_parse_tree(&root, &highlight_data);
+        *cursor = redo(history_frame, *cursor, edit_and_parse_tree_from_payload, payload);
+        free(payload);
+        old_history_frame = *history_frame;
         setDesiredColumn(*cursor, desired_column);
         break;
       case CTRL_KEY('c'):
@@ -525,7 +561,7 @@ int main(int file_count, char** file_names) {
 
 
       case CTRL_KEY('e'): // File Explorer Window Switch
-        if (few_width == 0) {
+        if (few == NULL) {
           // Open File Explorer Window
           few_width = saved_few_width;
           few = newwin(0, few_width, 0, 0);
@@ -536,14 +572,15 @@ int main(int file_count, char** file_names) {
         }
         else {
           // Close File Explorer Window
-          saved_few_width = few->_maxx + 1;
+          saved_few_width = getmaxx(few);
           delwin(few);
+          few = NULL;
           few_width = 0;
         }
       // Resize Opened File Window
         resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
       // Resize Editor Window
-        resizeEditorWindows(&ftw, &lnw, ofw_height, lnw->_maxx + 1, few_width);
+        resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw), few_width);
         break;
       case CTRL_KEY('l'): // Opened File Window Switch
         if (ofw_height == OPENED_FILE_WINDOW_HEIGHT) {
@@ -553,7 +590,7 @@ int main(int file_count, char** file_names) {
           ofw_height = OPENED_FILE_WINDOW_HEIGHT;
         }
         resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
-        resizeEditorWindows(&ftw, &lnw, ofw_height, lnw->_maxx + 1, few_width);
+        resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw), few_width);
         refresh_ofw = true;
         refresh_edw = true;
         break;
@@ -581,6 +618,14 @@ end:
   printf("\033[?1003l\n"); // Disable mouse movement events, as l = low
   fflush(stdout);
 
+
+  if (usingWorkspace == true) {
+    WorkspaceSettings new_settings;
+    getWorkspaceSettingsForCurrentDir(&new_settings, files, file_count, ofw_height != 0, few_width != 0, FILE_EXPLORER_WIDTH);
+    saveWorkspaceSettings(loaded_settings.dir_path, &new_settings);
+    destroyWorkspaceSettings(&new_settings);
+  }
+
   // Destroy all files
   for (int i = 0; i < file_count; i++) {
     destroyFileContainer(files + i);
@@ -589,6 +634,7 @@ end:
   free(files);
   cJSON_Delete(config);
   destroyParserList(&parsers);
+  destroyWorkspaceSettings(&loaded_settings);
 
   // We need to sleep a bit before flush input to wait for the terminal to disable mouse tracking.
   usleep(30000);

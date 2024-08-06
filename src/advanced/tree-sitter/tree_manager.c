@@ -379,6 +379,9 @@ void detectLanguage(FileHighlightDatas* data, IO_FileID io_file) {
   if (strcmp(basename(io_file.path_abs), "Makefile") == 0) {
     strcpy(data->lang_name, "make");
   }
+  else if (strcmp(basename(io_file.path_abs), "config") == 0 || strcmp(basename(io_file.path_abs), ".bashrc") == 0) {
+    strcpy(data->lang_name, "bash");
+  }
   else {
     char* dot = strrchr(io_file.path_args, '.');
     if (dot != NULL)
@@ -683,4 +686,41 @@ void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_f
         break;
     }
   }
+}
+
+
+void edit_and_parse_tree(FileNode** root, History** history_frame, FileHighlightDatas* highlight_data, History** old_history_frame) {
+  ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_name);
+
+  int new_dump_size;
+  edit_tree(highlight_data, root, &highlight_data->tmp_file_dump, &new_dump_size, history_frame, *old_history_frame);
+
+  TSTree* old_tree = highlight_data->tree;
+  highlight_data->tree = ts_parser_parse_string(
+    parser->parser,
+    highlight_data->tree,
+    highlight_data->tmp_file_dump,
+    new_dump_size
+  );
+  ts_tree_delete(old_tree);
+
+#ifdef PARSE_PRINT
+  TreePath symbols[100];
+  treeForEachNode(ts_tree_root_node(highlight_data->tree), symbols, 0, NULL, NULL);
+  fprintf(stderr, "\n");
+#endif
+  *old_history_frame = *history_frame;
+}
+
+
+long* get_payload_edit_and_parse_tree(FileNode*** root, FileHighlightDatas** highlight_data) {
+  long* payload = malloc(sizeof(long) * 2);
+  payload[0] = (long)root;
+  payload[1] = (long)highlight_data;
+  return payload;
+}
+
+void edit_and_parse_tree_from_payload(History** history_frame, History** old_history_frame, long* payload) {
+  assert(payload != NULL);
+  edit_and_parse_tree(*((FileNode ***)payload[0]), history_frame, *((FileHighlightDatas **)payload[1]), old_history_frame);
 }

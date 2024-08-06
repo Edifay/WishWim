@@ -77,7 +77,7 @@ void handleEditorClick(int edws_offset_x, int edws_offset_y, Cursor* cursor, Cur
 
 int handleOpenedFileSelectClick(FileContainer* files, int* file_count, int* current_file, MEVENT m_event, int* current_file_offset, WINDOW* ofw, bool* refresh_ofw) {
   // Char offset for the window
-  int current_char_offset = ofw->_begx;
+  int current_char_offset = getbegx(ofw);
 
   if (*current_file_offset != 0) {
     current_char_offset += strlen("< | ");
@@ -86,7 +86,7 @@ int handleOpenedFileSelectClick(FileContainer* files, int* file_count, int* curr
   for (int i = *current_file_offset; i < *file_count; i++) {
     current_char_offset += strlen(basename(files[i].io_file.path_args));
 
-    if (*current_file_offset != 0 && m_event.x < ofw->_begx + 3) {
+    if (*current_file_offset != 0 && m_event.x < getbegx(ofw) + 3) {
       (*current_file_offset)--;
       assert(*current_file_offset >= 0);
       *refresh_ofw = true;
@@ -170,7 +170,7 @@ void handleOpenedFileClick(FileContainer* files, int* file_count, int* current_f
 }
 
 void handleFileExplorerClick(FileContainer** files, int* file_count, int* current_file, ExplorerFolder* pwd, int* few_y_offset, int* few_x_offset, int* few_width,
-                             int* few_selected_line, int edws_offset_y, WINDOW** few, WINDOW** ofw, WINDOW** lnw, WINDOW** ftw, MEVENT m_event, bool* refresh_few,
+                             int* few_selected_line, int edws_offset_y, int ofw_height, WINDOW** few, WINDOW** ofw, WINDOW** lnw, WINDOW** ftw, MEVENT m_event, bool* refresh_few,
                              bool* refresh_ofw, bool* refresh_edw, bool* refresh_local_vars) {
   // ---------- SCROLL ------------
   if (m_event.bstate & BUTTON4_PRESSED && !(m_event.bstate & BUTTON_SHIFT)) {
@@ -202,12 +202,9 @@ void handleFileExplorerClick(FileContainer** files, int* file_count, int* curren
       delwin(*few);
       *few = newwin(0, *few_width, 0, 0);
       // Resize Opened File Window
-      delwin(*ofw);
-      *ofw = newwin(edws_offset_y, 0, 0, *few_width);
-      *refresh_ofw = true;
+      resizeOpenedFileWindow(ofw, refresh_ofw, edws_offset_y, *few_width);
       // Resize Editor Window
-      resizeEditorWindows(ftw, lnw, edws_offset_y, (*lnw)->_maxx + 1, *few_width);
-      *refresh_edw = true;
+      resizeEditorWindows(ftw, lnw, ofw_height, getmaxx(*lnw), *few_width);
     }
     *refresh_few = true;
   }
