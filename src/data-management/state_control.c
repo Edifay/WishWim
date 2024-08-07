@@ -428,7 +428,6 @@ void optimizeHistory(History* root, History** history_frame) {
               }
 
               if (is_pos_linked) {
-
                 if (next == *history_frame) {
                   *history_frame = current;
                 }

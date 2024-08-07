@@ -95,16 +95,22 @@ int main(int file_count, char** args) {
   init_pair(ERROR_COLOR_PAIR, COLOR_RED, COLOR_BLACK);
   init_pair(ERROR_COLOR_HOVER_PAIR, COLOR_RED, COLOR_HOVER);
 
+  // Containers of current opened buffers.
+  FileContainer* files;
+  int current_file = 0; // The current showed file.
 
-  // Detect dir settings
+  // Detect workspace settings
   WorkspaceSettings loaded_settings;
   bool usingWorkspace = false;
   if (file_count == 1 || file_count == 0) {
     char* dir_name = file_count == 0 ? getenv("PWD") : file_names[0];
+
     if (isDir(dir_name)) {
       loaded_settings.dir_path = dir_name;
       usingWorkspace = true;
+
       bool settings_exist = loadWorkspaceSettings(dir_name, &loaded_settings);
+
       // consume dir name
       if (file_count == 1) {
         file_count--;
@@ -113,27 +119,30 @@ int main(int file_count, char** args) {
       assert(file_count == 0);
 
       if (settings_exist) {
+        // Setup opened files.
         file_count = loaded_settings.file_count;
         file_names = loaded_settings.files;
+        current_file = loaded_settings.current_opened_file;
 
+        // File Opened Window state.
         if (loaded_settings.showing_opened_file_window == true) {
           ofw_height = OPENED_FILE_WINDOW_HEIGHT;
         }
         else {
           ofw_height = 0;
         }
+        // File Explorer Window state.
         if (loaded_settings.showing_file_explorer_window == true) {
           ungetch(CTRL_KEY('e'));
         }
-        // TODO use other fields of settings for UI.
       }
     }
   }
 
 
-  // Containers of current opened buffers.
-  FileContainer* files = malloc(sizeof(FileContainer) * max(1, file_count));
-  int current_file = 0; // The current showed file.
+  // allocating space for file at open.
+  files = malloc(sizeof(FileContainer) * max(1, file_count));
+
 
   // Fill files with args
   for (int i = 0; i < file_count; i++) {
@@ -264,7 +273,7 @@ int main(int file_count, char** args) {
         args_fct[10] = (long)NULL;
 
         TSNode root_node = ts_tree_root_node(highlight_data->tree);
-        TreePath path[100];
+        TreePath path[100]; // TODO refactor this, there is a problem if the depth of the tree is bigger than 100.
 
         treeForEachNodeSized(*screen_y, *screen_x, getmaxy(ftw), getmaxx(ftw), root_node, path, 0, checkMatchForHighlight, args_fct);
 
@@ -485,6 +494,17 @@ int main(int file_count, char** args) {
         setDesiredColumn(*cursor, desired_column);
         break;
       case CTRL_KEY('q'):
+        // TODO refactor
+        if (false)
+          for (int i = 0; i < file_count; i++) {
+            if (files[i].io_file.status == NONE) {
+              continue;
+            }
+            saveFile(files[i].root, &files[i].io_file);
+            assert(io_file->status == EXIST);
+            setlastFilePosition(files[i].io_file.path_abs, files[i].cursor.file_id.absolute_row, files[i].cursor.line_id.absolute_column, files[i].screen_x, files[i].screen_y);
+            saveCurrentStateControl(*files[i].history_root, files[i].history_frame, files[i].io_file.path_abs);
+          }
         goto end;
       case CTRL_KEY('w'):
         closeFile(&files, &file_count, &current_file, &refresh_ofw, &refresh_edw, &refresh_local_vars);
@@ -621,7 +641,7 @@ end:
 
   if (usingWorkspace == true) {
     WorkspaceSettings new_settings;
-    getWorkspaceSettingsForCurrentDir(&new_settings, files, file_count, ofw_height != 0, few_width != 0, FILE_EXPLORER_WIDTH);
+    getWorkspaceSettingsForCurrentDir(&new_settings, files, file_count, current_file, ofw_height != 0, few_width != 0, FILE_EXPLORER_WIDTH);
     saveWorkspaceSettings(loaded_settings.dir_path, &new_settings);
     destroyWorkspaceSettings(&new_settings);
   }

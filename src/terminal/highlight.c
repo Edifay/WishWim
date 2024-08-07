@@ -128,12 +128,6 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
 
     attr_t attr = A_NORMAL;
     NCURSES_PAIRS_T color;
-    for (int i = 0; i < tree_path_length; i++) {
-      if (tree_path[i].type == SYMBOL && strcmp("ERROR", tree_path[i].name) == 0) {
-        attr |= A_ITALIC;
-        // color = ERROR_COLOR_PAIR;
-      }
-    }
 
     // If a group was found.
     if (result != NULL) {
@@ -152,9 +146,15 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
 
       if (attr == A_NORMAL)
         if (found == false) {
-          // Quit if no group was found.
+          // Quit if a query was found, but not theme for this group was found.
           break;
         }
+
+      for (int i = 0; i < tree_path_length; i++) {
+        if (tree_path[i].type == SYMBOL && strcmp("ERROR", tree_path[i].name) == 0) {
+          attr |= A_ITALIC;
+        }
+      }
 
       TSPoint start_point = ts_node_start_point(node);
       TSPoint end_point = ts_node_end_point(node);

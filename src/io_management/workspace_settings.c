@@ -4,9 +4,10 @@
 #include <string.h>
 
 
-void getWorkspaceSettingsForCurrentDir(WorkspaceSettings* settings, FileContainer* files, int file_count, bool showing_opened_file_window,
-                                 bool showing_file_explorer_window, int file_explorer_size) {
+void getWorkspaceSettingsForCurrentDir(WorkspaceSettings* settings, FileContainer* files, int file_count, int current_file, bool showing_opened_file_window,
+                                       bool showing_file_explorer_window, int file_explorer_size) {
   settings->file_count = file_count;
+  settings->current_opened_file = current_file;
   settings->files = malloc(file_count * sizeof(char *));
   for (int i = 0; i < file_count; i++) {
     int size = strlen(files[i].io_file.path_abs) + 1;
@@ -105,6 +106,7 @@ bool loadWorkspaceSettings(char* dir_path, WorkspaceSettings* settings) {
 cJSON* WorkspaceSettingsToJSON(WorkspaceSettings* settings) {
   cJSON* json_settings = cJSON_CreateObject();
   cJSON_AddNumberToObject(json_settings, "file_count", settings->file_count);
+  cJSON_AddNumberToObject(json_settings, "current_opened_file", settings->current_opened_file);
   cJSON* file_array = cJSON_AddArrayToObject(json_settings, "files");
   for (int i = 0; i < settings->file_count; i++) {
     cJSON_AddItemToArray(file_array, cJSON_CreateString(settings->files[i]));
@@ -118,6 +120,7 @@ cJSON* WorkspaceSettingsToJSON(WorkspaceSettings* settings) {
 
 void JSONToWorkspaceSettings(WorkspaceSettings* settings, cJSON* json) {
   settings->file_count = cJSON_GetNumberValue(cJSON_GetObjectItem(json, "file_count"));
+  settings->current_opened_file = cJSON_GetNumberValue(cJSON_GetObjectItem(json, "current_opened_file"));
   cJSON* file_array = cJSON_GetObjectItem(json, "files");
   settings->files = malloc(sizeof(char *) * settings->file_count);
   for (int i = 0; i < settings->file_count; i++) {

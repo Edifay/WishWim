@@ -5,7 +5,7 @@
 
 #include "../data-management/file_management.h"
 
-#define FOLDER_DIR_SETTINGS_NAME ".dir_settings"
+#define FOLDER_DIR_SETTINGS_NAME ".workspace_settings"
 
 typedef struct {
   // UI Layout
@@ -16,14 +16,15 @@ typedef struct {
   // Opened files.
   char** files;
   int file_count;
+  int current_opened_file;
 
   // Dir path
-  char *dir_path;
+  char* dir_path;
 } WorkspaceSettings;
 
 
-void getWorkspaceSettingsForCurrentDir(WorkspaceSettings* settings, FileContainer* files, int file_count, bool showing_opened_file_window,
-                                 bool showing_file_explorer_window, int file_explorer_size);
+void getWorkspaceSettingsForCurrentDir(WorkspaceSettings* settings, FileContainer* files, int file_count, int current_file, bool showing_opened_file_window,
+                                       bool showing_file_explorer_window, int file_explorer_size);
 
 void destroyWorkspaceSettings(WorkspaceSettings* settings);
 
