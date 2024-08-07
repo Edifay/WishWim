@@ -15,7 +15,7 @@
 #define OPENED_FILE_WINDOW_HEIGHT 2 // 2 to enable 0 to disable
 
 // use make -B after changing the TAB_SIZE
-#define TAB_CHAR_USE false
+#define TAB_CHAR_USE true
 #define TAB_SIZE 2
 
 #define FILE_EXPLORER_WIDTH 30

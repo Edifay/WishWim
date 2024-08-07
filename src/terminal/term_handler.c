@@ -315,6 +315,27 @@ void resizeOpenedFileWindow(WINDOW** ofw, bool* refresh_ofw, int edws_offset_y, 
   *refresh_ofw = true;
 }
 
+void switchShowFew(WINDOW** few, WINDOW** ofw, WINDOW** ftw, WINDOW** lnw, int* few_width, int* saved_few_width, int ofw_height, bool* refresh_few,
+                   bool* refresh_ofw) {
+  if (*few == NULL) {
+    // Open File Explorer Window
+    *few_width = *saved_few_width;
+    *few = newwin(0, *few_width, 0, 0);
+    *refresh_few = true;
+  }
+  else {
+    // Close File Explorer Window
+    *saved_few_width = getmaxx(*few);
+    delwin(*few);
+    *few = NULL;
+    *few_width = 0;
+  }
+  // Resize Opened File Window
+  resizeOpenedFileWindow(ofw, refresh_ofw, ofw_height, *few_width);
+  // Resize Editor Window
+  resizeEditorWindows(ftw, lnw, ofw_height, getmaxx(*lnw), *few_width);
+}
+
 
 ////// -------------- UTILS FUNCTIONS --------------
 

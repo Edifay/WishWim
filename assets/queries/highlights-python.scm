@@ -9,15 +9,12 @@
 
 
 (call
-  function: (attribute attribute: (identifier) @function.method))
+  function: (attribute attribute: (identifier) @method))
 (call
   function: (identifier) @function)
 
 
 (identifier) @variable
-
-((identifier) @constructor
-  (#match? @constructor "^[A-Z]"))
 
 ((identifier) @constant
   (#match? @constant "^[A-Z][A-Z_]*$"))
@@ -29,9 +26,9 @@
 ; Builtin functions
 
 ((call
-   function: (identifier) @function.builtin)
+   function: (identifier) @function)
   (#match?
-    @function.builtin
+    @function
     "^(abs|all|any|ascii|bin|bool|breakpoint|bytearray|bytes|callable|chr|classmethod|compile|complex|delattr|dict|dir|divmod|enumerate|eval|exec|filter|float|format|frozenset|getattr|globals|hasattr|hash|help|hex|id|input|int|isinstance|issubclass|iter|len|list|locals|map|max|memoryview|min|next|object|oct|open|ord|pow|print|property|range|repr|reversed|round|set|setattr|slice|sorted|staticmethod|str|sum|super|tuple|type|vars|zip|__import__)$"))
 
 ; Function definitions
@@ -47,7 +44,7 @@
   (none)
   (true)
   (false)
-  ] @constant.builtin
+  ] @keyword
 
 [
   (integer)
@@ -94,11 +91,6 @@
   "|="
   "~"
   "@="
-  "and"
-  "in"
-  "is"
-  "not"
-  "or"
   ] @operator
 
 [
@@ -133,4 +125,9 @@
   "yield"
   "match"
   "case"
+  "and"
+  "in"
+  "is"
+  "not"
+  "or"
   ] @keyword

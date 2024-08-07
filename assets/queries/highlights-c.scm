@@ -13,7 +13,7 @@
 (function_declarator
   declarator: (identifier) @function)
 (preproc_function_def
-  name: (identifier) @function.special)
+  name: (identifier) @function)
 
 (identifier) @variable
 
