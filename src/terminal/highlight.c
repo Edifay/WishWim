@@ -1,5 +1,6 @@
 #include "highlight.h"
 
+#include <assert.h>
 #include <limits.h>
 #include <string.h>
 
@@ -191,4 +192,32 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
 
     seq = seq->next;
   }
+}
+
+
+
+void highlightCurrentFile(FileHighlightDatas *highlight_data, WINDOW *ftw, int *screen_x, int *screen_y, Cursor *cursor, Cursor *select_cursor) {
+  ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_name);
+  assert(parser != NULL);
+
+  long* args_fct = malloc(11 * sizeof(long *));
+  args_fct[0] = (long)&parser->highlight_queries;
+  args_fct[1] = (long)&parser->theme_list;
+  args_fct[2] = (long)highlight_data->tmp_file_dump;
+  args_fct[3] = (long)ftw;
+  args_fct[4] = (long)screen_x;
+  args_fct[5] = (long)screen_y;
+  args_fct[6] = (long)getmaxx(ftw);
+  args_fct[7] = (long)getmaxy(ftw);
+  args_fct[8] = (long)cursor;
+  args_fct[9] = (long)select_cursor;
+  args_fct[10] = (long)NULL;
+
+  TSNode root_node = ts_tree_root_node(highlight_data->tree);
+  TreePath path[100]; // TODO refactor this, there is a problem if the depth of the tree is bigger than 100.
+
+  treeForEachNodeSized(*screen_y, *screen_x, getmaxy(ftw), getmaxx(ftw), root_node, path, 0, checkMatchForHighlight, args_fct);
+
+  free((Cursor *)args_fct[10]);
+  free(args_fct);
 }

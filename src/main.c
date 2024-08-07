@@ -4,9 +4,7 @@
 #include <locale.h>
 #include <ncurses.h>
 #include <stdlib.h>
-#include <time.h>
 #include <unistd.h>
-#include <bits/time.h>
 
 #include "advanced/theme.h"
 #include "advanced/tree-sitter/tree_manager.h"
@@ -122,6 +120,11 @@ int main(int file_count, char** args) {
         // Setup opened files.
         file_count = loaded_settings.file_count;
         file_names = loaded_settings.files;
+
+
+        // --- UI State ---
+
+        // Current showed file.
         current_file = loaded_settings.current_opened_file;
 
         // File Opened Window state.
@@ -131,10 +134,12 @@ int main(int file_count, char** args) {
         else {
           ofw_height = 0;
         }
+
         // File Explorer Window state.
         if (loaded_settings.showing_file_explorer_window == true) {
           ungetch(CTRL_KEY('e'));
         }
+
       }
     }
   }
@@ -213,7 +218,7 @@ int main(int file_count, char** args) {
     // flag screen_y change
     if (*old_screen_y != *screen_y) {
       *old_screen_y = *screen_y;
-      // resize line_w to match with line_number_length
+      // resize lnw_w to match with line_number_length
       int new_lnw_width = numberOfDigitOfNumber(*screen_y + getmaxy(ftw)) + 1 /* +1 for the line */;
       if (new_lnw_width != getbegx(ftw)) {
         resizeEditorWindows(&ftw, &lnw, ofw_height, new_lnw_width, few_width);
@@ -249,44 +254,13 @@ int main(int file_count, char** args) {
     if (refresh_edw == true) {
       printEditor(ftw, lnw, ofw, *cursor, *select_cursor, *screen_x, *screen_y);
 
-      double time_taken;
-
       // If highlight is enable on this file.
       if (highlight_data->is_active == true) {
-        clock_t t;
-        t = clock();
-
-        ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_name);
-        assert(parser != NULL);
-
-        long* args_fct = malloc(11 * sizeof(long *));
-        args_fct[0] = (long)&parser->highlight_queries;
-        args_fct[1] = (long)&parser->theme_list;
-        args_fct[2] = (long)highlight_data->tmp_file_dump;
-        args_fct[3] = (long)ftw;
-        args_fct[4] = (long)screen_x;
-        args_fct[5] = (long)screen_y;
-        args_fct[6] = (long)getmaxx(ftw);
-        args_fct[7] = (long)getmaxy(ftw);
-        args_fct[8] = (long)cursor;
-        args_fct[9] = (long)select_cursor;
-        args_fct[10] = (long)NULL;
-
-        TSNode root_node = ts_tree_root_node(highlight_data->tree);
-        TreePath path[100]; // TODO refactor this, there is a problem if the depth of the tree is bigger than 100.
-
-        treeForEachNodeSized(*screen_y, *screen_x, getmaxy(ftw), getmaxx(ftw), root_node, path, 0, checkMatchForHighlight, args_fct);
-
-        t = clock() - t;
-        time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
-
-        free((Cursor *)args_fct[10]);
-        free(args_fct);
+        highlightCurrentFile(highlight_data, ftw, screen_x, screen_y, cursor, select_cursor);
       }
 
       wrefresh(lnw);
       wrefresh(ftw);
-      // printf("fun() took %f seconds to execute \n\r", time_taken);
     }
 
 
@@ -310,10 +284,8 @@ int main(int file_count, char** args) {
         assert((getmaxx(lnw) + few_width >= COLS) == false);
       // Resize Opened File Window
         resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
-        refresh_ofw = true;
         resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw), few_width);
-        refresh_edw = true;
-        refresh_few = true;
+        refresh_ofw = refresh_edw = refresh_few = true;
         break;
 
       // ---------------------- MOUSE ----------------------
@@ -581,26 +553,7 @@ int main(int file_count, char** args) {
 
 
       case CTRL_KEY('e'): // File Explorer Window Switch
-        if (few == NULL) {
-          // Open File Explorer Window
-          few_width = saved_few_width;
-          few = newwin(0, few_width, 0, 0);
-          if (pwd.open == false) {
-            discoverFolder(&pwd);
-          }
-          refresh_few = true;
-        }
-        else {
-          // Close File Explorer Window
-          saved_few_width = getmaxx(few);
-          delwin(few);
-          few = NULL;
-          few_width = 0;
-        }
-      // Resize Opened File Window
-        resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
-      // Resize Editor Window
-        resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw), few_width);
+        switchShowFew(&few, &ofw, &ftw, &lnw, &few_width, &saved_few_width, ofw_height, &refresh_few, &refresh_ofw);
         break;
       case CTRL_KEY('l'): // Opened File Window Switch
         if (ofw_height == OPENED_FILE_WINDOW_HEIGHT) {

@@ -29,6 +29,9 @@ void resizeEditorWindows(WINDOW** ftw, WINDOW** lnw, int y_file_editor, int lnw_
 
 void resizeOpenedFileWindow(WINDOW** ofw, bool* refresh_ofw, int edws_offset_y, int few_width);
 
+void switchShowFew(WINDOW** few, WINDOW** ofw, WINDOW** ftw, WINDOW** lnw, int* few_width, int* saved_few_width, int ofw_height, bool* refresh_few,
+                   bool* refresh_ofw);
+
 ////// -------------- UTILS FUNCTIONS --------------
 
 void moveScreenToMatchCursor(WINDOW* w, Cursor cursor, int* screen_x, int* screen_y);
