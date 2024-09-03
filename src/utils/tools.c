@@ -1,5 +1,6 @@
 #include "tools.h"
 
+#include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -98,8 +99,102 @@ void getLocalURI(char* realive_abs_path, char* uri) {
   sprintf(uri, "file://%s", abs_path);
 }
 
-bool isDir(char *path) {
+bool isDir(char* path) {
   struct stat file_info;
   stat(path, &file_info);
- return S_ISDIR(file_info.st_mode);
+  return S_ISDIR(file_info.st_mode);
+}
+
+bool getLanguageForFile(char* lang_name, IO_FileID io_file) {
+
+  /// ---- FILE NAME ----
+
+  // Make
+  if (strcmp(basename(io_file.path_abs), "Makefile") == 0) {
+    strcpy(lang_name, "make");
+    return true;
+  }
+
+  // Bash
+  if (strcmp(basename(io_file.path_abs), "config") == 0 || strcmp(basename(io_file.path_abs), ".bashrc") == 0) {
+    strcpy(lang_name, "bash");
+    return true;
+  }
+
+  /// ---- FILE EXTENSION ----
+
+  // extracting extension
+  char* dot = strrchr(io_file.path_args, '.');
+  if (dot != NULL)
+    strncpy(lang_name, dot + 1, 99);
+
+  // ADD_NEW_LANGUAGE
+
+  // c
+  if (strcmp(lang_name, "h") == 0 || strcmp(lang_name, "c") == 0) {
+    strcpy(lang_name, "c");
+    return true;
+  }
+  // python
+  if (strcmp(lang_name, "py") == 0) {
+    strcpy(lang_name, "python");
+    return true;
+  }
+  // markdown
+  if (strcmp(lang_name, "md") == 0) {
+    strcpy(lang_name, "markdown");
+    return true;
+  }
+  // java
+  if (strcmp(lang_name, "java") == 0) {
+    strcpy(lang_name, "java");
+    return true;
+  }
+  // c++
+  if (strcmp(lang_name, "cpp") == 0) {
+    strcpy(lang_name, "cpp");
+    return true;
+  }
+  // c#
+  if (strcmp(lang_name, "cs") == 0) {
+    strcpy(lang_name, "c-sharp");
+    return true;
+  }
+  // css / scss
+  if (strcmp(lang_name, "css") == 0 || strcmp(lang_name, "scss") == 0) {
+    strcpy(lang_name, "css");
+    return true;
+  }
+  // dart
+  if (strcmp(lang_name, "dart") == 0) {
+    strcpy(lang_name, "dart");
+    return true;
+  }
+  // go-lang
+  if (strcmp(lang_name, "go") == 0) {
+    strcpy(lang_name, "go");
+    return true;
+  }
+  // java-script
+  if (strcmp(lang_name, "js") == 0) {
+    strcpy(lang_name, "javascript");
+    return true;
+  }
+  // json
+  if (strcmp(lang_name, "json") == 0) {
+    strcpy(lang_name, "json");
+    return true;
+  }
+  // bash/shell
+  if (strcmp(lang_name, "sh") == 0) {
+    strcpy(lang_name, "bash");
+    return true;
+  }
+  // scheme implementation
+  if (strcmp(lang_name, "scm") == 0) {
+    strcpy(lang_name, "query");
+    return true;
+  }
+
+  return false;
 }

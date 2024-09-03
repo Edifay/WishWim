@@ -9,16 +9,24 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "data-structure/file_management.h"
-#include "data-structure/file_structure.h"
+#include "data-management/file_management.h"
+#include "data-management/file_structure.h"
 #include "io_management/io_manager.h"
-#include "data-structure/utf_8_extractor.h"
+#include "data-management/utf_8_extractor.h"
+#include "io_management/workspace_settings.h"
 
 
 #define CTRL_KEY(k) ((k)&0x1f)
 
 #define SEPARATOR true
 
+// Global vars.
+int color_pair = 3;
+int color_index = 100;
+cJSON* config;
+ParserList parsers;
+LSPServerLinkedList lsp_servers;
+WorkspaceSettings loaded_settings;
 
 void PrintAt(int x, int y, char c) {
   printf("\033[%d;%dH%c", x, y, c);

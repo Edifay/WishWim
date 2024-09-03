@@ -21,18 +21,32 @@
 #include "terminal/term_handler.h"
 #include "terminal/highlight.h"
 #include "terminal/click_handler.h"
-#include "../lib/tree-sitter/lib/include/tree_sitter/api.h"
+#include "advanced/lsp/lsp_client.h"
 #include "config/config.h"
 
 #define CTRL_KEY(k) ((k)&0x1f)
 
+// Global vars.
 int color_pair = 3;
 int color_index = 100;
 cJSON* config;
 ParserList parsers;
+LSPServerLinkedList lsp_servers;
+WorkspaceSettings loaded_settings;
+
+
+void dispatcher(cJSON* packet, long* payload) {
+  if (packet != NULL) {
+    char* text = cJSON_Print(packet);
+    fprintf(stderr, "%s\n", text);
+    free(text);
+  }
+}
 
 
 int main(int file_count, char** args) {
+  // TODO Remove when lsp_logs.txt will be unused.
+  system("echo "" > lsp_logs.txt");
   // remove first args which is the executable file name.
   char** file_names = args;
   file_names++;
@@ -44,6 +58,7 @@ int main(int file_count, char** args) {
 
   // Parser Datas
   initParserList(&parsers);
+  initLSPServerList(&lsp_servers);
 
   // Init GUI vars
   WINDOW* ftw = NULL; // File Text Window
@@ -98,14 +113,13 @@ int main(int file_count, char** args) {
   int current_file = 0; // The current showed file.
 
   // Detect workspace settings
-  WorkspaceSettings loaded_settings;
-  bool usingWorkspace = false;
+  loaded_settings.is_used = false;
   if (file_count == 1 || file_count == 0) {
     char* dir_name = file_count == 0 ? getenv("PWD") : file_names[0];
 
     if (isDir(dir_name)) {
       loaded_settings.dir_path = dir_name;
-      usingWorkspace = true;
+      loaded_settings.is_used = true;
 
       bool settings_exist = loadWorkspaceSettings(dir_name, &loaded_settings);
 
@@ -139,7 +153,6 @@ int main(int file_count, char** args) {
         if (loaded_settings.showing_file_explorer_window == true) {
           ungetch(CTRL_KEY('e'));
         }
-
       }
     }
   }
@@ -152,16 +165,25 @@ int main(int file_count, char** args) {
   // Fill files with args
   for (int i = 0; i < file_count; i++) {
     setupFileContainer(file_names[i], files + i);
+
+    if (files[i].lsp_datas.is_enable) {
+      char* dump = dumpSelection(tryToReachAbsPosition(files[i].cursor, 1, 0), tryToReachAbsPosition(files[i].cursor, INT_MAX, INT_MAX));
+      LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, files[i].lsp_datas.name), files[i].io_file.path_args, dump);
+      free(dump);
+    }
   }
   // If no args setup first untitled file.
   if (file_count == 0) {
     file_count = 1;
     setupFileContainer("", files);
+    if (files[0].lsp_datas.is_enable) {
+      LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, files[0].lsp_datas.name), files[0].io_file.path_args, "");
+    }
   }
 
   // Folder used for file explorer.
   ExplorerFolder pwd;
-  if (usingWorkspace == true) {
+  if (loaded_settings.is_used == true) {
     initFolder(loaded_settings.dir_path, &pwd);
   }
   else {
@@ -183,7 +205,7 @@ int main(int file_count, char** args) {
   int* old_screen_y; // old screen_y used to flag screen_y changes
   History** history_root; // Root of History object for the current File
   History** history_frame; // Current node of the History. Before -> Undo, After -> Redo.
-  FileHighlightDatas* highlight_data;
+  FileHighlightDatas* highlight_data; // Contain the configuration for file higlight.
 
   bool refresh_local_vars = true; // Need to re-set local vars
 
@@ -270,6 +292,12 @@ int main(int file_count, char** args) {
     int c = getch();
 
     // TODO Here check to do background operation like lsp_servers.
+
+    LSPServerLinkedList_Cell* cell = lsp_servers.head;
+    while (cell != NULL) {
+      LSP_dispatchOnReceive(&cell->lsp_server, dispatcher, NULL);
+      cell = cell->next;
+    }
 
     switch (c) {
       // ---------------------- NCURSES THINGS ----------------------
@@ -567,6 +595,9 @@ int main(int file_count, char** args) {
         refresh_ofw = true;
         refresh_edw = true;
         break;
+      case CTRL_KEY(' '): // LSP_completion
+
+        break;
 
 
       default:
@@ -592,7 +623,7 @@ end:
   fflush(stdout);
 
 
-  if (usingWorkspace == true) {
+  if (loaded_settings.is_used == true) {
     WorkspaceSettings new_settings;
     getWorkspaceSettingsForCurrentDir(&new_settings, files, file_count, current_file, ofw_height != 0, few_width != 0, FILE_EXPLORER_WIDTH);
     saveWorkspaceSettings(loaded_settings.dir_path, &new_settings);
@@ -607,7 +638,6 @@ end:
   free(files);
   cJSON_Delete(config);
   destroyParserList(&parsers);
-  destroyWorkspaceSettings(&loaded_settings);
 
   // We need to sleep a bit before flush input to wait for the terminal to disable mouse tracking.
   usleep(30000);

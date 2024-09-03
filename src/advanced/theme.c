@@ -68,7 +68,7 @@ attr_t getAttrForTheme(HighlightTheme theme) {
       case '"':
         break;
       default:
-        printf("Attribute %c is not supported.\n", theme.attr[i]);
+        fprintf(stderr, "Attribute %c is not supported.\n", theme.attr[i]);
         exit(0);
     }
   }

@@ -48,6 +48,13 @@ void openNewFile(char* file_path, FileContainer** files, int* file_count, int* c
 
   // Setup new file container with clicked file
   setupFileContainer(file_path, *files + *file_count - 1);
+
+  if ((*files)[*file_count - 1].lsp_datas.is_enable) {
+    char* dump = dumpSelection(tryToReachAbsPosition((*files)[*file_count - 1].cursor, 1, 0), tryToReachAbsPosition((*files)[*file_count - 1].cursor, INT_MAX, INT_MAX));
+    LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, (*files)[*file_count - 1].lsp_datas.name), (*files)[*file_count - 1].io_file.path_args, dump);
+    free(dump);
+  }
+
   *current_file = *file_count - 1;
 }
 
@@ -97,7 +104,8 @@ void setupFileContainer(char* path, FileContainer* container) {
   fetchSavedCursorPosition(container->io_file, &container->cursor, &container->screen_x, &container->screen_y);
   loadCurrentStateControl(container->history_root, &container->history_frame, container->io_file);
 
-  detectLanguage(&container->highlight_data, container->io_file);
+  setFileHighlightDatas(&container->highlight_data, container->io_file);
+  setLspDatas(&container->lsp_datas, container->io_file);
 }
 
 
@@ -505,4 +513,58 @@ void deleteSelection(Cursor* cursor, Cursor* select_cursor) {
 void deleteSelectionWithHist(History** history_p, Cursor* cursor, Cursor* select_cursor) {
   saveAction(history_p, createDeleteAction(*cursor, *select_cursor));
   deleteSelection(cursor, select_cursor);
+}
+
+
+char* dumpSelection(Cursor cur1, Cursor cur2) {
+  char* dump = NULL;
+
+  Cursor it = cur1;
+  int byte_between_2_cursor = 0;
+  while (isCursorStrictPreviousThanOther(it, cur2)) {
+    Cursor tmp = it;
+    it = moveRight(it);
+
+    if (hasElementBeforeLine(it.line_id) == true) {
+      byte_between_2_cursor += sizeChar_U8(getCharForLineIdentifier(it.line_id));
+    }
+    else {
+      assert(tmp.file_id.absolute_row != it.file_id.absolute_row);
+      byte_between_2_cursor++; // Add one byte alloc to save '\n' char.
+    }
+  }
+
+  if (byte_between_2_cursor == 0) {
+    dump = malloc(1 * sizeof(char));
+    dump[0] = '\0';
+    return dump;
+  }
+
+  assert(byte_between_2_cursor != 0);
+
+
+  dump = malloc(byte_between_2_cursor * sizeof(char) + 1 /*for EOF char*/);
+
+  it = cur1;
+  int index = 0;
+  while (isCursorStrictPreviousThanOther(it, cur2)) {
+    it = moveRight(it);
+
+    if (hasElementBeforeLine(it.line_id) == true) {
+      Char_U8 ch = getCharForLineIdentifier(it.line_id);
+      int ch_size = sizeChar_U8(ch);
+      for (int i = 0; i < ch_size; i++) {
+        dump[index] = ch.t[i];
+        index++;
+      }
+    }
+    else {
+      dump[index] = '\n';
+      index++;
+    }
+  }
+
+  dump[index] = '\0';
+
+  return dump;
 }

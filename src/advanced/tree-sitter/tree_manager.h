@@ -121,7 +121,7 @@ void treeForEachNode(TSNode root_node, TreePath* path_symbol, int offset, void (
 void treeForEachNodeSized(int y_offset, int x_offset, int height, int width, TSNode root_node, TreePath* path_symbol, int offset,
                           void (*func)(TSNode node, TreePath tree_path[], int tree_path_length, long* args), void* args);
 
-void detectLanguage(FileHighlightDatas* data, IO_FileID io_file);
+void setFileHighlightDatas(FileHighlightDatas* data, IO_FileID io_file);
 
 
 void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_file_dump, int* n_bytes, History** history_frame, History* old_history_frame);

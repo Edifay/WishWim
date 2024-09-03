@@ -4,6 +4,7 @@
 #include "file_structure.h"
 #include "state_control.h"
 #include "../advanced/tree-sitter/tree_manager.h"
+#include "../advanced/lsp/lsp_handler.h"
 
 
 typedef struct {
@@ -17,9 +18,10 @@ typedef struct {
   int screen_y; // The y coord of the top left corner of the current viewport of the file
   int old_screen_x; // old screen_x used to flag screen_x changes
   int old_screen_y; // old screen_y used to flag screen_y changes
-  History *history_root; // Root of History object for the current File
+  History* history_root; // Root of History object for the current File
   History* history_frame; // Current node of the History. Before -> Undo, After -> Redo.
   FileHighlightDatas highlight_data; // Object which represent the highlight_data of the current file.
+  LSP_Datas lsp_datas; // Object which contain all the datas of lsp.
 } FileContainer;
 
 
@@ -90,6 +92,8 @@ void selectLine(Cursor *cursor, Cursor *select_cursor);
 void deleteSelection(Cursor* cursor, Cursor* select_cursor);
 
 void deleteSelectionWithHist(History **history_p, Cursor* cursor, Cursor* select_cursor);
+
+char* dumpSelection(Cursor cur1, Cursor cur2);
 
 
 #endif //FILE_MANAGEMENT_H

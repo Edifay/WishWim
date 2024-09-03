@@ -4,13 +4,13 @@ CC=clang
 CFLAGS=-g -O3 #-fsanitize=address # -lncurses # -Wall -Wextra -Werror -gdwarf-4
 #LDFLAGS +=-fsanitize=address
 
-executable= al #lsp_test #test_line.o test_file.o  test_line test_file  # utils/debug.o
+executable= al lsp_test #test_line.o test_file.o  test_line test_file  # utils/debug.o
 modules= \
 	src/data-management/utf_8_extractor.o src/data-management/file_structure.o src/data-management/file_management.o src/utils/tools.o    \
 	src/io_management/io_manager.o src/utils/key_management.o src/utils/clipboard_manager.o src/io_management/viewport_history.o         \
 	src/data-management/state_control.o src/terminal/term_handler.o src/io_management/io_explorer.o src/advanced/lsp/lsp_client.o \
 	src/advanced/tree-sitter/scm_parser.o  src/advanced/tree-sitter/tree_manager.o src/advanced/theme.o src/terminal/highlight.o\
-	src/terminal/click_handler.o src/config/config.o src/io_management/workspace_settings.o \
+	src/terminal/click_handler.o src/config/config.o src/io_management/workspace_settings.o src/advanced/lsp/lsp_handler.o \
 	\
 	lib/tree-sitter/libtree-sitter.a \
 	lib/tree-sitter-c/libtree-sitter-c.a \
@@ -28,6 +28,7 @@ modules= \
 	lib/tree-sitter-markdown/tree-sitter-markdown/libtree-sitter-markdown.a \
 	lib/tree-sitter-markdown/tree-sitter-markdown-inline/libtree-sitter-markdown-inline.a \
 	lib/tree-sitter-query/target/debug/libtree_sitter_query.rlib \
+	lib/cJSON/cJSON.o
 #	lib/tree-sitter-markdown/target/debug/libtree_sitter_markdown.rlib \
 #	lib/tree-sitter-c/src/parser.o \
 #	lib/tree-sitter-python/src/parser.o  lib/tree-sitter-python/src/scanner.o\
@@ -35,7 +36,7 @@ modules= \
 
 
 
-LIBS= -I lib/tree-sitter/lib/include -I lib/tree-sitter/lib/src
+LIBS= -I lib/tree-sitter/lib/include -I lib/tree-sitter/lib/src -I lib/cJSON/
 
 
 all: $(modules) $(executable)
@@ -101,15 +102,15 @@ lib/tree-sitter-markdown/tree-sitter-markdown-inline/libtree-sitter-markdown-inl
 	$(CC) $(CFLAGS) -c $< -o $@
 
 test_line: src/test_line.c $(modules)
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $^ -o $@ -lcjson -lncursesw
 
 test_file: src/test_file.c $(modules)
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $^ -o $@ -lcjson -lncursesw
 
 # cJSON : https://github.com/DaveGamble/cJSON?tab=readme-ov-file#cmake
 
 al: src/main.c $(modules)
-	$(CC) $(CFLAGS) $(LIBS) $^ -o $@ -lcjson -lncursesw #utils/debug.o
+	$(CC) $(CFLAGS) $(LIBS) $^ -o $@  -lncursesw #utils/debug.o -lcjson
 
 lsp_test: src/lsp_test.c $(modules)
 	$(CC) $(CFLAGS) $(LIBS) $^ -o $@ -lcjson -lncursesw

@@ -8,6 +8,9 @@
 #define FOLDER_DIR_SETTINGS_NAME ".workspace_settings"
 
 typedef struct {
+  // Is used
+  bool is_used;
+
   // UI Layout
   bool showing_opened_file_window;
   bool showing_file_explorer_window;

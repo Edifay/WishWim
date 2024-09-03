@@ -128,7 +128,7 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
     char* result = isTreePathMatchingQuery(litteral_text_node, tree_path, tree_path_length, seq->value);
 
     attr_t attr = A_NORMAL;
-    NCURSES_PAIRS_T color;
+    NCURSES_PAIRS_T color = DEFAULT_COLOR_PAIR;
 
     // If a group was found.
     if (result != NULL) {
@@ -136,8 +136,7 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
       // Setup style for group found.
       for (int i = 0; i < theme_list->size; i++) {
         if (strcmp(theme_list->groups[i].group, result) == 0) {
-          if (attr == A_NORMAL)
-            attr |= getAttrForTheme(theme_list->groups[i]);
+          attr |= getAttrForTheme(theme_list->groups[i]);
           color = theme_list->groups[i].color_n;
 
           found = true;
@@ -145,12 +144,13 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
         }
       }
 
-      if (attr == A_NORMAL)
-        if (found == false) {
-          // Quit if a query was found, but not theme for this group was found.
-          break;
-        }
+      if (found == false) {
+        // Quit if a query was found, but not theme for this group was found.
+        break;
+      }
 
+
+      // TODO rework error system. It's not working properly.
       for (int i = 0; i < tree_path_length; i++) {
         if (tree_path[i].type == SYMBOL && strcmp("ERROR", tree_path[i].name) == 0) {
           attr |= A_ITALIC;
@@ -195,8 +195,7 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
 }
 
 
-
-void highlightCurrentFile(FileHighlightDatas *highlight_data, WINDOW *ftw, int *screen_x, int *screen_y, Cursor *cursor, Cursor *select_cursor) {
+void highlightCurrentFile(FileHighlightDatas* highlight_data, WINDOW* ftw, int* screen_x, int* screen_y, Cursor* cursor, Cursor* select_cursor) {
   ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_name);
   assert(parser != NULL);
 

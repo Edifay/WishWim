@@ -375,64 +375,18 @@ void treeForEachNodeSized(int y_offset, int x_offset, int height, int width, TSN
 }
 
 
-void detectLanguage(FileHighlightDatas* data, IO_FileID io_file) {
-  if (strcmp(basename(io_file.path_abs), "Makefile") == 0) {
-    strcpy(data->lang_name, "make");
-  }
-  else if (strcmp(basename(io_file.path_abs), "config") == 0 || strcmp(basename(io_file.path_abs), ".bashrc") == 0) {
-    strcpy(data->lang_name, "bash");
-  }
-  else {
-    char* dot = strrchr(io_file.path_args, '.');
-    if (dot != NULL)
-      strncpy(data->lang_name, dot + 1, 99);
+void setFileHighlightDatas(FileHighlightDatas* data, IO_FileID io_file) {
+  bool did_lang_was_found = getLanguageForFile(data->lang_name, io_file);
 
-    // ADD_NEW_LANGUAGE
-    if (strcmp(data->lang_name, "h") == 0 || strcmp(data->lang_name, "c") == 0) {
-      strcpy(data->lang_name, "c");
-    }
-    else if (strcmp(data->lang_name, "py") == 0) {
-      strcpy(data->lang_name, "python");
-    }
-    else if (strcmp(data->lang_name, "md") == 0) {
-      strcpy(data->lang_name, "markdown");
-    }
-    else if (strcmp(data->lang_name, "java") == 0) {
-      strcpy(data->lang_name, "java");
-    }
-    else if (strcmp(data->lang_name, "cpp") == 0) {
-      strcpy(data->lang_name, "cpp");
-    }
-    else if (strcmp(data->lang_name, "cs") == 0) {
-      strcpy(data->lang_name, "c-sharp");
-    }
-    else if (strcmp(data->lang_name, "css") == 0 || strcmp(data->lang_name, "scss") == 0) {
-      strcpy(data->lang_name, "css");
-    }
-    else if (strcmp(data->lang_name, "dart") == 0) {
-      strcpy(data->lang_name, "dart");
-    }
-    else if (strcmp(data->lang_name, "go") == 0) {
-      strcpy(data->lang_name, "go");
-    }
-    else if (strcmp(data->lang_name, "js") == 0) {
-      strcpy(data->lang_name, "javascript");
-    }
-    else if (strcmp(data->lang_name, "json") == 0) {
-      strcpy(data->lang_name, "json");
-    }
-    else if (strcmp(data->lang_name, "sh") == 0) {
-      strcpy(data->lang_name, "bash");
-    }
-    else if (strcmp(data->lang_name, "scm") == 0) {
-      strcpy(data->lang_name, "query");
-    }
+  ParserContainer* parser = NULL;
+  if (did_lang_was_found == true) {
+    parser = getParserForLanguage(&parsers, data->lang_name);
   }
 
-  ParserContainer* parser = getParserForLanguage(&parsers, data->lang_name);
   if (parser != NULL) {
     data->is_active = true;
   }
+
   data->tree = NULL;
   data->tmp_file_dump = NULL;
 }
