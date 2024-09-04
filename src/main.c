@@ -37,16 +37,16 @@ WorkspaceSettings loaded_settings;
 
 void dispatcher(cJSON* packet, long* payload) {
   if (packet != NULL) {
-    char* text = cJSON_Print(packet);
-    fprintf(stderr, "%s\n", text);
-    free(text);
+    // char* text = cJSON_Print(packet);
+    // fprintf(stderr, "%s\n", text);
+    // free(text);
   }
 }
 
 
 int main(int file_count, char** args) {
   // TODO Remove when lsp_logs.txt will be unused.
-  system("echo "" > lsp_logs.txt");
+  // system("echo "" > lsp_logs.txt");
   // remove first args which is the executable file name.
   char** file_names = args;
   file_names++;
