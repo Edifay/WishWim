@@ -5,6 +5,7 @@
 #include <ncurses.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/ttydefaults.h>
 
 #include "advanced/theme.h"
 #include "advanced/tree-sitter/tree_manager.h"
@@ -24,8 +25,6 @@
 #include "advanced/lsp/lsp_client.h"
 #include "config/config.h"
 
-#define CTRL_KEY(k) ((k)&0x1f)
-
 // Global vars.
 int color_pair = 3;
 int color_index = 100;
@@ -34,12 +33,23 @@ ParserList parsers;
 LSPServerLinkedList lsp_servers;
 WorkspaceSettings loaded_settings;
 
+// copy from http://www.cse.yorku.ca/~oz/hash.html
+int hashString(unsigned char* str) {
+  unsigned long hash = 5381;
+  int c;
+
+  while (c = *str++)
+    hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+
+  return hash;
+}
+
 
 void dispatcher(cJSON* packet, long* payload) {
   if (packet != NULL) {
-    // char* text = cJSON_Print(packet);
-    // fprintf(stderr, "%s\n", text);
-    // free(text);
+    char* text = cJSON_Print(packet);
+    fprintf(stderr, "%s\n", text);
+    free(text);
   }
 }
 
@@ -151,7 +161,7 @@ int main(int file_count, char** args) {
 
         // File Explorer Window state.
         if (loaded_settings.showing_file_explorer_window == true) {
-          ungetch(CTRL_KEY('e'));
+          ungetch(CTRL('e'));
         }
       }
     }
@@ -290,6 +300,26 @@ int main(int file_count, char** args) {
 
   read_input:
     int c = getch();
+    int hash = c;
+
+    if (c != KEY_MOUSE && c != -1) {
+      // fprintf(stderr, "Code %d, Key : '%s' hash into %d.\n", c, keyname(c), hashString(keyname(c)));
+    }
+
+
+    if (c != KEY_MOUSE && c != -1) {
+      const char* key_str = keyname(c);
+      if (key_str != NULL && key_str[0] != '\0') {
+        if (key_str[0] == '^') {
+        }
+        else {
+          hash = hashString(key_str);
+        }
+      }
+      else {
+        fprintf(stderr, "keyname is NULL");
+      }
+    }
 
     // TODO Here check to do background operation like lsp_servers.
 
@@ -299,7 +329,7 @@ int main(int file_count, char** args) {
       cell = cell->next;
     }
 
-    switch (c) {
+    switch (hash) {
       // ---------------------- NCURSES THINGS ----------------------
 
       case ERR:
@@ -307,7 +337,7 @@ int main(int file_count, char** args) {
 
       case BEGIN_MOUSE_LISTEN:
       case MOUSE_IN_OUT:
-      case KEY_RESIZE:
+      case H_KEY_RESIZE:
         // Was there but idk why... => Avoid biggest size only used on time before automated resize.
         assert((getmaxx(lnw) + few_width >= COLS) == false);
       // Resize Opened File Window
@@ -375,71 +405,71 @@ int main(int file_count, char** args) {
       // ---------------------- MOVEMENT ----------------------
 
 
-      case KEY_RIGHT:
+      case H_KEY_RIGHT:
         if (isCursorDisabled(*select_cursor))
           *cursor = moveRight(*cursor);
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_LEFT:
+      case H_KEY_LEFT:
         if (isCursorDisabled(*select_cursor))
           *cursor = moveLeft(*cursor);
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_UP:
+      case H_KEY_UP:
         *cursor = moveUp(*cursor, *desired_column);
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
         break;
-      case KEY_DOWN:
+      case H_KEY_DOWN:
         *cursor = moveDown(*cursor, *desired_column);
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
         break;
-      case KEY_MAJ_RIGHT:
+      case H_KEY_MAJ_RIGHT:
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveRight(*cursor);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_MAJ_LEFT:
+      case H_KEY_MAJ_LEFT:
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveLeft(*cursor);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_MAJ_UP:
+      case H_KEY_MAJ_UP:
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveUp(*cursor, *desired_column);
         break;
-      case KEY_MAJ_DOWN:
+      case H_KEY_MAJ_DOWN:
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveDown(*cursor, *desired_column);
         break;
-      case KEY_CTRL_RIGHT:
+      case H_KEY_CTRL_RIGHT:
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
         *cursor = moveToNextWord(*cursor);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_CTRL_LEFT:
+      case H_KEY_CTRL_LEFT:
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
         *cursor = moveToPreviousWord(*cursor);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_CTRL_DOWN:
+      case H_KEY_CTRL_DOWN:
         selectWord(cursor, select_cursor);
         break;
-      case KEY_CTRL_UP:
+      case H_KEY_CTRL_UP:
         selectWord(cursor, select_cursor);
         break;
-      case KEY_CTRL_MAJ_RIGHT:
+      case H_KEY_CTRL_MAJ_RIGHT:
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveToNextWord(*cursor);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_CTRL_MAJ_LEFT:
+      case H_KEY_CTRL_MAJ_LEFT:
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveToPreviousWord(*cursor);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_CTRL_MAJ_DOWN:
+      case H_KEY_CTRL_MAJ_DOWN:
         // Do something with this.
         if (current_file != 0)
           current_file--;
@@ -447,7 +477,7 @@ int main(int file_count, char** args) {
       // TODO check if the file selected is showing in ofw. If not move it in.
         refresh_ofw = true;
         break;
-      case KEY_CTRL_MAJ_UP:
+      case H_KEY_CTRL_MAJ_UP:
         // Do something with this.
         if (current_file != file_count - 1)
           current_file++;
@@ -458,7 +488,7 @@ int main(int file_count, char** args) {
 
       // ---------------------- FILE MANAGEMENT ----------------------
 
-      case CTRL_KEY('z'):
+      case CTRL('z'):
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
         payload = get_payload_edit_and_parse_tree(&root, &highlight_data);
         *cursor = undo(history_frame, *cursor, edit_and_parse_tree_from_payload, payload);
@@ -466,7 +496,7 @@ int main(int file_count, char** args) {
         old_history_frame = *history_frame;
         setDesiredColumn(*cursor, desired_column);
         break;
-      case CTRL_KEY('y'):
+      case CTRL('y'):
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
         payload = get_payload_edit_and_parse_tree(&root, &highlight_data);
         *cursor = redo(history_frame, *cursor, edit_and_parse_tree_from_payload, payload);
@@ -474,26 +504,26 @@ int main(int file_count, char** args) {
         old_history_frame = *history_frame;
         setDesiredColumn(*cursor, desired_column);
         break;
-      case CTRL_KEY('c'):
+      case CTRL('c'):
         saveToClipBoard(*cursor, *select_cursor);
         break;
-      case CTRL_KEY('a'):
+      case CTRL('a'):
         *select_cursor = tryToReachAbsPosition(*cursor, 1, 0);
         *cursor = tryToReachAbsPosition(*cursor, INT_MAX, INT_MAX);
         break;
-      case CTRL_KEY('x'):
+      case CTRL('x'):
         saveToClipBoard(*cursor, *select_cursor);
         deleteSelectionWithHist(history_frame, cursor, select_cursor);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case CTRL_KEY('v'):
+      case CTRL('v'):
         deleteSelectionWithHist(history_frame, cursor, select_cursor);
         tmp = *cursor;
         *cursor = loadFromClipBoard(*cursor);
         saveAction(history_frame, createInsertAction(*cursor, tmp));
         setDesiredColumn(*cursor, desired_column);
         break;
-      case CTRL_KEY('q'):
+      case CTRL('q'):
         // TODO refactor
         if (false)
           for (int i = 0; i < file_count; i++) {
@@ -506,10 +536,10 @@ int main(int file_count, char** args) {
             saveCurrentStateControl(*files[i].history_root, files[i].history_frame, files[i].io_file.path_abs);
           }
         goto end;
-      case CTRL_KEY('w'):
+      case CTRL('w'):
         closeFile(&files, &file_count, &current_file, &refresh_ofw, &refresh_edw, &refresh_local_vars);
         break;
-      case CTRL_KEY('s'):
+      case CTRL('s'):
         if (io_file->status == NONE) {
           printf("\r\nNo specified file\r\n");
           goto end;
@@ -524,7 +554,8 @@ int main(int file_count, char** args) {
       // ---------------------- FILE EDITING ----------------------
 
 
-      case KEY_CTRL_DELETE:
+      case H_KEY_CTRL_DELETE:
+      case CTRL('H'):
         *cursor = moveToPreviousWord(*cursor);
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveToNextWord(*cursor);
@@ -539,17 +570,23 @@ int main(int file_count, char** args) {
         saveAction(history_frame, createInsertAction(tmp, *cursor));
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_BACKSPACE:
+      case H_KEY_DELETE:
         if (isCursorDisabled(*select_cursor)) {
           *select_cursor = moveLeft(*cursor);
         }
         deleteSelectionWithHist(history_frame, cursor, select_cursor);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_SUPPR:
+      case H_KEY_SUPPR:
         if (isCursorDisabled(*select_cursor)) {
           *select_cursor = moveRight(*cursor);
         }
+        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        setDesiredColumn(*cursor, desired_column);
+        break;
+      case H_KEY_CTRL_SUPPR:
+        setSelectCursorOn(*cursor, select_cursor);
+        *cursor = moveToNextWord(*cursor);
         deleteSelectionWithHist(history_frame, cursor, select_cursor);
         setDesiredColumn(*cursor, desired_column);
         break;
@@ -568,7 +605,7 @@ int main(int file_count, char** args) {
         saveAction(history_frame, createInsertAction(tmp, *cursor));
         setDesiredColumn(*cursor, desired_column);
         break;
-      case CTRL_KEY('d'):
+      case CTRL('d'):
         if (isCursorDisabled(*select_cursor) == true) {
           selectLine(cursor, select_cursor);
         }
@@ -580,10 +617,10 @@ int main(int file_count, char** args) {
       // ---------------------- EDITOR SHORTCUTS ----------------------
 
 
-      case CTRL_KEY('e'): // File Explorer Window Switch
+      case CTRL('e'): // File Explorer Window Switch
         switchShowFew(&few, &ofw, &ftw, &lnw, &few_width, &saved_few_width, ofw_height, &refresh_few, &refresh_ofw);
         break;
-      case CTRL_KEY('l'): // Opened File Window Switch
+      case CTRL('l'): // Opened File Window Switch
         if (ofw_height == OPENED_FILE_WINDOW_HEIGHT) {
           ofw_height = 0;
         }
@@ -595,7 +632,7 @@ int main(int file_count, char** args) {
         refresh_ofw = true;
         refresh_edw = true;
         break;
-      case CTRL_KEY(' '): // LSP_completion
+      case CTRL(' '): // LSP_completion
 
         break;
 

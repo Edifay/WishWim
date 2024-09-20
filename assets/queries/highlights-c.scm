@@ -4,6 +4,9 @@
 ((identifier) @constant
  (#match? @constant "^[A-Z][A-Z\\d_]*$"))
 
+((comment) @todo
+	(#match? @todo "TODO"))
+
 
 (call_expression
   function: (identifier) @function)
