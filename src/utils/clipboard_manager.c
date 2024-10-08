@@ -2,12 +2,22 @@
 
 #include <ctype.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "constants.h"
 #include "../data-management/file_management.h"
 
 
+void createClipBoardTmpDir() {
+  char command[20 + strlen(CLIPBOARD_PATH)];
+  sprintf(command, "mkdir %s -p",CLIPBOARD_PATH);
+  system(command);
+}
+
+
 bool saveToClipBoard(Cursor begin, Cursor end) {
+  createClipBoardTmpDir();
+
   if (isCursorDisabled(begin) || isCursorDisabled(end)) {
     return true;
   }
@@ -21,15 +31,10 @@ bool saveToClipBoard(Cursor begin, Cursor end) {
     begin = tmp;
   }
 
-  FILE* mktemp_result = popen("mktemp /tmp/al-clip-XXXXXX", "r");
+  system("touch /tmp/al/clipboard/last_clip");
+
   char tmp_file[100];
-
-  if (mktemp_result == NULL) {
-    return false;
-  }
-
-  fscanf(mktemp_result, " %s ", tmp_file);
-  fclose(mktemp_result);
+  sprintf(tmp_file, "%s", "/tmp/al/clipboard/last_clip");
 
   FILE* f_out = fopen(tmp_file, "w");
   if (f_out == NULL) {
@@ -49,6 +54,14 @@ bool saveToClipBoard(Cursor begin, Cursor end) {
 
   fclose(f_out);
 
+
+  char* xclip = whereis("xclip");
+
+  // If xclip is not found just using last_clip file.
+  if (xclip == NULL) {
+    return false;
+  }
+
   char x_clip_command[200];
   sprintf(x_clip_command, "xclip -selection clipboard < %s ", tmp_file);
   int result_xlip = system(x_clip_command);
@@ -64,7 +77,17 @@ bool saveToClipBoard(Cursor begin, Cursor end) {
 }
 
 Cursor loadFromClipBoard(Cursor cursor) {
-  FILE* f = popen("xclip -selection clipboard -out", "r");
+  char* xclip = whereis("xclip");
+
+  FILE* f;
+  if (xclip == NULL) {
+    // If xclip is not found just using last_clip file.
+    f = fopen("/tmp/al/clipboard/last_clip", "r");
+  }
+  else {
+    f = popen("xclip -selection clipboard -out", "r");
+  }
+
   if (f == NULL) {
     return cursor;
   }

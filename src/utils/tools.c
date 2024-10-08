@@ -151,7 +151,7 @@ bool getLanguageForFile(char* lang_name, IO_FileID io_file) {
     return true;
   }
   // c++
-  if (strcmp(lang_name, "cpp") == 0) {
+  if (strcmp(lang_name, "cpp") == 0 || strcmp(lang_name, "cc") == 0) {
     strcpy(lang_name, "cpp");
     return true;
   }
