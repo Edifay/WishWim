@@ -402,6 +402,9 @@ void loadCurrentStateControl(History* root, History** current_state, IO_FileID i
 }
 
 
+/*
+ * Replace multiple delete or multiple insert by one big insert and one big delete.
+ */
 void optimizeHistory(History* root, History** history_frame) {
   History* current = root;
 

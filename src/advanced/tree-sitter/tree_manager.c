@@ -412,7 +412,7 @@ void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_f
     }
     // Wasn't found on the right AND on the left.
     if (current_hist == NULL) {
-      printf("File state problem.\r\n");
+      fprintf(stderr, "File state problem.\r\n");
       exit(0);
     }
   }
@@ -512,7 +512,7 @@ void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_f
     highlight_data->is_active = false;
   }
 
-  // Check for perf.
+  // TODO Check for perf. Replace by TSInput https://tree-sitter.github.io/tree-sitter/using-parsers#providing-the-code.
   free(*tmp_file_dump);
   *tmp_file_dump = NULL;
   *tmp_file_dump = realloc(*tmp_file_dump, *n_bytes);

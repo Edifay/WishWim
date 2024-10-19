@@ -213,7 +213,7 @@ void highlightCurrentFile(FileHighlightDatas* highlight_data, WINDOW* ftw, int* 
   args_fct[10] = (long)NULL;
 
   TSNode root_node = ts_tree_root_node(highlight_data->tree);
-  TreePath path[100]; // TODO refactor this, there is a problem if the depth of the tree is bigger than 100.
+  TreePath path[1000]; // TODO refactor this, there is a problem if the depth of the tree is bigger than 1000.
 
   treeForEachNodeSized(*screen_y, *screen_x, getmaxy(ftw), getmaxx(ftw), root_node, path, 0, checkMatchForHighlight, args_fct);
 

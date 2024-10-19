@@ -47,7 +47,9 @@ int hashString(unsigned char* str) {
 
 void dispatcher(cJSON* packet, long* payload) {
   if (packet != NULL) {
-    char* text = cJSON_Print(packet);
+    fprintf(stderr, "\n\n <<< ================ %s ================\n", cJSON_GetStringValue(cJSON_GetObjectItem(packet, "method")));
+    cJSON *params = cJSON_GetObjectItem(packet, "params");
+    char* text = cJSON_Print(params);
     fprintf(stderr, "%s\n", text);
     free(text);
   }
