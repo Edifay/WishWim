@@ -365,53 +365,6 @@ Cursor byteCursorToCursor(Cursor cursor, int row, int byte_column) {
 
 ////// -------------- SELECTION MANAGEMENT --------------
 
-bool isCursorPreviousThanOther(Cursor cursor, Cursor other) {
-  if (cursor.file_id.absolute_row < other.file_id.absolute_row)
-    return true;
-  if (cursor.file_id.absolute_row > other.file_id.absolute_row)
-    return false;
-  assert(cursor.file_id.absolute_row == other.file_id.absolute_row);
-
-  return cursor.line_id.absolute_column <= other.line_id.absolute_column;
-}
-
-bool isCursorStrictPreviousThanOther(Cursor cursor, Cursor other) {
-  if (cursor.file_id.absolute_row < other.file_id.absolute_row)
-    return true;
-  if (cursor.file_id.absolute_row > other.file_id.absolute_row)
-    return false;
-  assert(cursor.file_id.absolute_row == other.file_id.absolute_row);
-
-  return cursor.line_id.absolute_column < other.line_id.absolute_column;
-}
-
-bool isCursorBetweenOthers(Cursor cursor, Cursor cur1, Cursor cur2) {
-  if (isCursorPreviousThanOther(cur1, cur2) == false) {
-    Cursor tmp = cur1;
-    cur1 = cur2;
-    cur2 = tmp;
-  }
-
-  int row = cursor.file_id.absolute_row;
-  int column = cursor.line_id.absolute_column;
-
-  int row_start = cur1.file_id.absolute_row;
-  int column_start = cur1.line_id.absolute_column;
-
-  int row_end = cur2.file_id.absolute_row;
-  int column_end = cur2.line_id.absolute_column;
-
-
-  return (row_start < row || (row_start == row && column_start < column))
-         && (row < row_end || (row == row_end && column <= column_end));
-}
-
-
-bool areCursorEqual(Cursor cur1, Cursor cur2) {
-  return cur1.file_id.absolute_row == cur2.file_id.absolute_row && cur1.line_id.absolute_column == cur2.line_id.
-         absolute_column;
-}
-
 
 bool isCursorDisabled(Cursor cursor) {
   return cursor.file_id.absolute_row == -1;
@@ -495,17 +448,7 @@ void deleteSelection(Cursor* cursor, Cursor* select_cursor) {
 
   assert(isCursorPreviousThanOther(*cursor, *select_cursor));
 
-  if (cursor->file_id.absolute_row == select_cursor->file_id.absolute_row) {
-    // Need to delete part of a line.
-    deleteLinePart(cursor->line_id, select_cursor->line_id.absolute_column - cursor->line_id.absolute_column);
-  }
-  else {
-    deleteLinePart(cursor->line_id, tryToReachAbsColumn(cursor->line_id, INT_MAX).absolute_column - cursor->line_id.absolute_column);
-    deleteLinePart(tryToReachAbsColumn(select_cursor->line_id, 0), select_cursor->line_id.absolute_column);
-    deleteFilePart(tryToReachAbsRow(cursor->file_id, cursor->file_id.absolute_row), select_cursor->file_id.absolute_row - cursor->file_id.absolute_row - 1);
-    *cursor = moduloCursor(*cursor);
-    *cursor = supprCharAtCursor(*cursor);
-  }
+
 
   *select_cursor = disableCursor(*select_cursor);
 }

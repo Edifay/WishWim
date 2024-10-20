@@ -4,6 +4,28 @@
 #include "utf_8_extractor.h"
 #include <stdbool.h>
 
+
+/*
+ *  First this implementation is not the best, I know, but it's what I have imagined first.
+ *  And wanted to try with this. The best implementation of file structure is 'ropes'.
+ *
+ *  My implementation of the data structure is based on the 'unrolled linked list'.
+ *  But I added somes features :
+ *    - Both side linked list.
+ *    - Resizable arrays.
+ *    - Cache features.
+ *
+ *  The implementation for the need of tree_sitter and lsp is support
+ *
+ *   - UTF8 index (row_index, column_index)
+ *  and
+ *   - byte_index.
+ *
+ *  FileNode contains lines of a file.
+ *  LineNode contains Char of a line.
+ *
+ */
+
 #define MAX_ELEMENT_NODE 50
 #define CACHE_SIZE 25
 
@@ -12,7 +34,7 @@
 typedef unsigned int Size;
 
 /**
- *  Containings char from ONE line.
+ *  Containings chars from ONE line.
  */
 typedef struct LineNode_ {
   bool fixed;
@@ -21,6 +43,7 @@ typedef struct LineNode_ {
   Char_U8* ch;
   int current_max_element_number;
   int element_number;
+  int byte_count;
 } LineNode;
 
 /**
@@ -32,6 +55,8 @@ typedef struct FileNode_ {
   LineNode* lines;
   int current_max_element_number;
   int element_number;
+  int lines_byte_count[MAX_ELEMENT_NODE];
+  int byte_count;
 } FileNode;
 
 /**
@@ -57,6 +82,9 @@ typedef struct {
   FileIdentifier file_id;
   LineIdentifier line_id;
 } Cursor;
+
+
+int byteCountForLineNode(LineNode* line, int index_start, int length);
 
 
 /**
@@ -144,12 +172,12 @@ LineIdentifier moduloLineIdentifier(LineIdentifier line_id);
 /**
  * Insert a char at index of the line node.
  */
-LineIdentifier insertCharInLine(LineIdentifier line_id, Char_U8 ch);
+// LineIdentifier insertCharInLine(LineIdentifier line_id, Char_U8 ch);
 
 /**
  * Insert a char at index of the line node.
  */
-LineIdentifier removeCharInLine(LineIdentifier line_id);
+// LineIdentifier removeCharInLine(LineIdentifier line_id);
 
 Char_U8 getCharForLineIdentifier(LineIdentifier id);
 
@@ -167,7 +195,7 @@ void printLineNode(LineNode* line);
 
 LineIdentifier tryToReachAbsColumn(LineIdentifier line_id, int abs_column);
 
-void deleteLinePart(LineIdentifier line_id, int length);
+// void deleteLinePart(LineIdentifier line_id, int length);
 
 /**
  * Destroy line free all memory.
@@ -185,15 +213,17 @@ FileIdentifier moduloFileIdentifierR(FileNode* file, int row);
 
 FileIdentifier moduloFileIdentifier(FileIdentifier file_id);
 
-FileIdentifier insertEmptyLineInFile(FileIdentifier file_id);
+// FileIdentifier insertEmptyLineInFile(FileIdentifier file_id);
 
-FileIdentifier removeLineInFile(FileIdentifier file_id);
+// FileIdentifier removeLineInFile(FileIdentifier file_id);
 
 int getAbsoluteFileIndex(FileIdentifier id);
 
 LineNode* getLineForFileIdentifier(FileIdentifier id);
 
 bool checkFileIntegrity(FileNode* file);
+
+bool checkByteCountIntegrity(FileNode* file);
 
 bool isEmptyFile(FileNode* file);
 
@@ -203,7 +233,7 @@ bool hasElementBeforeFile(FileIdentifier file_id);
 
 FileIdentifier tryToReachAbsRow(FileIdentifier file_id, int row);
 
-void deleteFilePart(FileIdentifier file_id, int length);
+// void deleteFilePart(FileIdentifier file_id, int length);
 
 void destroyFullFile(FileNode* node);
 
@@ -228,9 +258,18 @@ Cursor insertNewLineInLineC(Cursor cursor);
 
 Cursor concatNeighbordsLinesC(Cursor cursor);
 
+Cursor bulkDelete(Cursor cursor, Cursor select_cursor);
+
 Cursor tryToReachAbsPosition(Cursor cursor, int row, int column);
 
 Char_U8 getCharAtCursor(Cursor cursor);
 
+bool isCursorPreviousThanOther(Cursor cursor, Cursor other);
+
+bool isCursorStrictPreviousThanOther(Cursor cursor, Cursor other);
+
+bool isCursorBetweenOthers(Cursor cursor, Cursor cur1, Cursor cur2);
+
+bool areCursorEqual(Cursor cur1, Cursor cur2);
 
 #endif

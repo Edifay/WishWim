@@ -52,7 +52,7 @@ void addLSPServerCellToLSPServerList(LSPServerLinkedList* list, LSPServerLinkedL
 }
 
 bool getProgName(char* language, char* prog_name, char* args) {
-  // return false;
+  return false;
 
   if (strcmp(language, "bash") == 0) {
     strcpy(prog_name, "bash-language-server");

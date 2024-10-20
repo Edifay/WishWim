@@ -395,6 +395,7 @@ void setFileHighlightDatas(FileHighlightDatas* data, IO_FileID io_file) {
 void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_file_dump, int* n_bytes, History** history_frame, History* old_history_frame) {
   int relative_loc = 0;
 
+  // Detection of the slide needed.
   History* current_hist = *history_frame;
   while (current_hist != NULL && current_hist != old_history_frame) {
     current_hist = current_hist->next;
@@ -554,6 +555,7 @@ void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_f
     TSInputEdit edit;
     switch (improved_history[i].history_frame->action.action) {
       case INSERT:
+        system("echo \"=== INSERT ===\" >> tree_logs.txt");
         assert(improved_history[i].byte_start != -1);
         assert(improved_history[i].byte_end != -1);
         edit.start_byte = improved_history[i].byte_start;
@@ -569,9 +571,9 @@ void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_f
         edit.new_end_point.column = improved_history[i].history_frame->action.cur_end.line_id.absolute_column;
       // To force the match with previous node.
         edit.start_byte--;
-        ts_tree_edit(highlight_data->tree, &edit);
         break;
       case DELETE:
+        system("echo \"=== DELETE ===\" >> tree_logs.txt");
         assert(improved_history[i].byte_start != -1);
         edit.start_byte = improved_history[i].byte_start;
         edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row - 1;
@@ -610,9 +612,9 @@ void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_f
         edit.new_end_point.column = edit.start_point.column;
       // To force the match with previous node.
         edit.start_byte--;
-        ts_tree_edit(highlight_data->tree, &edit);
         break;
       case DELETE_ONE:
+        system("echo \"=== DELETE_ONE ===\" >> tree_logs.txt");
         assert(improved_history[i].byte_start != -1);
         edit.start_byte = improved_history[i].byte_start;
         edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row - 1;
@@ -634,12 +636,65 @@ void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_f
         edit.new_end_point.column = edit.start_point.column;
       // To force the match with previous node.
         edit.start_byte--;
-        ts_tree_edit(highlight_data->tree, &edit);
+
         break;
       case ACTION_NONE:
+        continue;
         break;
     }
+    cJSON *obj = cJSON_CreateObject();
+    cJSON_AddNumberToObject(obj, "start_byte", edit.start_byte);
+    cJSON_AddNumberToObject(obj, "start_point.row", edit.start_point.row);
+    cJSON_AddNumberToObject(obj, "start_point.column", edit.start_point.column);
+
+    cJSON_AddNumberToObject(obj, "old_end_byte", edit.old_end_byte);
+    cJSON_AddNumberToObject(obj, "old_end_point.row", edit.old_end_point.row);
+    cJSON_AddNumberToObject(obj, "old_end_point.column", edit.old_end_point.column);
+
+    cJSON_AddNumberToObject(obj, "new_end_byte", edit.new_end_byte);
+    cJSON_AddNumberToObject(obj, "new_end_point.row", edit.new_end_point.row);
+    cJSON_AddNumberToObject(obj, "new_end_point.column", edit.new_end_point.column);
+
+    char *obj_text = cJSON_Print(obj);
+
+    FILE *f = fopen("tree_logs.txt", "a");
+    fprintf(f, obj_text);
+    fprintf(f,"\n");
+    fclose(f);
+
+    free(obj_text);
+
+    ts_tree_edit(highlight_data->tree, &edit);
   }
+}
+
+typedef struct {
+  FileNode* root;
+  char* file;
+  int size;
+} PayloadTest;
+
+const char* test_fct(void* payload, uint32_t byte_index, TSPoint position, uint32_t* bytes_read) {
+  PayloadTest* values = payload;
+
+  assert(checkByteCountIntegrity(values->root));
+
+
+  if (byte_index >= values->size) {
+    *bytes_read = 0;
+  }
+
+  *bytes_read = min(values->size - byte_index, 100);
+
+  char command[10000];
+  sprintf(command, "echo \"\nbyte_index: %u\nposition: %d %d\nbyte_read: %u \nsize: %d\" >> tree_logs.txt", byte_index, position.row,
+          position.column, *bytes_read, values->size);
+  system(command);
+
+  if (*bytes_read == 0) {
+    return NULL;
+  }
+  return (char *)(values->file + byte_index);
 }
 
 
@@ -649,14 +704,26 @@ void edit_and_parse_tree(FileNode** root, History** history_frame, FileHighlight
   int new_dump_size;
   edit_tree(highlight_data, root, &highlight_data->tmp_file_dump, &new_dump_size, history_frame, *old_history_frame);
 
+  system("echo \"============== BEGIN ==============\" >> tree_logs.txt ");
+
+  TSInput input;
+  input.encoding = TSInputEncodingUTF8;
+  input.read = test_fct;
+  PayloadTest test;
+  test.file = highlight_data->tmp_file_dump;
+  test.size = new_dump_size;
+  test.root = *root;
+  input.payload = &test;
+
   TSTree* old_tree = highlight_data->tree;
-  highlight_data->tree = ts_parser_parse_string(
+  highlight_data->tree = ts_parser_parse(
     parser->parser,
     highlight_data->tree,
-    highlight_data->tmp_file_dump,
-    new_dump_size
+    input
   );
   ts_tree_delete(old_tree);
+
+  system("echo \"============== END ==============\" >> tree_logs.txt ");
 
 #ifdef PARSE_PRINT
   TreePath symbols[100];
