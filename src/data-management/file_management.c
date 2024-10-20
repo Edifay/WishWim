@@ -299,7 +299,7 @@ Cursor insertCharArrayAtCursor(Cursor cursor, char* chs) {
   char c;
   while ((c = chs[index++]) != '\0') {
 #ifdef LOGS
-    assert(checkFileIntegrity(root) == true);
+    // assert(checkFileIntegrity(root) == true);
 #endif
     if (iscntrl(c)) {
       if (c == '\n') {

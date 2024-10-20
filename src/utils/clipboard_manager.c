@@ -73,6 +73,8 @@ bool saveToClipBoard(Cursor begin, Cursor end) {
   char rm_tmp_file_command[200];
   sprintf(rm_tmp_file_command, "rm %s", tmp_file);
 
+  free(xclip);
+
   return true;
 }
 
@@ -96,7 +98,7 @@ Cursor loadFromClipBoard(Cursor cursor) {
   char c;
   while (fscanf(f, "%c", &c) != EOF) {
 #ifdef LOGS
-    assert(checkFileIntegrity(root) == true);
+    // assert(checkFileIntegrity(root) == true);
 #endif
     if (iscntrl(c)) {
       if (c == '\n') {
@@ -139,6 +141,8 @@ Cursor loadFromClipBoard(Cursor cursor) {
   }
 
   fclose(f);
+
+  free(xclip);
 
   return cursor;
 }

@@ -677,6 +677,9 @@ typedef struct {
 const char* test_fct(void* payload, uint32_t byte_index, TSPoint position, uint32_t* bytes_read) {
   PayloadTest* values = payload;
 
+  fprintf(stderr, "========== NEW ===========\n\n");
+  printByteCount(values->root);
+  fprintf(stderr, "========== END ===========\n\n");
   assert(checkFileIntegrity(values->root));
   assert(checkByteCountIntegrity(values->root));
 
@@ -700,6 +703,8 @@ const char* test_fct(void* payload, uint32_t byte_index, TSPoint position, uint3
 
 
 void edit_and_parse_tree(FileNode** root, History** history_frame, FileHighlightDatas* highlight_data, History** old_history_frame) {
+  if (highlight_data->is_active == false)
+    return;
   ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_name);
 
   int new_dump_size;
