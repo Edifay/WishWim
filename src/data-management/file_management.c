@@ -448,7 +448,7 @@ void deleteSelection(Cursor* cursor, Cursor* select_cursor) {
 
   assert(isCursorPreviousThanOther(*cursor, *select_cursor));
 
-
+  *cursor = bulkDelete(*cursor, *select_cursor);
 
   *select_cursor = disableCursor(*select_cursor);
 }

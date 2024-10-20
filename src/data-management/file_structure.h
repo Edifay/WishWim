@@ -84,8 +84,34 @@ typedef struct {
 } Cursor;
 
 
+////// --------------------UTILS-----------------------------
+
+void memcpy_CharU8Array(Char_U8* dest, const Char_U8* src, int length);
+void memcpy_LineNodeArray(LineNode* dest, const LineNode* src, int length);
+void memcpy_FileNodeArray(FileNode* dest, const FileNode* src, int length);
+void memcpy_IntArray(int* dest, const int* src, int length);
+
+void memmove_CharU8Array(Char_U8* dest, const Char_U8* src, int length) ;
+void memmove_LineNodeArray(LineNode* dest, const LineNode* src, int length);
+void memmove_FileNodeArray(FileNode* dest, const FileNode* src, int length);
+void memmove_IntArray(int* dest, const int* src, int length);
+
+Char_U8* malloc_CharU8Array(int length);
+LineNode* malloc_LineNodeArray(int length);
+FileNode* malloc_FileNodeArray(int length);
+int* malloc_IntArray(int length);
+
+Char_U8* realloc_CharU8Array(Char_U8* array, int length);
+LineNode* realloc_LineNodeArray(LineNode* array, int length);
+FileNode* realloc_FileNodeArray(FileNode* array, int length);
+int* realloc_IntArray(int* array, int length);
+
+
+////// --------------------LINE-----------------------------
+
 int byteCountForLineNode(LineNode* line, int index_start, int length);
 
+int byteCountForCurrentLineToEnd(LineNode * line, int index_start);
 
 /**
  *  Init a new empty head of LineNode.
@@ -203,6 +229,9 @@ LineIdentifier tryToReachAbsColumn(LineIdentifier line_id, int abs_column);
 void destroyFullLine(LineNode* node);
 
 ////// --------------------FILE-----------------------------
+
+
+int sumLinesBytes(int *array, int length);
 
 /**
  *  Init a new empty head of FileNode.

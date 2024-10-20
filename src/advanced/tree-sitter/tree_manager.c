@@ -677,6 +677,7 @@ typedef struct {
 const char* test_fct(void* payload, uint32_t byte_index, TSPoint position, uint32_t* bytes_read) {
   PayloadTest* values = payload;
 
+  assert(checkFileIntegrity(values->root));
   assert(checkByteCountIntegrity(values->root));
 
 

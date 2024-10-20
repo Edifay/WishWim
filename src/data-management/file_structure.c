@@ -8,15 +8,107 @@
 
 #include "../utils/tools.h"
 
+
+////// --------------------LOCAL FUNCTIONS-----------------------------
+
+
 FileIdentifier insertEmptyLineInFile(FileIdentifier file_id);
 
 FileIdentifier removeLineInFile(FileIdentifier file_id);
+
+
+////// --------------------UTILS-----------------------------
+
+
+void memcpy_CharU8Array(Char_U8* dest, const Char_U8* src, int length) {
+  memcpy(dest, src, length * sizeof(Char_U8));
+}
+
+void memcpy_LineNodeArray(LineNode* dest, const LineNode* src, int length) {
+  memcpy(dest, src, length * sizeof(LineNode));
+}
+
+void memcpy_FileNodeArray(FileNode* dest, const FileNode* src, int length) {
+  memcpy(dest, src, length * sizeof(FileNode));
+}
+
+void memcpy_IntArray(int* dest, const int* src, int length) {
+  memcpy(dest, src, length * sizeof(int));
+}
+
+void memmove_CharU8Array(Char_U8* dest, const Char_U8* src, int length) {
+  memmove(dest, src, length * sizeof(Char_U8));
+}
+
+void memmove_LineNodeArray(LineNode* dest, const LineNode* src, int length) {
+  memmove(dest, src, length * sizeof(LineNode));
+}
+
+void memmove_FileNodeArray(FileNode* dest, const FileNode* src, int length) {
+  memmove(dest, src, length * sizeof(FileNode));
+}
+
+void memmove_IntArray(int* dest, const int* src, int length) {
+  memmove(dest, src, length * sizeof(int));
+}
+
+Char_U8* malloc_CharU8Array(int length) {
+  return malloc(length * sizeof(Char_U8));
+}
+
+LineNode* malloc_LineNodeArray(int length) {
+  return malloc(length * sizeof(LineNode));
+}
+
+FileNode* malloc_FileNodeArray(int length) {
+  return malloc(length * sizeof(FileNode));
+}
+
+int* malloc_IntArray(int length) {
+  return malloc(length * sizeof(int));
+}
+
+Char_U8* realloc_CharU8Array(Char_U8* array, int length) {
+  return realloc(array, length * sizeof(Char_U8));
+}
+
+LineNode* realloc_LineNodeArray(LineNode* array, int length) {
+  return realloc(array, length * sizeof(LineNode));
+}
+
+FileNode* realloc_FileNodeArray(FileNode* array, int length) {
+  return realloc(array, length * sizeof(FileNode));
+}
+
+int* realloc_IntArray(int* array, int length) {
+  return realloc(array, length * sizeof(int));
+}
+
+////// --------------------LINE-----------------------------
 
 int byteCountForLineNode(LineNode* line, int index_start, int length) {
   int count = 0;
   for (int i = index_start; i < index_start + length; i++) {
     count += sizeChar_U8(line->ch[i]);
   }
+  return count;
+}
+
+int byteCountForCurrentLineToEnd(LineNode* line, int index_start) {
+  int count = 0;
+  if (index_start == 0) {
+    count += line->byte_count;
+  }
+  else {
+    count += byteCountForLineNode(line, index_start, line->element_number - index_start);
+  }
+
+  line = line->next;
+  while (line != NULL) {
+    count += line->byte_count;
+    line = line->next;
+  }
+
   return count;
 }
 
@@ -56,7 +148,7 @@ int sizeLineNode(LineNode* line) {
  * Insert an EMPTY node after the node given.
  */
 LineNode* insertLineNodeBefore(LineNode* node) {
-  LineNode* newNode = malloc(sizeof(LineNode));
+  LineNode* newNode = malloc_LineNodeArray(1);
   initEmptyLineNode(newNode);
 
   newNode->prev = node->prev;
@@ -74,7 +166,7 @@ LineNode* insertLineNodeBefore(LineNode* node) {
  * Insert an EMPTY node after the node given.
  */
 LineNode* insertLineNodeAfter(LineNode* node) {
-  LineNode* newNode = malloc(sizeof(LineNode));
+  LineNode* newNode = malloc_LineNodeArray(1);
   initEmptyLineNode(newNode);
 
   newNode->next = node->next;
@@ -138,7 +230,7 @@ int slideFromLineNodeToNextLineNodeAfterIndex(LineNode* node, int index) {
     node->next->current_max_element_number = min(
       node->next->current_max_element_number + node->element_number - index + 1 + CACHE_SIZE, MAX_ELEMENT_NODE);
     assert(node->next->current_max_element_number <= MAX_ELEMENT_NODE);
-    node->next->ch = realloc(node->next->ch, node->next->current_max_element_number * sizeof(Char_U8));
+    node->next->ch = realloc_CharU8Array(node->next->ch, node->next->current_max_element_number);
   }
 
   if (index == MAX_ELEMENT_NODE) {
@@ -154,8 +246,8 @@ int slideFromLineNodeToNextLineNodeAfterIndex(LineNode* node, int index) {
 
   int count = byteCountForLineNode(node, node->element_number - moved, moved);
 
-  memmove(node->next->ch + moved, node->next->ch, node->next->element_number * sizeof(Char_U8));
-  memcpy(node->next->ch, node->ch + node->element_number - moved, moved * sizeof(Char_U8));
+  memmove_CharU8Array(node->next->ch + moved, node->next->ch, node->next->element_number);
+  memcpy_CharU8Array(node->next->ch, node->ch + node->element_number - moved, moved);
 
   node->byte_count -= count;
   node->next->byte_count += count;
@@ -191,7 +283,7 @@ int slideFromLineNodeToPreviousLineNodeBeforeIndex(LineNode* node, int index) {
 #ifdef LOGS
     printf(" new size %d\n\r", node->prev->current_max_element_number);
 #endif
-    node->prev->ch = realloc(node->prev->ch, node->prev->current_max_element_number * sizeof(Char_U8));
+    node->prev->ch = realloc_CharU8Array(node->prev->ch, node->prev->current_max_element_number);
   }
 #ifdef LOGS
   printf("Min Of Index : %d and %d - %d  = %d  \r\n", index, node->prev->current_max_element_number,
@@ -208,8 +300,8 @@ int slideFromLineNodeToPreviousLineNodeBeforeIndex(LineNode* node, int index) {
 
   int count = byteCountForLineNode(node, 0, moved);
 
-  memcpy(node->prev->ch + node->prev->element_number, node->ch, moved * sizeof(Char_U8));
-  memmove(node->ch, node->ch + moved, (node->element_number - moved) * sizeof(Char_U8));
+  memcpy_CharU8Array(node->prev->ch + node->prev->element_number, node->ch, moved);
+  memmove_CharU8Array(node->ch, node->ch + moved, node->element_number - moved);
 
   node->byte_count -= count;
   node->prev->byte_count += count;
@@ -255,7 +347,7 @@ int allocateOneCharAtIndex(LineNode* line, int index) {
         // Need to realloc memory ?
         line->current_max_element_number = min(line->current_max_element_number + 1 + CACHE_SIZE, MAX_ELEMENT_NODE);
         assert(line->current_max_element_number <= MAX_ELEMENT_NODE);
-        line->ch = realloc(line->ch, line->current_max_element_number * sizeof(Char_U8));
+        line->ch = realloc_CharU8Array(line->ch, line->current_max_element_number);
       }
 
       assert(line->current_max_element_number - line->element_number >= 1);
@@ -411,7 +503,7 @@ LineIdentifier insertCharInLine(LineIdentifier line_id, Char_U8 ch) {
     printf("INSERT IN MIDDLE\r\n");
 #endif
     assert(line->element_number - column > 0);
-    memmove(line->ch + column + 1, line->ch + column, (line->element_number - column) * sizeof(Char_U8));
+    memmove_CharU8Array(line->ch + column + 1, line->ch + column, line->element_number - column);
     line->ch[column] = ch;
     line->element_number++;
     line->byte_count += sizeChar_U8(ch);
@@ -456,8 +548,7 @@ LineIdentifier removeCharInLine(LineIdentifier line_id) {
 #endif
     // printf("At move : %d, first %d, ")
     line->byte_count -= sizeChar_U8(line->ch[cursorPos]);
-    memmove(line->ch + cursorPos, line->ch + cursorPos + 1,
-            (line->element_number - cursorPos - 1) * sizeof(Char_U8));
+    memmove_CharU8Array(line->ch + cursorPos, line->ch + cursorPos + 1, line->element_number - cursorPos - 1);
   }
   else {
 #ifdef LOGS
@@ -504,7 +595,7 @@ LineIdentifier removeCharInLine(LineIdentifier line_id) {
 #endif
         line->current_max_element_number = min(MAX_ELEMENT_NODE, CACHE_SIZE);
         assert(line->current_max_element_number <= MAX_ELEMENT_NODE);
-        line->ch = realloc(line->ch, line->current_max_element_number * sizeof(Char_U8));
+        line->ch = realloc_CharU8Array(line->ch, line->current_max_element_number);
       }
     }
   }
@@ -657,15 +748,15 @@ void deleteLinePart(LineIdentifier line_id, int length) {
       // Need to delete a part of the node.
       int atDelete = min(length - current_removed, line_id.line->element_number - line_id.relative_column);
       int count_byte_removed = byteCountForLineNode(line_id.line, line_id.relative_column, atDelete);
-      memmove(line_id.line->ch + line_id.relative_column, line_id.line->ch + line_id.relative_column + atDelete,
-              (line_id.line->element_number - line_id.relative_column - atDelete) * sizeof(Char_U8));
+      memmove_CharU8Array(line_id.line->ch + line_id.relative_column, line_id.line->ch + line_id.relative_column + atDelete,
+                          line_id.line->element_number - line_id.relative_column - atDelete);
       line_id.line->element_number -= atDelete;
       line_id.line->byte_count -= count_byte_removed;
       current_removed += atDelete;
 
       // Realloc line.ch if too much unused mem.
       if (line_id.line->current_max_element_number > line_id.line->element_number + CACHE_SIZE) {
-        line_id.line->ch = realloc(line_id.line->ch, (line_id.line->element_number + CACHE_SIZE) * sizeof(Char_U8));
+        line_id.line->ch = realloc_CharU8Array(line_id.line->ch, line_id.line->element_number + CACHE_SIZE);
         line_id.line->current_max_element_number = line_id.line->element_number + CACHE_SIZE;
         assert(line_id.line->current_max_element_number <= MAX_ELEMENT_NODE);
       }
@@ -730,6 +821,14 @@ void destroyChildLine(LineNode* node) {
 
 ///// ----------------------- FILE ---------------------------------
 
+int sumLinesBytes(int* array, int length) {
+  int total = 0;
+  for (int i = 0; i < length; i++) {
+    total += array[i];
+  }
+  return total;
+}
+
 /**
  *  Init a new empty head of FileNode.
  */
@@ -745,7 +844,7 @@ void initEmptyFileNode(FileNode* file) {
 }
 
 Cursor initNewWrittableFile() {
-  FileNode* file = malloc(sizeof(FileNode));
+  FileNode* file = malloc_FileNodeArray(1);
   initEmptyFileNode(file);
 
   FileIdentifier file_id = insertEmptyLineInFile(moduloFileIdentifierR(file, 0));
@@ -779,7 +878,7 @@ void rebindFullFileNode(FileNode* file) {
  * Insert an EMPTY node after the node given.
  */
 FileNode* insertFileNodeBefore(FileNode* file) {
-  FileNode* newNode = malloc(sizeof(FileNode));
+  FileNode* newNode = malloc_FileNodeArray(1);
   initEmptyFileNode(newNode);
 
   newNode->prev = file->prev;
@@ -797,7 +896,7 @@ FileNode* insertFileNodeBefore(FileNode* file) {
  * Insert an EMPTY node after the node given.
  */
 FileNode* insertFileNodeAfter(FileNode* file) {
-  FileNode* newNode = malloc(sizeof(FileNode));
+  FileNode* newNode = malloc_FileNodeArray(1);
   initEmptyFileNode(newNode);
 
   newNode->next = file->next;
@@ -863,7 +962,7 @@ int slideFromFileNodeToNextFileNodeAfterIndex(FileNode* file, int row) {
       file->next->current_max_element_number + file->element_number - row + 1 + CACHE_SIZE, MAX_ELEMENT_NODE);
     assert(file->next->current_max_element_number <= MAX_ELEMENT_NODE);
     LineNode* old_tab = file->next->lines;
-    file->next->lines = realloc(file->next->lines, file->next->current_max_element_number * sizeof(LineNode));
+    file->next->lines = realloc_LineNodeArray(file->next->lines, file->next->current_max_element_number);
     if (file->next->lines != old_tab) {
       rebindFullFileNode(file->next);
     }
@@ -879,8 +978,16 @@ int slideFromFileNodeToNextFileNodeAfterIndex(FileNode* file, int row) {
 #endif
   assert(file->next->element_number + moved <= MAX_ELEMENT_NODE);
 
-  memmove(file->next->lines + moved, file->next->lines, file->next->element_number * sizeof(LineNode));
-  memcpy(file->next->lines, file->lines + file->element_number - moved, moved * sizeof(LineNode));
+
+  memmove_IntArray(file->next->lines_byte_count + moved, file->next->lines_byte_count, file->next->element_number);
+  memmove_LineNodeArray(file->next->lines + moved, file->next->lines, file->next->element_number);
+
+  int sum = sumLinesBytes(file->lines_byte_count + file->element_number - moved, moved);
+  memcpy_IntArray(file->next->lines_byte_count, file->lines_byte_count + file->element_number - moved, moved);
+  memcpy_LineNodeArray(file->next->lines, file->lines + file->element_number - moved, moved);
+  file->byte_count -= sum + moved;
+  file->next += sum + moved;
+
 
   file->element_number -= moved;
   file->next->element_number += moved;
@@ -916,7 +1023,7 @@ int slideFromFileNodeToPreviousFileNodeBeforeIndex(FileNode* file, int row) {
     printf(" new size %d\n\r", file->prev->current_max_element_number);
 #endif
     LineNode* old_tab = file->prev->lines;
-    file->prev->lines = realloc(file->prev->lines, file->prev->current_max_element_number * sizeof(LineNode));
+    file->prev->lines = realloc_LineNodeArray(file->prev->lines, file->prev->current_max_element_number);
     if (file->prev->lines != old_tab) {
       rebindFullFileNode(file->prev);
     }
@@ -932,8 +1039,14 @@ int slideFromFileNodeToPreviousFileNodeBeforeIndex(FileNode* file, int row) {
   int moved = min(row, file->prev->current_max_element_number - file->prev->element_number);
   assert(file->prev->element_number + moved <= MAX_ELEMENT_NODE);
 
-  memcpy(file->prev->lines + file->prev->element_number, file->lines, moved * sizeof(LineNode));
-  memmove(file->lines, file->lines + moved, (file->element_number - moved) * sizeof(LineNode));
+  int sum = sumLinesBytes(file->lines_byte_count, moved);
+  memcpy_IntArray(file->prev->lines_byte_count + file->prev->element_number, file->lines_byte_count, moved);
+  memcpy_LineNodeArray(file->prev->lines + file->prev->element_number, file->lines, moved);
+  file->byte_count -= sum + moved;
+  file->prev->byte_count += sum + moved;
+
+  memmove_IntArray(file->lines_byte_count, file->lines_byte_count + moved, file->element_number - moved);
+  memmove_LineNodeArray(file->lines, file->lines + moved, file->element_number - moved);
 
 
   file->element_number -= moved;
@@ -978,7 +1091,7 @@ int allocateOneRowInFile(FileNode* file, int row) {
       file->current_max_element_number = min(file->current_max_element_number + 1 + CACHE_SIZE, MAX_ELEMENT_NODE);
       assert(file->current_max_element_number <= MAX_ELEMENT_NODE);
       LineNode* old_tab = file->lines;
-      file->lines = realloc(file->lines, file->current_max_element_number * sizeof(LineNode));
+      file->lines = realloc_LineNodeArray(file->lines, file->current_max_element_number);
       if (file->lines != old_tab) {
         rebindFullFileNode(file);
       }
@@ -1127,6 +1240,8 @@ FileIdentifier insertEmptyLineInFile(FileIdentifier file_id) {
     initEmptyLineNode(file->lines + row);
     file->lines[row].fixed = true;
     file->element_number++;
+    file->byte_count += 1;
+    file->lines_byte_count[row] = 0;
 
 #ifdef LOGS
     printf("ADD AT THE END\r\n");
@@ -1138,10 +1253,13 @@ FileIdentifier insertEmptyLineInFile(FileIdentifier file_id) {
     printf("INSERT IN MIDDLE\r\n");
 #endif
     assert(file->element_number - row > 0);
-    memmove(file->lines + row + 1, file->lines + row, (file->element_number - row) * sizeof(LineNode));
+    memmove_IntArray(file->lines_byte_count + row + 1, file->lines_byte_count + row, file->element_number - row);
+    memmove_LineNodeArray(file->lines + row + 1, file->lines + row, file->element_number - row);
     initEmptyLineNode(file->lines + row);
     file->lines[row].fixed = true;
     file->element_number++;
+    file->byte_count += 1;
+    file->lines_byte_count[row] = 0;
     rebindFileNode(file, row + 1, -1);
   }
 
@@ -1184,7 +1302,9 @@ FileIdentifier removeLineInFile(FileIdentifier file_id) {
            file->element_number);
 #endif
     // printf("At move : %d, first %d, ")
-    memmove(file->lines + row, file->lines + row + 1, (file->element_number - row - 1) * sizeof(LineNode));
+    file->byte_count -= file->lines_byte_count[row] + 1;
+    memmove_IntArray(file->lines_byte_count + row, file->lines_byte_count + row + 1, file->element_number - row - 1);
+    memmove_LineNodeArray(file->lines + row, file->lines + row + 1, file->element_number - row - 1);
     rebindFileNode(file, row, file->element_number - 1 - row);
   }
   else {
@@ -1217,7 +1337,7 @@ FileIdentifier removeLineInFile(FileIdentifier file_id) {
         file->current_max_element_number = min(MAX_ELEMENT_NODE, CACHE_SIZE);
         assert(file->current_max_element_number <= MAX_ELEMENT_NODE);
         LineNode* old_tab = file->lines;
-        file->lines = realloc(file->lines, file->current_max_element_number * sizeof(LineNode));
+        file->lines = realloc_LineNodeArray(file->lines, file->current_max_element_number);
         if (file->lines != old_tab) {
           rebindFullFileNode(file);
         }
@@ -1245,7 +1365,7 @@ int getAbsoluteFileIndex(FileIdentifier id) {
 LineNode* getLineForFileIdentifier(FileIdentifier file_id) {
   file_id = moduloFileIdentifier(file_id);
   if (file_id.relative_row == 0) {
-    assert(file_id.file->prev != NULL); // OUT OF RANGE.
+    // assert(file_id.file->prev != NULL); // OUT OF RANGE.
     return file_id.file->prev->lines + file_id.file->prev->element_number - 1;
   }
   return file_id.file->lines + file_id.relative_row - 1;
@@ -1322,7 +1442,7 @@ bool checkByteCountIntegrity(FileNode* file) {
     }
 
     int table_sum = 0;
-    for (int i = 0; i < MAX_ELEMENT_NODE; i++) {
+    for (int i = 0; i < file->element_number; i++) {
       table_sum += file->lines_byte_count[i];
     }
 
@@ -1419,6 +1539,7 @@ void deleteFilePart(FileIdentifier file_id, int length) {
         // If the node is fixed.
         // assert(false);
         file_id.file->element_number = 0;
+        file_id.file->byte_count = 0;
         file_id.file->current_max_element_number = 0;
         for (int i = 0; i < file_id.file->element_number; i++) {
           destroyFullLine(file_id.file->lines + i);
@@ -1433,15 +1554,20 @@ void deleteFilePart(FileIdentifier file_id, int length) {
       for (int i = file_id.relative_row; i < file_id.relative_row + atDelete; i++) {
         destroyFullLine(file_id.file->lines + i);
       }
-      memmove(file_id.file->lines + file_id.relative_row, file_id.file->lines + file_id.relative_row + atDelete,
-              (file_id.file->element_number - file_id.relative_row - atDelete) * sizeof(LineNode));
+      int sum = sumLinesBytes(file_id.file->lines_byte_count + file_id.relative_row + atDelete, file_id.file->element_number - file_id.relative_row - atDelete);
+      memmove_IntArray(file_id.file->lines_byte_count + file_id.relative_row, file_id.file->lines_byte_count + file_id.relative_row + atDelete,
+                       file_id.file->element_number - file_id.relative_row - atDelete);
+      memmove_LineNodeArray(file_id.file->lines + file_id.relative_row, file_id.file->lines + file_id.relative_row + atDelete,
+                            file_id.file->element_number - file_id.relative_row - atDelete);
+      file_id.file->byte_count -= sum + atDelete;
+
       file_id.file->element_number -= atDelete;
       current_removed += atDelete;
 
 
       // Realloc file.lines if too much unused mem.
       if (file_id.file->current_max_element_number > file_id.file->element_number + CACHE_SIZE) {
-        file_id.file->lines = realloc(file_id.file->lines, (file_id.file->element_number + CACHE_SIZE) * sizeof(LineNode));
+        file_id.file->lines = realloc_LineNodeArray(file_id.file->lines, file_id.file->element_number + CACHE_SIZE);
         file_id.file->current_max_element_number = file_id.file->element_number + CACHE_SIZE;
         assert(file_id.file->current_max_element_number <= MAX_ELEMENT_NODE);
         assert(file_id.file->element_number <= file_id.file->current_max_element_number);
@@ -1535,11 +1661,18 @@ Cursor moduloCursor(Cursor cursor) {
 
 Cursor insertCharInLineC(Cursor cursor, Char_U8 ch) {
   cursor.line_id = insertCharInLine(cursor.line_id, ch);
+  cursor = moduloCursor(cursor);
+  assert(cursor.file_id.relative_row > 0 && cursor.file_id.relative_row <= MAX_ELEMENT_NODE);
+  cursor.file_id.file->lines_byte_count[cursor.file_id.relative_row - 1] += sizeChar_U8(ch);
   return cursor;
 }
 
 Cursor removeCharInLineC(Cursor cursor) {
+  Char_U8 ch = getCharAtCursor(cursor);
   cursor.line_id = removeCharInLine(cursor.line_id);
+  cursor = moduloCursor(cursor);
+  assert(cursor.file_id.relative_row > 0 && cursor.file_id.relative_row <= MAX_ELEMENT_NODE);
+  cursor.file_id.file->lines_byte_count[cursor.file_id.relative_row - 1] += sizeChar_U8(ch);
   return cursor;
 }
 
@@ -1589,9 +1722,18 @@ Cursor insertNewLineInLineC(Cursor cursor) {
     newLine->element_number = line_id.line->element_number;
     newLine->byte_count = line_id.line->byte_count;
 
+    // Updating byte_count and lines_byte_count for FileNode
+    int count = file_id.file->lines_byte_count[file_id.relative_row - 1];
+    assert(newFileIdForNewLine.file->lines_byte_count[newFileIdForNewLine.relative_row - 1] == 0);
+    newFileIdForNewLine.file->lines_byte_count[newFileIdForNewLine.relative_row - 1] = count;
+    file_id.file->lines_byte_count[file_id.relative_row - 1] = 0;
+    newFileIdForNewLine.file->byte_count += count;
+    file_id.file->byte_count -= count;
+
+
     if (line_id.line->fixed == false) {
       assert(false);
-      // This situation is not supposed to happend, by the definition of modulo ! But it's implemented if needed
+      // This situation is not supposed to happen, by the definition of modulo ! But it's implemented if needed
       if (line_id.line->prev != NULL) {
         line_id.line->prev->next = NULL;
         free(line_id.line);
@@ -1613,6 +1755,15 @@ Cursor insertNewLineInLineC(Cursor cursor) {
       newLine->current_max_element_number = line_id.line->next->current_max_element_number;
       newLine->element_number = line_id.line->next->element_number;
       newLine->byte_count = line_id.line->byte_count;
+
+
+      // Updating byte_count and lines_byte_count for FileNode
+      int byte_moved_to_next_line = byteCountForCurrentLineToEnd(newLine, 0);
+      assert(newFileIdForNewLine.file->lines_byte_count[newFileIdForNewLine.relative_row - 1] == 0);
+      newFileIdForNewLine.file->lines_byte_count[newFileIdForNewLine.relative_row - 1] = byte_moved_to_next_line;
+      file_id.file->lines_byte_count[file_id.relative_row - 1] -= byte_moved_to_next_line;
+      newFileIdForNewLine.file->byte_count += byte_moved_to_next_line;
+      file_id.file->byte_count -= byte_moved_to_next_line;
 
       if (line_id.line->next->fixed == false) {
         free(line_id.line->next);
@@ -1645,18 +1796,27 @@ Cursor insertNewLineInLineC(Cursor cursor) {
     assert(newLine->current_max_element_number <= MAX_ELEMENT_NODE);
 
     assert(newLine->ch == NULL);
-    newLine->ch = malloc(newLine->current_max_element_number * sizeof(Char_U8));
-    memcpy(newLine->ch, line_id.line->ch + line_id.relative_column, newLine->element_number * sizeof(Char_U8));
+    newLine->ch = malloc_CharU8Array(newLine->current_max_element_number);
+    memcpy_CharU8Array(newLine->ch, line_id.line->ch + line_id.relative_column, newLine->element_number);
 
     line_id.line->next = NULL;
     line_id.line->element_number = line_id.relative_column;
     line_id.line->byte_count -= newLine->byte_count;
 
+
+    // Updating byte_count and lines_byte_count for FileNode
+    int byte_moved_to_next_line = byteCountForCurrentLineToEnd(newLine, 0);
+    assert(newFileIdForNewLine.file->lines_byte_count[newFileIdForNewLine.relative_row - 1] == 0);
+    newFileIdForNewLine.file->lines_byte_count[newFileIdForNewLine.relative_row - 1] = byte_moved_to_next_line;
+    file_id.file->lines_byte_count[file_id.relative_row - 1] -= byte_moved_to_next_line;
+    newFileIdForNewLine.file->byte_count += byte_moved_to_next_line;
+    file_id.file->byte_count -= byte_moved_to_next_line;
+
     const int old_max_element_number = line_id.line->current_max_element_number;
     line_id.line->current_max_element_number = min(min(MAX_ELEMENT_NODE, old_max_element_number),
                                                    line_id.line->element_number + CACHE_SIZE);
     if (old_max_element_number != line_id.line->current_max_element_number) {
-      line_id.line->ch = realloc(line_id.line->ch, line_id.line->current_max_element_number * sizeof(Char_U8));
+      line_id.line->ch = realloc_CharU8Array(line_id.line->ch, line_id.line->current_max_element_number);
     }
   }
 
@@ -1699,7 +1859,7 @@ Cursor concatNeighbordsLinesC(Cursor cursor) {
   printf("Deleting with moving line\r\n");
 #endif
 
-  LineNode* newNode = malloc(sizeof(LineNode));
+  LineNode* newNode = malloc_LineNodeArray(1);
   initEmptyLineNode(newNode);
   newNode->ch = line_id.line->ch;
   newNode->next = line_id.line->next;
@@ -1710,6 +1870,7 @@ Cursor concatNeighbordsLinesC(Cursor cursor) {
   newNode->current_max_element_number = line_id.line->current_max_element_number;
   newNode->byte_count = line_id.line->byte_count;
 
+  int byte_moved = file_id.file->lines_byte_count[file_id.relative_row - 1];
   FileIdentifier newLineId = removeLineInFile(file_id);
   LineIdentifier lastNode = getLastLineNode(getLineForFileIdentifier(newLineId));
 
@@ -1732,8 +1893,49 @@ Cursor concatNeighbordsLinesC(Cursor cursor) {
     newNode->prev = lastNode.line;
   }
 
+  newLineId.file->lines_byte_count[newLineId.relative_row - 1] += byte_moved;
+  newLineId.file->byte_count += byte_moved;
+
 
   return cursorOf(newLineId, lastNode);
+}
+
+Cursor moveRight_v2(Cursor cursor) {
+  if (hasElementAfterLine(cursor.line_id)) {
+    cursor.line_id.relative_column++;
+    cursor.line_id.absolute_column++;
+    cursor = moduloCursor(cursor);
+  }
+  else if (hasElementAfterFile(cursor.file_id)) {
+    // If cursor is at the end of the line try to go on next line.
+    cursor.file_id.relative_row++;
+    cursor.file_id.absolute_row++;
+    cursor = cursorOf(cursor.file_id, moduloLineIdentifierR(getLineForFileIdentifier(cursor.file_id), 0));
+  }
+
+  return cursor;
+}
+
+Cursor deleteCharAtCursor_v2(Cursor cursor) {
+  if (cursor.line_id.absolute_column == 0) {
+    if (cursor.file_id.absolute_row != 1) {
+      cursor = concatNeighbordsLinesC(cursor);
+    }
+  }
+  else {
+    cursor = removeCharInLineC(cursor);
+  }
+  return cursor;
+}
+
+Cursor supprCharAtCursor_v2(Cursor cursor) {
+  Cursor old_cur = cursor;
+  cursor = moveRight_v2(cursor);
+  if (old_cur.file_id.absolute_row != cursor.file_id.absolute_row || old_cur.line_id.absolute_column !=
+      cursor.line_id.absolute_column) {
+    cursor = deleteCharAtCursor_v2(cursor);
+      }
+  return cursor;
 }
 
 Cursor bulkDelete(Cursor cursor, Cursor select_cursor) {
@@ -1743,16 +1945,34 @@ Cursor bulkDelete(Cursor cursor, Cursor select_cursor) {
     cursor = tmp;
   }
 
+  cursor = moduloCursor(cursor);
+  select_cursor = moduloCursor(select_cursor);
+
   if (cursor.file_id.absolute_row == select_cursor.file_id.absolute_row) {
     // Need to delete part of a line.
+    int old_byte_count = cursor.file_id.file->lines_byte_count[cursor.file_id.relative_row - 1];
     deleteLinePart(cursor.line_id, select_cursor.line_id.absolute_column - cursor.line_id.absolute_column);
+    int new_byte_count = byteCountForCurrentLineToEnd(getLineForFileIdentifier(cursor.file_id), 0);
+    cursor.file_id.file->lines_byte_count[cursor.file_id.relative_row - 1] = new_byte_count;
+    cursor.file_id.file->byte_count -= old_byte_count - new_byte_count;
   }
   else {
+
+    int old_byte_count = cursor.file_id.file->lines_byte_count[cursor.file_id.relative_row - 1];
     deleteLinePart(cursor.line_id, tryToReachAbsColumn(cursor.line_id, INT_MAX).absolute_column - cursor.line_id.absolute_column);
+    int new_byte_count = byteCountForCurrentLineToEnd(getLineForFileIdentifier(cursor.file_id), 0);
+    cursor.file_id.file->lines_byte_count[cursor.file_id.relative_row - 1] = new_byte_count;
+    cursor.file_id.file->byte_count -= old_byte_count - new_byte_count;
+
+    old_byte_count = select_cursor.file_id.file->lines_byte_count[select_cursor.file_id.relative_row - 1];
     deleteLinePart(tryToReachAbsColumn(select_cursor.line_id, 0), select_cursor.line_id.absolute_column);
+    new_byte_count = byteCountForCurrentLineToEnd(getLineForFileIdentifier(select_cursor.file_id), 0);
+    select_cursor.file_id.file->lines_byte_count[select_cursor.file_id.relative_row - 1] = new_byte_count;
+    select_cursor.file_id.file->byte_count -= old_byte_count - new_byte_count;
+
     deleteFilePart(tryToReachAbsRow(cursor.file_id, cursor.file_id.absolute_row), select_cursor.file_id.absolute_row - cursor.file_id.absolute_row - 1);
     cursor = moduloCursor(cursor);
-    cursor = concatNeighbordsLinesC(cursor);
+    cursor = supprCharAtCursor_v2(cursor);
   }
 
   return cursor;
