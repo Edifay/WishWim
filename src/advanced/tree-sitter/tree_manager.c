@@ -657,12 +657,13 @@ void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_f
 
     char *obj_text = cJSON_Print(obj);
 
-    FILE *f = fopen("tree_logs.txt", "a");
-    fprintf(f, obj_text);
-    fprintf(f,"\n");
-    fclose(f);
+    // FILE *f = fopen("tree_logs.txt", "a");
+    // fprintf(f, obj_text);
+    // fprintf(f,"\n");
+    // fclose(f);
 
     free(obj_text);
+    cJSON_Delete(obj);
 
     ts_tree_edit(highlight_data->tree, &edit);
   }
@@ -677,9 +678,11 @@ typedef struct {
 const char* test_fct(void* payload, uint32_t byte_index, TSPoint position, uint32_t* bytes_read) {
   PayloadTest* values = payload;
 
+#ifdef LOGS
   fprintf(stderr, "========== NEW ===========\n\n");
   printByteCount(values->root);
   fprintf(stderr, "========== END ===========\n\n");
+#endif
   assert(checkFileIntegrity(values->root));
   assert(checkByteCountIntegrity(values->root));
 
@@ -688,12 +691,12 @@ const char* test_fct(void* payload, uint32_t byte_index, TSPoint position, uint3
     *bytes_read = 0;
   }
 
-  *bytes_read = min(values->size - byte_index, 100);
+  *bytes_read = min(values->size - byte_index, 1000);
 
-  char command[10000];
-  sprintf(command, "echo \"\nbyte_index: %u\nposition: %d %d\nbyte_read: %u \nsize: %d\" >> tree_logs.txt", byte_index, position.row,
-          position.column, *bytes_read, values->size);
-  system(command);
+  // char command[10000];
+  // sprintf(command, "echo \"\nbyte_index: %u\nposition: %d %d\nbyte_read: %u \nsize: %d\" >> tree_logs.txt", byte_index, position.row,
+          // position.column, *bytes_read, values->size);
+  // system(command);
 
   if (*bytes_read == 0) {
     return NULL;
@@ -710,7 +713,7 @@ void edit_and_parse_tree(FileNode** root, History** history_frame, FileHighlight
   int new_dump_size;
   edit_tree(highlight_data, root, &highlight_data->tmp_file_dump, &new_dump_size, history_frame, *old_history_frame);
 
-  system("echo \"============== BEGIN ==============\" >> tree_logs.txt ");
+  // system("echo \"============== BEGIN ==============\" >> tree_logs.txt ");
 
   TSInput input;
   input.encoding = TSInputEncodingUTF8;
@@ -729,7 +732,7 @@ void edit_and_parse_tree(FileNode** root, History** history_frame, FileHighlight
   );
   ts_tree_delete(old_tree);
 
-  system("echo \"============== END ==============\" >> tree_logs.txt ");
+  // system("echo \"============== END ==============\" >> tree_logs.txt ");
 
 #ifdef PARSE_PRINT
   TreePath symbols[100];

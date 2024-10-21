@@ -304,13 +304,13 @@ Cursor insertCharArrayAtCursor(Cursor cursor, char* chs) {
     if (iscntrl(c)) {
       if (c == '\n') {
 #ifdef LOGS
-        printf("Enter\r\n");
+        // printf("Enter\r\n");
 #endif
         cursor = insertNewLineInLineC(cursor);
       }
       else if (c == 9) {
 #ifdef LOGS
-        printf("Tab\r\n");
+        // printf("Tab\r\n");
 #endif
         Char_U8 ch;
         if (TAB_CHAR_USE) {
@@ -326,7 +326,7 @@ Cursor insertCharArrayAtCursor(Cursor cursor, char* chs) {
       }
       else {
 #ifdef LOGS
-        printf("Unsupported Char loaded from file : '%d'.\r\n", c);
+        // printf("Unsupported Char loaded from file : '%d'.\r\n", c);
 #endif
         // exit(0);
       }
@@ -336,7 +336,7 @@ Cursor insertCharArrayAtCursor(Cursor cursor, char* chs) {
       index += sizeChar_U8(ch) - 1;
 #ifdef LOGS
       printChar_U8(stdout, ch);
-      printf("\r\n");
+      // printf("\r\n");
 #endif
       cursor = insertCharInLineC(cursor, ch);
     }

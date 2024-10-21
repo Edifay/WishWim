@@ -103,13 +103,13 @@ Cursor loadFromClipBoard(Cursor cursor) {
     if (iscntrl(c)) {
       if (c == '\n') {
 #ifdef LOGS
-        printf("Enter\r\n");
+        // printf("Enter\r\n");
 #endif
         cursor = insertNewLineInLineC(cursor);
       }
       else if (c == 9) {
 #ifdef LOGS
-        printf("Tab\r\n");
+        // printf("Tab\r\n");
 #endif
         Char_U8 ch;
         if (TAB_CHAR_USE) {
@@ -125,7 +125,7 @@ Cursor loadFromClipBoard(Cursor cursor) {
       }
       else {
 #ifdef LOGS
-        printf("Unsupported Char loaded from file : '%d'.\r\n", c);
+        // printf("Unsupported Char loaded from file : '%d'.\r\n", c);
 #endif
         // exit(0);
       }
@@ -134,7 +134,7 @@ Cursor loadFromClipBoard(Cursor cursor) {
       Char_U8 ch = readChar_U8FromFileWithFirst(f, c);
 #ifdef LOGS
       printChar_U8(stdout, ch);
-      printf("\r\n");
+      // printf("\r\n");
 #endif
       cursor = insertCharInLineC(cursor, ch);
     }

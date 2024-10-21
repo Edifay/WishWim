@@ -1196,10 +1196,10 @@ FileIdentifier moduloFileIdentifier(FileIdentifier file_id) {
  * Return the new relative index for line cell.
  */
 FileIdentifier insertEmptyLineInFile(FileIdentifier file_id) {
-  FileIdentifier line_id = moduloFileIdentifier(file_id);
+  file_id = moduloFileIdentifier(file_id);
 
-  FileNode* file = line_id.file;
-  int row = line_id.relative_row;
+  FileNode* file = file_id.file;
+  int row = file_id.relative_row;
 
   int relative_shift = allocateOneRowInFile(file, row);
 
@@ -1264,11 +1264,11 @@ FileIdentifier insertEmptyLineInFile(FileIdentifier file_id) {
     rebindFileNode(file, row + 1, -1);
   }
 
-  line_id.file = file;
-  line_id.relative_row = row + 1;
-  line_id.absolute_row++;
+  file_id.file = file;
+  file_id.relative_row = row + 1;
+  file_id.absolute_row++;
 
-  return line_id;
+  return moduloFileIdentifier(file_id);
 }
 
 
@@ -1432,13 +1432,17 @@ bool printByteCount(FileNode* file) {
       int line_total = 0;
       while (line != NULL) {
         int count = byteCountForLineNode(line, 0, line->element_number);
-        // for (int j =0; j <line->element_number;j++) {
-          // printChar_U8(stderr, line->ch[j]);
-        // }
-        // fprintf(stderr, " → ");
-        fprintf(stderr, " %d → ", count);
+        for (int j = 0; j < line->element_number; j++) {
+          printChar_U8(stderr, line->ch[j]);
+        }
+        fprintf(stderr, " → ");
+        // fprintf(stderr, " %d → ", count);
         line_total += count;
         if (count != line->byte_count) {
+          for (int j = 0; j < line->element_number; j++) {
+            printChar_U8(stderr, line->ch[j]);
+          }
+          fprintf(stderr, " Got : %d, Saved : %d\n ", count, line->byte_count);
           assert(false); // SHOULD NOT HAPPEN !!!
         }
         line = line->next;
@@ -1583,6 +1587,11 @@ FileIdentifier tryToReachAbsRow(FileIdentifier file_id, int abs_row) {
 
 
 void deleteFilePart(FileIdentifier file_id, int length) {
+  fprintf(stderr, "deleteFilePart\n");
+
+  fprintf(stderr, " ====== DELETE FILE PART BEFORE =====\n");
+  printByteCount(tryToReachAbsRow(file_id, 1).file);
+  fprintf(stderr, " ====== DELETE FILE PART BEFORE END =====\n");
   file_id = moduloFileIdentifier(file_id);
 
   int current_removed = 0;
@@ -1596,8 +1605,10 @@ void deleteFilePart(FileIdentifier file_id, int length) {
 
     // If the id is the begin of a node and If the node can be completely removed. We can improve perf.
     if (file_id.relative_row == 0 && file_id.file->element_number <= length - current_removed) {
+      fprintf(stderr, "NODE CAN BE COMPLETLY REMOVED\n");
       current_removed += file_id.file->element_number;
       if (file_id.file->prev != NULL) {
+        fprintf(stderr, "NODE WILL BE FREED\n");
         // If the node can be cleared.
         file_id.file = destroyCurrentFileNode(file_id.file);
         file_id.relative_row = file_id.file->element_number;
@@ -1605,6 +1616,7 @@ void deleteFilePart(FileIdentifier file_id, int length) {
       else {
         // If the node is fixed.
         // assert(false);
+        fprintf(stderr, "NODE WILL BE SET EMPTY\n");
         file_id.file->element_number = 0;
         file_id.file->byte_count = 0;
         file_id.file->current_max_element_number = 0;
@@ -1617,11 +1629,12 @@ void deleteFilePart(FileIdentifier file_id, int length) {
     }
     else {
       // Need to delete a part of the node.
+      fprintf(stderr, "NODE WILL BE REDUCED\n");
       int atDelete = min(length - current_removed, file_id.file->element_number - file_id.relative_row);
       for (int i = file_id.relative_row; i < file_id.relative_row + atDelete; i++) {
         destroyFullLine(file_id.file->lines + i);
       }
-      int sum = sumLinesBytes(file_id.file->lines_byte_count + file_id.relative_row + atDelete, file_id.file->element_number - file_id.relative_row - atDelete);
+      int sum = sumLinesBytes(file_id.file->lines_byte_count + file_id.relative_row, atDelete);
       memmove_IntArray(file_id.file->lines_byte_count + file_id.relative_row, file_id.file->lines_byte_count + file_id.relative_row + atDelete,
                        file_id.file->element_number - file_id.relative_row - atDelete);
       memmove_LineNodeArray(file_id.file->lines + file_id.relative_row, file_id.file->lines + file_id.relative_row + atDelete,
@@ -1643,6 +1656,10 @@ void deleteFilePart(FileIdentifier file_id, int length) {
       rebindFileNode(file_id.file, 0, file_id.file->element_number);
     }
   }
+
+  fprintf(stderr, " ====== DELETE FILE PART AFTER =====\n");
+  printByteCount(tryToReachAbsRow(file_id, 1).file);
+  fprintf(stderr, " ====== DELETE FILE PART AFTER END =====\n");
 }
 
 /**
@@ -1819,15 +1836,23 @@ Cursor insertNewLineInLineC(Cursor cursor) {
 #endif
     // We are not moving the node for now but juste moving the Char_U8 array.
     if (line_id.line->next != NULL) {
+      fprintf(stderr, "Have something to do to insert new line in line.\n");
       newLine->ch = line_id.line->next->ch;
       newLine->next = line_id.line->next->next;
       newLine->current_max_element_number = line_id.line->next->current_max_element_number;
       newLine->element_number = line_id.line->next->element_number;
-      newLine->byte_count = line_id.line->byte_count;
+      newLine->byte_count = line_id.line->next->byte_count;
 
+
+      // fprintf(stderr, "NewLine : ");
+      // for (int i  = 0 ; i< newLine->element_number; i++) {
+      // printChar_U8(stderr, newLine->ch[i]);
+      // }
+      // fprintf(stderr, "\n");
 
       // Updating byte_count and lines_byte_count for FileNode
       int byte_moved_to_next_line = byteCountForCurrentLineToEnd(newLine, 0);
+      // fprintf(stderr, "byte_moved : %d\n", byte_moved_to_next_line);
       assert(newFileIdForNewLine.file->lines_byte_count[newFileIdForNewLine.relative_row - 1] == 0);
       newFileIdForNewLine.file->lines_byte_count[newFileIdForNewLine.relative_row - 1] = byte_moved_to_next_line;
       file_id.file->lines_byte_count[file_id.relative_row - 1] -= byte_moved_to_next_line;
@@ -1835,10 +1860,16 @@ Cursor insertNewLineInLineC(Cursor cursor) {
       file_id.file->byte_count -= byte_moved_to_next_line;
 
       if (line_id.line->next->fixed == false) {
+#ifdef LOGS
+        fprintf(stderr, "We can free.\n");
+#endif
         free(line_id.line->next);
         line_id.line->next = NULL;
       }
       else {
+#ifdef LOGS
+        fprintf(stderr, "We cannot free.\n");
+#endif
         initEmptyLineNode(line_id.line);
         line_id.line->fixed = true;
       }
@@ -1916,8 +1947,6 @@ Cursor concatNeighbordsLinesC(Cursor cursor) {
     fprintf(stderr, "Deleting without moving empty line\r\n");
 #endif
 
-    fprintf(stderr, "Empty line: %d\n\n", file_id.file->lines_byte_count[file_id.absolute_row - 1]);
-    assert(file_id.file->lines_byte_count[file_id.absolute_row - 1] == 0);
     destroyFullLine(getLineForFileIdentifier(file_id));
 
     FileIdentifier newLineId = removeLineInFile(file_id);
@@ -1948,12 +1977,14 @@ Cursor concatNeighbordsLinesC(Cursor cursor) {
   int old_byte_count = file_id.file->byte_count;
   FileIdentifier newLineId = removeLineInFile(file_id);
   // fprintf(stderr, "Old %d\nNew: %d\nLine Size: %d\n", old_byte_count, file_id.file->byte_count, byte_moved);
-  assert(file_id.file->byte_count == old_byte_count - byte_moved - 1); // may cause use after free at remove.
+  // assert(file_id.file->byte_count == old_byte_count - byte_moved - 1); // may cause use after free at remove.
   LineIdentifier lastNode = getLastLineNode(getLineForFileIdentifier(newLineId));
 
   if (lastNode.line->element_number == 0) {
     // Just copy the data of newNode to this node.
+#ifdef LOGS
     fprintf(stderr, "LAST EMTPY COPYING\r\n");
+#endif
     assert(lastNode.line->element_number == 0);
     free(lastNode.line->ch);
     lastNode.line->ch = newNode->ch;
@@ -1966,7 +1997,9 @@ Cursor concatNeighbordsLinesC(Cursor cursor) {
     free(newNode);
   }
   else {
+#ifdef LOGS
     fprintf(stderr, "HAPPENING\r\n");
+#endif
     lastNode.line->next = newNode;
     newNode->prev = lastNode.line;
   }
@@ -1974,15 +2007,16 @@ Cursor concatNeighbordsLinesC(Cursor cursor) {
   newLineId.file->lines_byte_count[newLineId.relative_row - 1] += byte_moved;
   newLineId.file->byte_count += byte_moved;
 
-
-  cursor = cursorOf(newLineId, lastNode);
-  fprintf(stderr, "BEFORE ERROR :\n");
-  printByteCount(cursor.file_id.file);
+#ifdef LOGS
+  // cursor = cursorOf(newLineId, lastNode);
+  // fprintf(stderr, "BEFORE ERROR :\n");
+  // printByteCount(cursor.file_id.file);
   // cursor = tryToReachAbsPosition(cursor, 1, 0);
   // assert(checkFileIntegrity(cursor.file_id.file));
   // assert(checkByteCountIntegrity(cursor.file_id.file));
+#endif
 
-  return moduloCursor(cursor);
+  return cursorOf(newLineId, lastNode);
 }
 
 Cursor moveRight_v2(Cursor cursor) {

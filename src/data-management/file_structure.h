@@ -26,10 +26,10 @@
  *
  */
 
-#define MAX_ELEMENT_NODE 5
-#define CACHE_SIZE 5
+#define MAX_ELEMENT_NODE 50
+#define CACHE_SIZE 25
 
-#define LOGS
+// #define LOGS
 
 typedef unsigned int Size;
 
