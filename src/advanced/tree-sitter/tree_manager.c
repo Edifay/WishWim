@@ -678,14 +678,6 @@ typedef struct {
 const char* test_fct(void* payload, uint32_t byte_index, TSPoint position, uint32_t* bytes_read) {
   PayloadTest* values = payload;
 
-#ifdef LOGS
-  fprintf(stderr, "========== NEW ===========\n\n");
-  printByteCount(values->root);
-  fprintf(stderr, "========== END ===========\n\n");
-#endif
-  assert(checkFileIntegrity(values->root));
-  assert(checkByteCountIntegrity(values->root));
-
 
   if (byte_index >= values->size) {
     *bytes_read = 0;
@@ -714,6 +706,15 @@ void edit_and_parse_tree(FileNode** root, History** history_frame, FileHighlight
   edit_tree(highlight_data, root, &highlight_data->tmp_file_dump, &new_dump_size, history_frame, *old_history_frame);
 
   // system("echo \"============== BEGIN ==============\" >> tree_logs.txt ");
+
+  /*
+  // #ifdef LOGS
+  fprintf(stderr, "========== NEW ===========\n\n");
+  printByteCount(*root);
+  fprintf(stderr, "========== END ===========\n\n");
+  // #endif
+  assert(checkFileIntegrity(*root));
+  assert(checkByteCountIntegrity(*root));*/
 
   TSInput input;
   input.encoding = TSInputEncodingUTF8;
