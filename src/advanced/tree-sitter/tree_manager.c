@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <bits/time.h>
 #include <linux/limits.h>
 
 #include "scm_parser.h"
@@ -642,7 +644,7 @@ void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_f
         continue;
         break;
     }
-    cJSON *obj = cJSON_CreateObject();
+    cJSON* obj = cJSON_CreateObject();
     cJSON_AddNumberToObject(obj, "start_byte", edit.start_byte);
     cJSON_AddNumberToObject(obj, "start_point.row", edit.start_point.row);
     cJSON_AddNumberToObject(obj, "start_point.column", edit.start_point.column);
@@ -655,7 +657,7 @@ void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_f
     cJSON_AddNumberToObject(obj, "new_end_point.row", edit.new_end_point.row);
     cJSON_AddNumberToObject(obj, "new_end_point.column", edit.new_end_point.column);
 
-    char *obj_text = cJSON_Print(obj);
+    char* obj_text = cJSON_Print(obj);
 
     // FILE *f = fopen("tree_logs.txt", "a");
     // fprintf(f, obj_text);
@@ -673,27 +675,45 @@ typedef struct {
   FileNode* root;
   char* file;
   int size;
+  Cursor cursor;
 } PayloadTest;
+
+
+#define CHAR_CHUNK_SIZE_TSINPUT 500
+char read_buffer[CHAR_CHUNK_SIZE_TSINPUT * 4];
+
 
 const char* test_fct(void* payload, uint32_t byte_index, TSPoint position, uint32_t* bytes_read) {
   PayloadTest* values = payload;
 
+  if (true) {
+    *bytes_read = readNBytesAtPosition(&values->cursor, position.row, position.column, read_buffer, CHAR_CHUNK_SIZE_TSINPUT);
 
-  if (byte_index >= values->size) {
-    *bytes_read = 0;
+    // read_buffer[*bytes_read] = '\0';
+    // fprintf(stderr, "bytes_read: %d\ntext: '%s'\n", *bytes_read, read_buffer);
+    // if (*bytes_read == 0) {
+      // return NULL;
+    // }
+
+    return read_buffer;
   }
+  else {
+    if (byte_index >= values->size) {
+      *bytes_read = 0;
+    }
 
-  *bytes_read = min(values->size - byte_index, 1000);
+    *bytes_read = min(values->size - byte_index, 500);
 
-  // char command[10000];
-  // sprintf(command, "echo \"\nbyte_index: %u\nposition: %d %d\nbyte_read: %u \nsize: %d\" >> tree_logs.txt", byte_index, position.row,
-          // position.column, *bytes_read, values->size);
-  // system(command);
+    // char command[10000];
+    // sprintf(command, "echo \"\nbyte_index: %u\nposition: %d %d\nbyte_read: %u \nsize: %d\" >> tree_logs.txt", byte_index, position.row,
+            // position.column, *bytes_read, values->size);
+    // system(command);
 
-  if (*bytes_read == 0) {
-    return NULL;
+    if (*bytes_read == 0) {
+      return NULL;
+    }
+    return (char *)(values->file + byte_index);
   }
-  return (char *)(values->file + byte_index);
 }
 
 
@@ -716,6 +736,8 @@ void edit_and_parse_tree(FileNode** root, History** history_frame, FileHighlight
   assert(checkFileIntegrity(*root));
   assert(checkByteCountIntegrity(*root));*/
 
+  Cursor cursor_root = moduloCursorR(*root, 1, 0);
+
   TSInput input;
   input.encoding = TSInputEncodingUTF8;
   input.read = test_fct;
@@ -723,7 +745,11 @@ void edit_and_parse_tree(FileNode** root, History** history_frame, FileHighlight
   test.file = highlight_data->tmp_file_dump;
   test.size = new_dump_size;
   test.root = *root;
+  test.cursor = cursor_root;
   input.payload = &test;
+
+  clock_t t;
+  t = clock();
 
   TSTree* old_tree = highlight_data->tree;
   highlight_data->tree = ts_parser_parse(
@@ -732,6 +758,12 @@ void edit_and_parse_tree(FileNode** root, History** history_frame, FileHighlight
     input
   );
   ts_tree_delete(old_tree);
+
+
+  t = clock() - t;
+  double time_taken = ((double)t)/CLOCKS_PER_SEC; // in seconds
+
+  fprintf(stderr, "fun() took %f seconds to execute \n", time_taken);
 
   // system("echo \"============== END ==============\" >> tree_logs.txt ");
 
@@ -753,5 +785,5 @@ long* get_payload_edit_and_parse_tree(FileNode*** root, FileHighlightDatas** hig
 
 void edit_and_parse_tree_from_payload(History** history_frame, History** old_history_frame, long* payload) {
   assert(payload != NULL);
-  edit_and_parse_tree(*((FileNode ***)payload[0]), history_frame, *((FileHighlightDatas **)payload[1]), old_history_frame);
+  edit_and_parse_tree(*(FileNode ***)payload[0], history_frame, *(FileHighlightDatas **)payload[1], old_history_frame);
 }

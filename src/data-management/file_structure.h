@@ -315,4 +315,9 @@ bool isCursorBetweenOthers(Cursor cursor, Cursor cur1, Cursor cur2);
 
 bool areCursorEqual(Cursor cur1, Cursor cur2);
 
+int readNBytesAtPosition(Cursor* cursor, int row_raw, int column_raw, char* dest, int length);
+
+int readNBytesAtIndex(Cursor* cursor, int byte_index, char* dest, int length);
+
+
 #endif

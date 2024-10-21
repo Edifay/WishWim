@@ -2103,7 +2103,6 @@ Cursor bulkDelete(Cursor cursor, Cursor select_cursor) {
     cursor = moduloCursor(cursor);
     cursor = supprCharAtCursor_v2(cursor);
     assert(checkByteCountIntegrity(test.file_id.file));
-
   }
 
   return cursor;
@@ -2111,6 +2110,8 @@ Cursor bulkDelete(Cursor cursor, Cursor select_cursor) {
 
 
 Cursor tryToReachAbsPosition(Cursor cursor, int row, int column) {
+  if (row <= 0)
+    row = 1;
   FileIdentifier new_file_id = tryToReachAbsRow(cursor.file_id, row);
   LineIdentifier new_line_id = tryToReachAbsColumn(moduloLineIdentifierR(getLineForFileIdentifier(new_file_id), 0), column);
   return cursorOf(new_file_id, new_line_id);
@@ -2167,3 +2168,89 @@ bool areCursorEqual(Cursor cur1, Cursor cur2) {
   return cur1.file_id.absolute_row == cur2.file_id.absolute_row && cur1.line_id.absolute_column == cur2.line_id.
          absolute_column;
 }
+
+int readNBytesAtPosition(Cursor* cursor_p, int row_raw, int column_raw, char* dest, int utf8_char_length) {
+  int row = row_raw + 1;
+  // fprintf(stderr, "readNBytes : Cursor (%d, %d) -> (%d, %d)", cursor_p->file_id.absolute_row, cursor_p->line_id.absolute_column, row_raw, column_raw);
+  // Cursor cursor = tryToReachAbsPosition(*cursor_p, row, column_raw);
+  FileIdentifier file_id = tryToReachAbsRow(cursor_p->file_id, row);
+  LineIdentifier line_id = moduloLineIdentifierR(getLineForFileIdentifier(file_id), 0);
+
+  // reach column_raw.
+  int current_column_raw = 0;
+  while (current_column_raw < column_raw) {
+    // if we can skip current node.
+    if (current_column_raw + line_id.line->byte_count < column_raw) {
+      line_id.relative_column = 0;
+      line_id.absolute_column += line_id.line->element_number;
+      current_column_raw += line_id.line->byte_count;
+      line_id.line = line_id.line->next;
+      assert(line_id.line != NULL);
+      // INDEX OUT OF RANGE
+    }
+    else {
+      while (current_column_raw < column_raw) {
+        current_column_raw += sizeChar_U8(line_id.line->ch[line_id.relative_column]);
+        line_id.relative_column++;
+        line_id.absolute_column++;
+      }
+    }
+  }
+  assert(current_column_raw == column_raw);
+
+
+  Cursor cursor = cursorOf(file_id, line_id);
+
+  int read = 0;
+  int buff_length = 0;
+  while (read < utf8_char_length) {
+    if (cursor.line_id.line->element_number == cursor.line_id.relative_column) {
+      // cursor currently at the end of the current node.
+      if (hasElementAfterFile(cursor.file_id) == false) {
+        break;
+      }
+      else if (hasElementAfterLine(cursor.line_id)) {
+        // has next in the line.
+        assert(cursor.line_id.line->next != NULL);
+        cursor.line_id.line = cursor.line_id.line->next;
+        cursor.line_id.relative_column = 0;
+      }
+      else {
+        int old_cur_row = cursor.file_id.absolute_row;
+        cursor = moveRight_v2(cursor);
+        if (cursor.file_id.absolute_row + 1 == old_cur_row) {
+          // EOF
+          break;
+        }
+        dest[buff_length] = '\n';
+        buff_length++;
+        read++;
+      }
+      continue;
+    }
+
+    char temp_char;
+    while (cursor.line_id.relative_column < cursor.line_id.line->element_number && read < utf8_char_length) {
+      // We assume that their is mainly ascii char so to improve perf we are using this condition internaly.
+      if (((temp_char = cursor.line_id.line->ch[cursor.line_id.relative_column].t[0]) >> 7 & 0b1) == 0) {
+        dest[buff_length] = temp_char;
+        buff_length++;
+      }
+      else {
+        for (int i = 0; i < sizeChar_U8(cursor.line_id.line->ch[cursor.line_id.relative_column]); i++) {
+          dest[buff_length] = cursor.line_id.line->ch[cursor.line_id.relative_column].t[i];
+          buff_length++;
+        }
+      }
+      read++;
+      cursor.line_id.relative_column++;
+      cursor.line_id.absolute_column++;
+    }
+  }
+  *cursor_p = cursor;
+  // fprintf(stderr, " => end(%d, %d)\n", cursor.file_id.absolute_row, cursor.line_id.absolute_column);
+  return buff_length;
+}
+
+
+int readNBytesAtIndex(Cursor* cursor, int byte_index, char* dest, int utf8_char_length);
