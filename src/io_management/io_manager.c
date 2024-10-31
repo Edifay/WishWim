@@ -30,18 +30,18 @@ bool loadFile(Cursor cursor, char* fileName) {
   char c;
   while (fscanf(f, "%c", &c) != EOF) {
 #ifdef LOGS
-    assert(checkFileIntegrity(root) == true);
+    // assert(checkFileIntegrity(root) == true);
 #endif
     if (iscntrl(c)) {
       if (c == '\n') {
 #ifdef LOGS
-        printf("Enter\r\n");
+        // fprintf(stderr, "Enter\r\n");
 #endif
         cursor = insertNewLineInLineC(cursor);
       }
       else if (c == 9) {
 #ifdef LOGS
-        printf("Tab\r\n");
+        // fprintf(stderr, "Tab\r\n");
 #endif
         Char_U8 ch;
         if (TAB_CHAR_USE) {
@@ -57,7 +57,7 @@ bool loadFile(Cursor cursor, char* fileName) {
       }
       else {
 #ifdef LOGS
-        printf("Unsupported Char loaded from file : '%d'.\r\n", c);
+        // printf("Unsupported Char loaded from file : '%d'.\r\n", c);
 #endif
         // exit(0);
       }
@@ -66,7 +66,7 @@ bool loadFile(Cursor cursor, char* fileName) {
       Char_U8 ch = readChar_U8FromFileWithFirst(f, c);
 #ifdef LOGS
       printChar_U8(stdout, ch);
-      printf("\r\n");
+      // printf("\r\n");
 #endif
       cursor = insertCharInLineC(cursor, ch);
     }

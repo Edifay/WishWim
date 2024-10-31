@@ -73,6 +73,8 @@ bool saveToClipBoard(Cursor begin, Cursor end) {
   char rm_tmp_file_command[200];
   sprintf(rm_tmp_file_command, "rm %s", tmp_file);
 
+  free(xclip);
+
   return true;
 }
 
@@ -96,18 +98,18 @@ Cursor loadFromClipBoard(Cursor cursor) {
   char c;
   while (fscanf(f, "%c", &c) != EOF) {
 #ifdef LOGS
-    assert(checkFileIntegrity(root) == true);
+    // assert(checkFileIntegrity(root) == true);
 #endif
     if (iscntrl(c)) {
       if (c == '\n') {
 #ifdef LOGS
-        printf("Enter\r\n");
+        // printf("Enter\r\n");
 #endif
         cursor = insertNewLineInLineC(cursor);
       }
       else if (c == 9) {
 #ifdef LOGS
-        printf("Tab\r\n");
+        // printf("Tab\r\n");
 #endif
         Char_U8 ch;
         if (TAB_CHAR_USE) {
@@ -123,7 +125,7 @@ Cursor loadFromClipBoard(Cursor cursor) {
       }
       else {
 #ifdef LOGS
-        printf("Unsupported Char loaded from file : '%d'.\r\n", c);
+        // printf("Unsupported Char loaded from file : '%d'.\r\n", c);
 #endif
         // exit(0);
       }
@@ -132,13 +134,15 @@ Cursor loadFromClipBoard(Cursor cursor) {
       Char_U8 ch = readChar_U8FromFileWithFirst(f, c);
 #ifdef LOGS
       printChar_U8(stdout, ch);
-      printf("\r\n");
+      // printf("\r\n");
 #endif
       cursor = insertCharInLineC(cursor, ch);
     }
   }
 
   fclose(f);
+
+  free(xclip);
 
   return cursor;
 }

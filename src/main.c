@@ -25,6 +25,20 @@
 #include "advanced/lsp/lsp_client.h"
 #include "config/config.h"
 
+
+
+/**   TODO list :
+ *      - For action, add byte_start && byte_end in the struct.
+ *      - Rework tree_edit, create a callback in state_control to apply edit on tree.
+ *      - Rework the printEditor for colors. Currently we override char with colored char, that's not optimized.
+ *          Create a struct to define a coloration in a file, and calculate it before each paint.
+ *
+ *
+ *
+ */
+
+
+
 // Global vars.
 int color_pair = 3;
 int color_index = 100;
@@ -59,6 +73,7 @@ void dispatcher(cJSON* packet, long* payload) {
 int main(int file_count, char** args) {
   // TODO Remove when lsp_logs.txt will be unused.
   system("echo "" > lsp_logs.txt");
+  system("echo "" > tree_logs.txt");
   // remove first args which is the executable file name.
   char** file_names = args;
   file_names++;
