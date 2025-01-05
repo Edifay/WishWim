@@ -26,8 +26,8 @@
  *
  */
 
-#define MAX_ELEMENT_NODE 50
-#define CACHE_SIZE 25
+#define MAX_ELEMENT_NODE 2
+#define CACHE_SIZE 2
 
 // #define LOGS
 
@@ -314,6 +314,12 @@ bool isCursorStrictPreviousThanOther(Cursor cursor, Cursor other);
 bool isCursorBetweenOthers(Cursor cursor, Cursor cur1, Cursor cur2);
 
 bool areCursorEqual(Cursor cur1, Cursor cur2);
+
+unsigned int getIndexForCursor(Cursor cursor);
+
+Cursor getCursorForIndex(Cursor cursor, unsigned int index);
+
+int readNBytesAtCursor(Cursor* cursor, char* dest, int length);
 
 int readNBytesAtPosition(Cursor* cursor, int row_raw, int column_raw, char* dest, int length);
 

@@ -4,6 +4,7 @@
 #include <locale.h>
 #include <ncurses.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/ttydefaults.h>
 
@@ -238,17 +239,19 @@ int main(int file_count, char** args) {
   Cursor tmp;
   MEVENT m_event;
   History* old_history_frame;
-  long* payload;
+  PayloadStateChange payload_state_change;
   bool mouse_drag = false;
   time_val last_time_mouse_drag = timeInMilliseconds();
   while (true) {
     //// --------------- Post Processing -----------------
 
     if (refresh_local_vars == true) {
-      setupLocalVars(files, current_file_index, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y, &history_root,
+      setupLocalVars(files, current_file_index, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y,
+                     &history_root,
                      &history_frame, &highlight_data);
       refresh_local_vars = false;
       old_history_frame = *history_frame;
+      payload_state_change = getPayloadStateChange(highlight_data);
     }
 
     // flag cursor change
@@ -275,7 +278,9 @@ int main(int file_count, char** args) {
 
     // If it needed to reparse the current file for tree. Looking for state changes.
     if (highlight_data->is_active == true && (old_history_frame != *history_frame || highlight_data->tree == NULL)) {
-      edit_and_parse_tree(root, history_frame, highlight_data, &old_history_frame);
+      // edit_and_parse_tree(root, history_frame, highlight_data, &old_history_frame);
+      fprintf(stderr, "Parse !\n");
+      parse_tree(root, history_frame, highlight_data, &old_history_frame);
       optimizeHistory(*history_root, history_frame);
       old_history_frame = *history_frame;
     }
@@ -511,18 +516,14 @@ int main(int file_count, char** args) {
 
       case CTRL('z'):
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
-        payload = get_payload_edit_and_parse_tree(&root, &highlight_data);
-        *cursor = undo(history_frame, *cursor, edit_and_parse_tree_from_payload, payload);
-        free(payload);
-        old_history_frame = *history_frame;
+        *cursor = undo(history_frame, *cursor, onStateChangeTS, (long *)&payload_state_change);
+        old_history_frame = NULL;
         setDesiredColumn(*cursor, desired_column);
         break;
       case CTRL('y'):
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
-        payload = get_payload_edit_and_parse_tree(&root, &highlight_data);
-        *cursor = redo(history_frame, *cursor, edit_and_parse_tree_from_payload, payload);
-        free(payload);
-        old_history_frame = *history_frame;
+        *cursor = redo(history_frame, *cursor, onStateChangeTS, (long *)&payload_state_change);
+        old_history_frame = NULL;
         setDesiredColumn(*cursor, desired_column);
         break;
       case CTRL('c'):
@@ -534,14 +535,14 @@ int main(int file_count, char** args) {
         break;
       case CTRL('x'):
         saveToClipBoard(*cursor, *select_cursor);
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
       case CTRL('v'):
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         tmp = *cursor;
         *cursor = loadFromClipBoard(*cursor);
-        saveAction(history_frame, createInsertAction(*cursor, tmp));
+        saveAction(history_frame, createInsertAction(*cursor, tmp), onStateChangeTS, (long *)&payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
       case CTRL('q'):
@@ -580,39 +581,39 @@ int main(int file_count, char** args) {
         *cursor = moveToPreviousWord(*cursor);
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveToNextWord(*cursor);
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
       case '\n':
       case KEY_ENTER:
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         tmp = *cursor;
         *cursor = insertNewLineInLineC(*cursor);
-        saveAction(history_frame, createInsertAction(tmp, *cursor));
+        saveAction(history_frame, createInsertAction(tmp, *cursor), onStateChangeTS, (long *)&payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
       case H_KEY_DELETE:
         if (isCursorDisabled(*select_cursor)) {
           *select_cursor = moveLeft(*cursor);
         }
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
       case H_KEY_SUPPR:
         if (isCursorDisabled(*select_cursor)) {
           *select_cursor = moveRight(*cursor);
         }
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
       case H_KEY_CTRL_SUPPR:
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveToNextWord(*cursor);
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
       case KEY_TAB:
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         tmp = *cursor;
         if (TAB_CHAR_USE) {
           *cursor = insertCharInLineC(*cursor, readChar_U8FromInput('\t'));
@@ -622,15 +623,14 @@ int main(int file_count, char** args) {
             *cursor = insertCharInLineC(*cursor, readChar_U8FromInput(' '));
           }
         }
-
-        saveAction(history_frame, createInsertAction(tmp, *cursor));
+        saveAction(history_frame, createInsertAction(tmp, *cursor), onStateChangeTS, (long *)&payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
       case CTRL('d'):
         if (isCursorDisabled(*select_cursor) == true) {
           selectLine(cursor, select_cursor);
         }
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
 
@@ -663,15 +663,17 @@ int main(int file_count, char** args) {
           printf("Unsupported touch %d\r\n", c);
         }
         else {
-          deleteSelectionWithHist(history_frame, cursor, select_cursor);
+          deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
           tmp = *cursor;
           *cursor = insertCharInLineC(*cursor, readChar_U8FromInput(c));
           setDesiredColumn(*cursor, desired_column);
-          saveAction(history_frame, createInsertAction(tmp, *cursor));
+          saveAction(history_frame, createInsertAction(tmp, *cursor), onStateChangeTS, (long *)&payload_state_change);
         }
         break;
     }
-
+    // fprintf(stderr, "----------------------------\n");
+    // printByteCount(*root);
+    // fprintf(stderr, "File Index : %u\n", getIndexForCursor(*cursor));
     // While end.
   }
 

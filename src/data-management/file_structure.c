@@ -1659,7 +1659,7 @@ void deleteFilePart(FileIdentifier file_id, int length) {
   }
 
   fprintf(stderr, " ====== DELETE FILE PART AFTER =====\n");
-  printByteCount(tryToReachAbsRow(file_id, 1).file);
+  // printByteCount(tryToReachAbsRow(file_id, 1).file);
   fprintf(stderr, " ====== DELETE FILE PART AFTER END =====\n");
 }
 
@@ -2169,51 +2169,120 @@ bool areCursorEqual(Cursor cur1, Cursor cur2) {
          absolute_column;
 }
 
-int readNBytesAtPosition(Cursor* cursor_p, int row_raw, int column_raw, char* dest, int utf8_char_length) {
-  int row = row_raw + 1;
-  // fprintf(stderr, "readNBytes : Cursor (%d, %d) -> (%d, %d)", cursor_p->file_id.absolute_row, cursor_p->line_id.absolute_column, row_raw, column_raw);
-  // Cursor cursor = tryToReachAbsPosition(*cursor_p, row, column_raw);
-  FileIdentifier file_id = tryToReachAbsRow(cursor_p->file_id, row);
-  LineIdentifier line_id = moduloLineIdentifierR(getLineForFileIdentifier(file_id), 0);
+unsigned int getIndexForCursor(Cursor cursor) {
+  cursor = moduloCursor(cursor);
+  FileNode* current_file = cursor.file_id.file;
+  unsigned int index = 0;
 
-  // reach column_raw.
-  int current_column_raw = 0;
-  while (current_column_raw < column_raw) {
-    // if we can skip current node.
-    if (current_column_raw + line_id.line->byte_count < column_raw) {
-      line_id.relative_column = 0;
-      line_id.absolute_column += line_id.line->element_number;
-      current_column_raw += line_id.line->byte_count;
-      line_id.line = line_id.line->next;
-      assert(line_id.line != NULL);
-      // INDEX OUT OF RANGE
-    }
-    else {
-      while (current_column_raw < column_raw) {
-        current_column_raw += sizeChar_U8(line_id.line->ch[line_id.relative_column]);
-        line_id.relative_column++;
-        line_id.absolute_column++;
-      }
-    }
+  // Adding previous nodes byte_count
+  current_file = current_file->prev;
+  while (current_file != NULL) {
+    // fprintf(stderr, "ADDING PREVIOUS NODE %d\n", current_file->byte_count);
+    index += current_file->byte_count;
+    current_file = current_file->prev;
   }
-  assert(current_column_raw == column_raw);
 
+  // Adding previous line byte_count
+  // fprintf(stderr, "Relative_row : %d\n", cursor.file_id.relative_row);
+  for (int i = 0; i < cursor.file_id.relative_row - 1; i++) {
+    // fprintf(stderr, "ADDING PREVIOUS LINES %d\n", cursor.file_id.file->lines_byte_count[i] + 1);
+    index += cursor.file_id.file->lines_byte_count[i] + 1;
+  }
 
-  Cursor cursor = cursorOf(file_id, line_id);
+  // Adding previous LineNode byte_count
+  LineNode* current_line = getLineForFileIdentifier(cursor.file_id);
+  while (current_line != cursor.line_id.line) {
+    // fprintf(stderr, "ADDING PREVIOUS LINE_NODE %d\n", current_line->byte_count);
+    index += current_line->byte_count;
+    current_line = current_line->next;
+  }
 
+  // Adding current linenode chars
+  for (int i = 0; i < cursor.line_id.relative_column; i++) {
+    // fprintf(stderr, "ADDING CURRENT NODE CHARS %d\n", sizeChar_U8(cursor.line_id.line->ch[i]));
+    index += sizeChar_U8(cursor.line_id.line->ch[i]);
+  }
+
+  // fprintf(stderr, "INDEX %d\n", index);
+  return index;
+}
+
+Cursor getCursorForIndex(Cursor cursor, unsigned int index) {
+  Cursor cursor_at_index;
+  int abs_row = 0;
+  int abs_column = 0;
+
+  FileNode* file_node = cursor.file_id.file;
+  while (file_node->prev != NULL) {
+    file_node = file_node->prev;
+  }
+
+  int current_index = 0;
+  while (current_index + file_node->byte_count < index) {
+    current_index += file_node->byte_count;
+    file_node = file_node->next;
+    abs_row += file_node->element_number;
+    assert(file_node != NULL); // INDEX OUT OF BOUNDS.
+  }
+
+  int i = 0;
+  while (current_index + file_node->lines_byte_count[i] < index) {
+    current_index += file_node->lines_byte_count[i];
+    i++;
+    assert(i < file_node->element_number);
+  }
+
+  assert(i < file_node->element_number);
+  abs_row += i;
+
+  LineNode* line_node = file_node->lines + i;
+  while (current_index + line_node->byte_count < index) {
+    current_index += line_node->byte_count;
+    abs_column += line_node->element_number;
+    line_node = line_node->next;
+    assert(line_node != NULL);
+  }
+
+  int j = 0;
+  int saved_size = 0;
+  while (current_index + (saved_size = sizeChar_U8(line_node->ch[j])) < index) {
+    current_index += saved_size;
+    j++;
+    assert(j < line_node->element_number);
+  }
+
+  abs_column += j;
+
+  cursor_at_index.file_id.absolute_row = abs_row;
+  cursor_at_index.file_id.file = file_node;
+  cursor_at_index.file_id.relative_row = i;
+
+  cursor_at_index.line_id.absolute_column = abs_column;
+  cursor_at_index.line_id.line = line_node;
+  cursor_at_index.line_id.relative_column = j;
+
+  return cursor_at_index;
+}
+
+int readNBytesAtCursor(Cursor* cursor_p, char* dest, int utf8_char_length) {
+  Cursor cursor = moduloCursor(*cursor_p);
+  // fprintf(stderr, "------------------------BEGIN-------------------------\n");
+  // fprintf(stderr, "PARAMS : uft_char_length: %d\n", utf8_char_length);
   int read = 0;
   int buff_length = 0;
   while (read < utf8_char_length) {
+    // fprintf(stderr, "---WHILE---\n");
+    // fprintf(stderr, "read: %d, buff_length :%d\n", read, buff_length);
     if (cursor.line_id.line->element_number == cursor.line_id.relative_column) {
-      // cursor currently at the end of the current node.
-      if (hasElementAfterFile(cursor.file_id) == false) {
-        break;
-      }
-      else if (hasElementAfterLine(cursor.line_id)) {
+      if (hasElementAfterLine(cursor.line_id)) {
         // has next in the line.
         assert(cursor.line_id.line->next != NULL);
         cursor.line_id.line = cursor.line_id.line->next;
         cursor.line_id.relative_column = 0;
+      }
+      else if (hasElementAfterFile(cursor.file_id) == false) {// cursor currently at the end of the current file.
+        // fprintf(stderr, "BREAK HERE !\n");
+        break;
       }
       else {
         int old_cur_row = cursor.file_id.absolute_row;
@@ -2249,8 +2318,45 @@ int readNBytesAtPosition(Cursor* cursor_p, int row_raw, int column_raw, char* de
   }
   *cursor_p = cursor;
   // fprintf(stderr, " => end(%d, %d)\n", cursor.file_id.absolute_row, cursor.line_id.absolute_column);
+  // fprintf(stderr, "------------------------END-------------------------\n");
   return buff_length;
 }
 
+int readNBytesAtPosition(Cursor* cursor_p, int row_raw, int column_raw, char* dest, int utf8_char_length) {
+  int row = row_raw + 1;
+  // fprintf(stderr, "readNBytes : Cursor (%d, %d) -> (%d, %d)", cursor_p->file_id.absolute_row, cursor_p->line_id.absolute_column, row_raw, column_raw);
+  // Cursor cursor = tryToReachAbsPosition(*cursor_p, row, column_raw);
+  FileIdentifier file_id = tryToReachAbsRow(cursor_p->file_id, row);
+  LineIdentifier line_id = moduloLineIdentifierR(getLineForFileIdentifier(file_id), 0);
 
-int readNBytesAtIndex(Cursor* cursor, int byte_index, char* dest, int utf8_char_length);
+  // reach column_raw.
+  int current_column_raw = 0;
+  while (current_column_raw < column_raw) {
+    // if we can skip current node.
+    if (current_column_raw + line_id.line->byte_count < column_raw) {
+      line_id.relative_column = 0;
+      line_id.absolute_column += line_id.line->element_number;
+      current_column_raw += line_id.line->byte_count;
+      line_id.line = line_id.line->next;
+      assert(line_id.line != NULL);
+      // INDEX OUT OF RANGE
+    }
+    else {
+      while (current_column_raw < column_raw) {
+        current_column_raw += sizeChar_U8(line_id.line->ch[line_id.relative_column]);
+        line_id.relative_column++;
+        line_id.absolute_column++;
+      }
+    }
+  }
+  assert(current_column_raw == column_raw);
+
+  *cursor_p = cursorOf(file_id, line_id);
+  return readNBytesAtCursor(cursor_p, dest, utf8_char_length);
+}
+
+
+int readNBytesAtIndex(Cursor* cursor_p, int byte_index, char* dest, int utf8_char_length) {
+  *cursor_p = getCursorForIndex(*cursor_p, byte_index);
+  return readNBytesAtCursor(cursor_p, dest, utf8_char_length);
+}
