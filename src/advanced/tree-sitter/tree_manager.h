@@ -7,6 +7,7 @@
 #include "../../io_management/io_manager.h"
 #include "../../data-management/state_control.h"
 
+#define CHAR_CHUNK_SIZE_TSINPUT 500
 
 typedef enum {
   SYMBOL = 's',
@@ -61,6 +62,17 @@ typedef struct {
   TSTree* tree;
   char* tmp_file_dump;
 } FileHighlightDatas;
+
+typedef struct {
+  FileHighlightDatas* highlight_datas;
+} PayloadStateChange;
+
+typedef struct {
+  FileNode* root;
+  char* file;
+  int size;
+  Cursor cursor;
+} PayloadInternalReader;
 
 const TSLanguage* tree_sitter_c(void);
 
@@ -123,16 +135,12 @@ void treeForEachNodeSized(int y_offset, int x_offset, int height, int width, TSN
 
 void setFileHighlightDatas(FileHighlightDatas* data, IO_FileID io_file);
 
+PayloadStateChange getPayloadStateChange(FileHighlightDatas *highlight_datas);
 
-void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_file_dump, int* n_bytes, History** history_frame, History* old_history_frame);
+void onStateChangeTS(Action action, long* payload_p);
 
+void parse_tree(FileNode** root, History** history_frame, FileHighlightDatas* highlight_data, History** old_history_frame);
 
-void edit_and_parse_tree(FileNode** root, History** history_frame, FileHighlightDatas* highlight_data, History** old_history_frame);
-
-
-long* get_payload_edit_and_parse_tree(FileNode*** root, FileHighlightDatas** highlight_data);
-
-void edit_and_parse_tree_from_payload(History** history_frame, History* *old_history_frame, long* payload);
 
 
 #endif //TREE_MANAGER_H

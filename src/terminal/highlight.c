@@ -115,14 +115,16 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
   // Get litteral string for current node. We don't extract if the litteral is higher than 200 char.
   int char_nb = ts_node_end_byte(node) - ts_node_start_byte(node);
   int array_size = char_nb;
-  if (char_nb > 200) {
+  if (char_nb > REGEX_MAX_DUMP_SIZE) {
     array_size = 0;
   }
   char litteral_text_node[array_size + 1];
-  if (char_nb <= 200) {
-    strncpy(litteral_text_node, source + ts_node_start_byte(node), char_nb);
+  if (char_nb <= REGEX_MAX_DUMP_SIZE) {
+    readNBytesAtPosition(tmp, ts_node_start_point(node).row, ts_node_start_point(node).column, litteral_text_node, char_nb);
   }
   litteral_text_node[array_size] = '\0';
+
+
 
   while (seq != NULL) {
     char* result = isTreePathMatchingQuery(litteral_text_node, tree_path, tree_path_length, seq->value);

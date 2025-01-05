@@ -198,3 +198,15 @@ bool getLanguageForFile(char* lang_name, IO_FileID io_file) {
 
   return false;
 }
+
+
+// copy from http://www.cse.yorku.ca/~oz/hash.html
+int hashString(unsigned char* str) {
+  unsigned long hash = 5381;
+  int c;
+
+  while (c = *str++)
+    hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+
+  return hash;
+}

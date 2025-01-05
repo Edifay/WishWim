@@ -9,6 +9,8 @@
 
 #define USE_COLOR true
 
+#define REGEX_MAX_DUMP_SIZE 1000
+
 
 ////// ---------------- COLOR FUNCTIONS ---------------
 

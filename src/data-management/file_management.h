@@ -75,7 +75,9 @@ Cursor byteCursorToCursor(Cursor cursor, int row, int byte_column);
 
 bool isCursorDisabled(Cursor cursor);
 
-int charBetween2Curso(Cursor cur1, Cursor cur2);
+int utf8CharBetween2Cursor(Cursor cur1, Cursor cur2);
+
+unsigned int byteBetween2Cursor(Cursor cur1, Cursor cur2);
 
 Cursor disableCursor(Cursor cursor);
 
@@ -87,7 +89,7 @@ void selectLine(Cursor *cursor, Cursor *select_cursor);
 
 void deleteSelection(Cursor* cursor, Cursor* select_cursor);
 
-void deleteSelectionWithHist(History **history_p, Cursor* cursor, Cursor* select_cursor);
+void deleteSelectionWithState(History **history_p, Cursor* cursor, Cursor* select_cursor, PayloadStateChange payload_state_change);
 
 char* dumpSelection(Cursor cur1, Cursor cur2);
 
