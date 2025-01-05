@@ -32,4 +32,6 @@ bool isDir(char *path);
 
 bool getLanguageForFile(char *lang, IO_FileID io_file);
 
+int hashString(unsigned char* str);
+
 #endif //TOOLS_H

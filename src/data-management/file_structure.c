@@ -2177,33 +2177,27 @@ unsigned int getIndexForCursor(Cursor cursor) {
   // Adding previous nodes byte_count
   current_file = current_file->prev;
   while (current_file != NULL) {
-    // fprintf(stderr, "ADDING PREVIOUS NODE %d\n", current_file->byte_count);
     index += current_file->byte_count;
     current_file = current_file->prev;
   }
 
   // Adding previous line byte_count
-  // fprintf(stderr, "Relative_row : %d\n", cursor.file_id.relative_row);
   for (int i = 0; i < cursor.file_id.relative_row - 1; i++) {
-    // fprintf(stderr, "ADDING PREVIOUS LINES %d\n", cursor.file_id.file->lines_byte_count[i] + 1);
     index += cursor.file_id.file->lines_byte_count[i] + 1;
   }
 
   // Adding previous LineNode byte_count
   LineNode* current_line = getLineForFileIdentifier(cursor.file_id);
   while (current_line != cursor.line_id.line) {
-    // fprintf(stderr, "ADDING PREVIOUS LINE_NODE %d\n", current_line->byte_count);
     index += current_line->byte_count;
     current_line = current_line->next;
   }
 
   // Adding current linenode chars
   for (int i = 0; i < cursor.line_id.relative_column; i++) {
-    // fprintf(stderr, "ADDING CURRENT NODE CHARS %d\n", sizeChar_U8(cursor.line_id.line->ch[i]));
     index += sizeChar_U8(cursor.line_id.line->ch[i]);
   }
 
-  // fprintf(stderr, "INDEX %d\n", index);
   return index;
 }
 
@@ -2266,13 +2260,9 @@ Cursor getCursorForIndex(Cursor cursor, unsigned int index) {
 
 int readNBytesAtCursor(Cursor* cursor_p, char* dest, int utf8_char_length) {
   Cursor cursor = moduloCursor(*cursor_p);
-  // fprintf(stderr, "------------------------BEGIN-------------------------\n");
-  // fprintf(stderr, "PARAMS : uft_char_length: %d\n", utf8_char_length);
   int read = 0;
   int buff_length = 0;
   while (read < utf8_char_length) {
-    // fprintf(stderr, "---WHILE---\n");
-    // fprintf(stderr, "read: %d, buff_length :%d\n", read, buff_length);
     if (cursor.line_id.line->element_number == cursor.line_id.relative_column) {
       if (hasElementAfterLine(cursor.line_id)) {
         // has next in the line.
@@ -2281,7 +2271,6 @@ int readNBytesAtCursor(Cursor* cursor_p, char* dest, int utf8_char_length) {
         cursor.line_id.relative_column = 0;
       }
       else if (hasElementAfterFile(cursor.file_id) == false) {// cursor currently at the end of the current file.
-        // fprintf(stderr, "BREAK HERE !\n");
         break;
       }
       else {
@@ -2317,15 +2306,11 @@ int readNBytesAtCursor(Cursor* cursor_p, char* dest, int utf8_char_length) {
     }
   }
   *cursor_p = cursor;
-  // fprintf(stderr, " => end(%d, %d)\n", cursor.file_id.absolute_row, cursor.line_id.absolute_column);
-  // fprintf(stderr, "------------------------END-------------------------\n");
   return buff_length;
 }
 
 int readNBytesAtPosition(Cursor* cursor_p, int row_raw, int column_raw, char* dest, int utf8_char_length) {
   int row = row_raw + 1;
-  // fprintf(stderr, "readNBytes : Cursor (%d, %d) -> (%d, %d)", cursor_p->file_id.absolute_row, cursor_p->line_id.absolute_column, row_raw, column_raw);
-  // Cursor cursor = tryToReachAbsPosition(*cursor_p, row, column_raw);
   FileIdentifier file_id = tryToReachAbsRow(cursor_p->file_id, row);
   LineIdentifier line_id = moduloLineIdentifierR(getLineForFileIdentifier(file_id), 0);
 

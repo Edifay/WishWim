@@ -303,9 +303,6 @@ void treeForEachNode(TSNode root_node, TreePath* path_symbol, int offset, void (
   path_symbol[offset].next = NULL;
   path_symbol[offset].reg = NULL;
 
-  // for (int i = 0; i < offset; i++) {
-  // fprintf(stderr, " ");
-  // }
 #ifdef PARSE_PRINT
   fprintf(stderr, "( %s [%d, %d] -> [%d, %d] | [%d] -> [%d] )",
           name, ts_node_start_point(root_node).row, ts_node_start_point(root_node).column,
@@ -405,7 +402,7 @@ void onStateChangeTS(Action action, long* payload_p) {
   TSInputEdit edit;
   switch (action.action) {
     case INSERT:
-      system("echo \"=== INSERT ===\" >> tree_logs.txt");
+      // system("echo \"=== INSERT ===\" >> tree_logs.txt");
       assert(action.byte_start != -1);
       assert(action.byte_end != -1);
       edit.start_byte = action.byte_start;
@@ -422,9 +419,8 @@ void onStateChangeTS(Action action, long* payload_p) {
     // To force the match with previous node.
       break;
     case DELETE:
-      system("echo \"=== DELETE ===\" >> tree_logs.txt");
+      // system("echo \"=== DELETE ===\" >> tree_logs.txt");
       assert(action.byte_start != -1);
-      fprintf(stderr, "DELETE BYTE_START : %u\n", action.byte_start);
       edit.start_byte = action.byte_start;
       edit.start_point.row = action.cur.file_id.absolute_row - 1;
       edit.start_point.column = action.cur.line_id.absolute_column;
@@ -509,14 +505,10 @@ void onStateChangeTS(Action action, long* payload_p) {
 
   char* obj_text = cJSON_Print(obj);
 
-  // FILE *f = fopen("tree_logs.txt", "a");
-  // fprintf(f, obj_text);
-  // fprintf(f,"\n");
-  // fclose(f);
-
-
-  fprintf(stderr, obj_text);
-  fprintf(stderr, "\n");
+  FILE *f = fopen("tree_logs.txt", "a");
+  fprintf(f, obj_text);
+  fprintf(f,"\n");
+  fclose(f);
 
 
   free(obj_text);
@@ -526,6 +518,7 @@ void onStateChangeTS(Action action, long* payload_p) {
 }
 
 char read_buffer[CHAR_CHUNK_SIZE_TSINPUT * 4];
+
 const char* internalReaderForTree(void* payload, uint32_t byte_index, TSPoint position, uint32_t* bytes_read) {
   PayloadInternalReader* values = payload;
   *bytes_read = readNBytesAtPosition(&values->cursor, position.row, position.column, read_buffer, CHAR_CHUNK_SIZE_TSINPUT);

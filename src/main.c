@@ -4,7 +4,6 @@
 #include <locale.h>
 #include <ncurses.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include <sys/ttydefaults.h>
 
@@ -28,8 +27,6 @@
 
 
 /**   TODO list :
- *      - For action, add byte_start && byte_end in the struct.
- *      - Rework tree_edit, create a callback in state_control to apply edit on tree.
  *      - Rework the printEditor for colors. Currently we override char with colored char, that's not optimized.
  *          Create a struct to define a coloration in a file, and calculate it before each paint.
  *
@@ -45,17 +42,6 @@ cJSON* config;
 ParserList parsers;
 LSPServerLinkedList lsp_servers;
 WorkspaceSettings loaded_settings;
-
-// copy from http://www.cse.yorku.ca/~oz/hash.html
-int hashString(unsigned char* str) {
-  unsigned long hash = 5381;
-  int c;
-
-  while (c = *str++)
-    hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
-
-  return hash;
-}
 
 
 void dispatcher(cJSON* packet, long* payload) {
@@ -218,7 +204,7 @@ int main(int file_count, char** args) {
   pwd.open = true;
 
 
-  // Setup redirection of vars to use with out pass though file_container obj.
+  // Setup redirection of vars to use without pass though file_container obj.
   IO_FileID* io_file; // Describe the IO file on OS
   FileNode** root; // The root of the File object
   Cursor* cursor; // The current cursor for the root File
@@ -279,7 +265,6 @@ int main(int file_count, char** args) {
     // If it needed to reparse the current file for tree. Looking for state changes.
     if (highlight_data->is_active == true && (old_history_frame != *history_frame || highlight_data->tree == NULL)) {
       // edit_and_parse_tree(root, history_frame, highlight_data, &old_history_frame);
-      fprintf(stderr, "Parse !\n");
       parse_tree(root, history_frame, highlight_data, &old_history_frame);
       optimizeHistory(*history_root, history_frame);
       old_history_frame = *history_frame;
@@ -671,9 +656,7 @@ int main(int file_count, char** args) {
         }
         break;
     }
-    // fprintf(stderr, "----------------------------\n");
-    // printByteCount(*root);
-    // fprintf(stderr, "File Index : %u\n", getIndexForCursor(*cursor));
+
     // While end.
   }
 
