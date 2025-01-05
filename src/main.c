@@ -26,7 +26,6 @@
 #include "config/config.h"
 
 
-
 /**   TODO list :
  *      - For action, add byte_start && byte_end in the struct.
  *      - Rework tree_edit, create a callback in state_control to apply edit on tree.
@@ -36,7 +35,6 @@
  *
  *
  */
-
 
 
 // Global vars.
@@ -62,7 +60,7 @@ int hashString(unsigned char* str) {
 void dispatcher(cJSON* packet, long* payload) {
   if (packet != NULL) {
     fprintf(stderr, "\n\n <<< ================ %s ================\n", cJSON_GetStringValue(cJSON_GetObjectItem(packet, "method")));
-    cJSON *params = cJSON_GetObjectItem(packet, "params");
+    cJSON* params = cJSON_GetObjectItem(packet, "params");
     char* text = cJSON_Print(params);
     fprintf(stderr, "%s\n", text);
     free(text);
@@ -137,7 +135,7 @@ int main(int file_count, char** args) {
 
   // Containers of current opened buffers.
   FileContainer* files;
-  int current_file = 0; // The current showed file.
+  int current_file_index = 0; // The current showed file.
 
   // Detect workspace settings
   loaded_settings.is_used = false;
@@ -166,7 +164,7 @@ int main(int file_count, char** args) {
         // --- UI State ---
 
         // Current showed file.
-        current_file = loaded_settings.current_opened_file;
+        current_file_index = loaded_settings.current_opened_file;
 
         // File Opened Window state.
         if (loaded_settings.showing_opened_file_window == true) {
@@ -247,7 +245,7 @@ int main(int file_count, char** args) {
     //// --------------- Post Processing -----------------
 
     if (refresh_local_vars == true) {
-      setupLocalVars(files, current_file, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y, &history_root,
+      setupLocalVars(files, current_file_index, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y, &history_root,
                      &history_frame, &highlight_data);
       refresh_local_vars = false;
       old_history_frame = *history_frame;
@@ -262,6 +260,7 @@ int main(int file_count, char** args) {
     // flag screen_x change
     if (*old_screen_x != *screen_x) {
       *old_screen_x = *screen_x;
+      // UNUSED
     }
 
     // flag screen_y change
@@ -293,8 +292,8 @@ int main(int file_count, char** args) {
     }
 
     // Refresh File Opened Window
-    if ((refresh_ofw == true || files[current_file].io_file.status == NONE) && ofw_height != 0) {
-      printOpenedFile(files, file_count, current_file, current_file_offset, ofw);
+    if ((refresh_ofw == true || files[current_file_index].io_file.status == NONE) && ofw_height != 0) {
+      printOpenedFile(files, file_count, current_file_index, current_file_offset, ofw);
       wrefresh(ofw);
       refresh_ofw = false;
     }
@@ -366,57 +365,62 @@ int main(int file_count, char** args) {
       // ---------------------- MOUSE ----------------------
 
       case KEY_MOUSE:
-        if (getmouse(&m_event) == OK) {
-          detectComplexEvents(&m_event);
+        if (getmouse(&m_event) != OK) {
+          fprintf(stderr, "MOUVE_EVENT_NOT_OK !\r\n");
+          exit(0);
+          break;
+        }
 
-          // Avoid refreshing when it's just mouse movement with no change.
-          if (m_event.bstate == NO_EVENT_MOUSE /*No event state*/ && mouse_drag == false) {
+        detectComplexEvents(&m_event);
+
+      // Avoid refreshing when it's just mouse movement with no change.
+        if (m_event.bstate == NO_EVENT_MOUSE /*No event state*/ && mouse_drag == false) {
+          goto read_input;
+        }
+
+      // Avoid too much refresh, to avoid input buffer full.
+        if (m_event.bstate == NO_EVENT_MOUSE && mouse_drag == true) {
+          if (diff2Time(last_time_mouse_drag, timeInMilliseconds()) < 30) {
             goto read_input;
           }
-
-          // Avoid too much refresh, to avoid input buffer full.
-          if (m_event.bstate == NO_EVENT_MOUSE && mouse_drag == true) {
-            if (diff2Time(last_time_mouse_drag, timeInMilliseconds()) < 30) {
-              goto read_input;
-            }
-            last_time_mouse_drag = timeInMilliseconds();
-          }
-
-
-          // If pressed enable drag
-          if (m_event.bstate & BUTTON1_PRESSED) {
-            mouse_drag = true;
-          }
-
-          if ((m_event.x < getbegx(lnw) && focus_w == NULL) || (few != NULL && focus_w == few)) {
-            // Click in File Explorer Window
-            if (m_event.bstate & BUTTON1_PRESSED) {
-              focus_w = few;
-            }
-            handleFileExplorerClick(&files, &file_count, &current_file, &pwd, &few_y_offset, &few_x_offset, &few_width, &few_selected_line, ofw_height, ofw_height, &few, &ofw,
-                                    &lnw, &ftw,
-                                    m_event, &refresh_few, &refresh_ofw, &refresh_edw, &refresh_local_vars);
-          }
-          else if ((m_event.y - ofw_height < 0 && focus_w == NULL) || (ofw != NULL && focus_w == ofw)) {
-            // Click on opened file window
-            if (m_event.bstate & BUTTON1_PRESSED) {
-              focus_w = ofw;
-            }
-            handleOpenedFileClick(files, &file_count, &current_file, m_event, &current_file_offset, ofw, &refresh_ofw, &refresh_local_vars, mouse_drag);
-          }
-          else {
-            // Click on editor windows
-            if (m_event.bstate & BUTTON1_PRESSED) {
-              focus_w = ftw;
-            }
-            handleEditorClick(getbegx(ftw), ofw_height, cursor, select_cursor, desired_column, screen_x, screen_y, &m_event, mouse_drag);
-          }
-
-          if (m_event.bstate & BUTTON1_RELEASED) {
-            focus_w = NULL;
-            mouse_drag = false;
-          }
+          last_time_mouse_drag = timeInMilliseconds();
         }
+
+
+      // If pressed enable drag
+        if (m_event.bstate & BUTTON1_PRESSED) {
+          mouse_drag = true;
+        }
+
+        if ((m_event.x < getbegx(lnw) && focus_w == NULL) || (few != NULL && focus_w == few)) {
+          // Click in File Explorer Window
+          if (m_event.bstate & BUTTON1_PRESSED) {
+            focus_w = few;
+          }
+          handleFileExplorerClick(&files, &file_count, &current_file_index, &pwd, &few_y_offset, &few_x_offset, &few_width, &few_selected_line, ofw_height, ofw_height, &few, &ofw,
+                                  &lnw, &ftw,
+                                  m_event, &refresh_few, &refresh_ofw, &refresh_edw, &refresh_local_vars);
+        }
+        else if ((m_event.y - ofw_height < 0 && focus_w == NULL) || (ofw != NULL && focus_w == ofw)) {
+          // Click on opened file window
+          if (m_event.bstate & BUTTON1_PRESSED) {
+            focus_w = ofw;
+          }
+          handleOpenedFileClick(files, &file_count, &current_file_index, m_event, &current_file_offset, ofw, &refresh_ofw, &refresh_local_vars, mouse_drag);
+        }
+        else {
+          // Click on editor windows
+          if (m_event.bstate & BUTTON1_PRESSED) {
+            focus_w = ftw;
+          }
+          handleEditorClick(getbegx(ftw), ofw_height, cursor, select_cursor, desired_column, screen_x, screen_y, &m_event, mouse_drag);
+        }
+
+        if (m_event.bstate & BUTTON1_RELEASED) {
+          focus_w = NULL;
+          mouse_drag = false;
+        }
+
         break;
 
       // ---------------------- MOVEMENT ----------------------
@@ -488,16 +492,16 @@ int main(int file_count, char** args) {
         break;
       case H_KEY_CTRL_MAJ_DOWN:
         // Do something with this.
-        if (current_file != 0)
-          current_file--;
+        if (current_file_index != 0)
+          current_file_index--;
         refresh_local_vars = true;
       // TODO check if the file selected is showing in ofw. If not move it in.
         refresh_ofw = true;
         break;
       case H_KEY_CTRL_MAJ_UP:
         // Do something with this.
-        if (current_file != file_count - 1)
-          current_file++;
+        if (current_file_index != file_count - 1)
+          current_file_index++;
         refresh_local_vars = true;
       // TODO check if the file selected is showing in ofw. If not move it in.
         refresh_ofw = true;
@@ -554,7 +558,7 @@ int main(int file_count, char** args) {
           }
         goto end;
       case CTRL('w'):
-        closeFile(&files, &file_count, &current_file, &refresh_ofw, &refresh_edw, &refresh_local_vars);
+        closeFile(&files, &file_count, &current_file_index, &refresh_ofw, &refresh_edw, &refresh_local_vars);
         break;
       case CTRL('s'):
         if (io_file->status == NONE) {
@@ -679,7 +683,7 @@ end:
 
   if (loaded_settings.is_used == true) {
     WorkspaceSettings new_settings;
-    getWorkspaceSettingsForCurrentDir(&new_settings, files, file_count, current_file, ofw_height != 0, few_width != 0, FILE_EXPLORER_WIDTH);
+    getWorkspaceSettingsForCurrentDir(&new_settings, files, file_count, current_file_index, ofw_height != 0, few_width != 0, FILE_EXPLORER_WIDTH);
     saveWorkspaceSettings(loaded_settings.dir_path, &new_settings);
     destroyWorkspaceSettings(&new_settings);
   }

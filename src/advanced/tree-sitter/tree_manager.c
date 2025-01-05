@@ -553,7 +553,8 @@ void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_f
   // TODO implement something to be able to remove next assert.
   // It correspond to the fact that it's not possible to undo with multiple Action at once.
   assert(abs(relative_loc) <= 1 || relative_loc > 0);
-  for (int i = 0; i < abs(relative_loc); i++) {
+  // TODO BE AWARE ABOUT ORDER OF EDIT APPLIED !!!
+  for (int i = abs(relative_loc) - 1; i >= 0; i--) {
     TSInputEdit edit;
     switch (improved_history[i].history_frame->action.action) {
       case INSERT:
@@ -692,7 +693,7 @@ const char* test_fct(void* payload, uint32_t byte_index, TSPoint position, uint3
     // read_buffer[*bytes_read] = '\0';
     // fprintf(stderr, "bytes_read: %d\ntext: '%s'\n", *bytes_read, read_buffer);
     // if (*bytes_read == 0) {
-      // return NULL;
+    // return NULL;
     // }
 
     return read_buffer;
@@ -706,7 +707,7 @@ const char* test_fct(void* payload, uint32_t byte_index, TSPoint position, uint3
 
     // char command[10000];
     // sprintf(command, "echo \"\nbyte_index: %u\nposition: %d %d\nbyte_read: %u \nsize: %d\" >> tree_logs.txt", byte_index, position.row,
-            // position.column, *bytes_read, values->size);
+    // position.column, *bytes_read, values->size);
     // system(command);
 
     if (*bytes_read == 0) {
@@ -761,7 +762,7 @@ void edit_and_parse_tree(FileNode** root, History** history_frame, FileHighlight
 
 
   t = clock() - t;
-  double time_taken = ((double)t)/CLOCKS_PER_SEC; // in seconds
+  double time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
 
   fprintf(stderr, "fun() took %f seconds to execute \n", time_taken);
 

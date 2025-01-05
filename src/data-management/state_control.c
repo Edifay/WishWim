@@ -7,7 +7,6 @@
 
 #include "state_control.h"
 #include "file_management.h"
-#include "../io_management/viewport_history.h"
 
 
 void initHistory(History* history) {
@@ -21,7 +20,7 @@ void initHistory(History* history) {
 Cursor undo(History** history_p, Cursor cursor, void (*forEachUndo)(History** history_frame, History** old_history_frame, long* payload), long* payload) {
   History* history = *history_p;
 
-  // If hisotory is at root return and do nothing. Cannot undo nothing ;).
+  // If history is at root return and do nothing. Can't undo ;).
   if (history->action.action == ACTION_NONE) {
     return cursor;
   }
@@ -47,7 +46,7 @@ Cursor undo(History** history_p, Cursor cursor, void (*forEachUndo)(History** hi
 Cursor redo(History** history_p, Cursor cursor, void (*forEachRedo)(History** history_frame, History** old_history_frame, long* payload), long* payload) {
   History* history = *history_p;
 
-  // If hisotory is at root return and do nothing. Cannot undo nothing ;).
+  // If history is at the end return and do nothing. Cannot redo nothing ;).
   if (history->next == NULL) {
     return cursor;
   }
