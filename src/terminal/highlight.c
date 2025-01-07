@@ -92,6 +92,9 @@ void highlightLinePart(WINDOW* ftw, int start_row, int start_column, int length,
   }
 }
 
+
+char litteral_text_node_buffer[REGEX_MAX_DUMP_SIZE * 4 + 1];
+
 void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_length, long* args) {
   // Un-abstracting args.
   TreePathSeq* seq = ((TreePathSeq *)args[0]);
@@ -113,21 +116,25 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
 
 
   // Get litteral string for current node. We don't extract if the litteral is higher than 200 char.
+#if REGEX_MAX_DUMP_SIZE != 0
   int char_nb = ts_node_end_byte(node) - ts_node_start_byte(node);
   int array_size = char_nb;
   if (char_nb > REGEX_MAX_DUMP_SIZE) {
     array_size = 0;
   }
-  char litteral_text_node[array_size + 1];
   if (char_nb <= REGEX_MAX_DUMP_SIZE) {
-    readNBytesAtPosition(tmp, ts_node_start_point(node).row, ts_node_start_point(node).column, litteral_text_node, char_nb);
+    // fprintf(stderr, "READ FROM HIGHLIGHT\n");
+    readNBytesAtPosition(tmp, ts_node_start_point(node).row, ts_node_start_point(node).column, litteral_text_node_buffer, char_nb);
   }
-  litteral_text_node[array_size] = '\0';
-
+  litteral_text_node_buffer[array_size] = '\0';
+#else
+  char litteral_text_node[1];
+  litteral_text_node[0] = '\0';
+#endif
 
 
   while (seq != NULL) {
-    char* result = isTreePathMatchingQuery(litteral_text_node, tree_path, tree_path_length, seq->value);
+    char* result = isTreePathMatchingQuery(litteral_text_node_buffer, tree_path, tree_path_length, seq->value);
 
     attr_t attr = A_NORMAL;
     NCURSES_PAIRS_T color = DEFAULT_COLOR_PAIR;
