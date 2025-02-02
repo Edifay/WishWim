@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <string.h>
+#include <time.h>
 
 #include "term_handler.h"
 #include "../data-management/file_structure.h"
@@ -94,17 +95,17 @@ void highlightLinePart(WINDOW* ftw, int start_row, int start_column, int length,
 
 
 char litteral_text_node_buffer[REGEX_MAX_DUMP_SIZE * 4 + 1];
+double sum_check_match_for_highlight;
 
 void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_length, long* args) {
+  clock_t t;
+  t = clock();
   // Un-abstracting args.
   TreePathSeq* seq = ((TreePathSeq *)args[0]);
   HighlightThemeList* theme_list = ((HighlightThemeList *)args[1]);
-  char* source = (char *)args[2];
   WINDOW* ftw = (WINDOW *)args[3];
   int* screen_x = (int *)args[4];
   int* screen_y = (int *)args[5];
-  int width = (int)args[6];
-  int height = (int)args[7];
   Cursor cursor = *((Cursor *)args[8]);
   Cursor select = *((Cursor *)args[9]);
   Cursor* tmp = (Cursor *)args[10];
@@ -197,10 +198,21 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
 
       break;
       // End if group found.
+    }else {
+      // fprintf(stderr, "No color found for %s node.\n", tree_path[tree_path_length-1].name);
+
     }
 
     seq = seq->next;
   }
+  t = clock() - t;
+  double time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
+  sum_check_match_for_highlight += time_taken;
+  // fprintf(stderr, "checkMatchForHighlight() took %f seconds to execute %d \n", time_taken, tree_path_length);
+  // for (int i = 0 ; i < tree_path_length ; i++) {
+  //   fprintf(stderr, "%s.", tree_path[i].name);
+  // }
+  // fprintf(stderr,"\n");
 }
 
 
@@ -224,7 +236,16 @@ void highlightCurrentFile(FileHighlightDatas* highlight_data, WINDOW* ftw, int* 
   TSNode root_node = ts_tree_root_node(highlight_data->tree);
   TreePath path[1000]; // TODO refactor this, there is a problem if the depth of the tree is bigger than 1000.
 
+  clock_t t;
+  t = clock();
+
+  sum_check_match_for_highlight = 0;
   treeForEachNodeSized(*screen_y, *screen_x, getmaxy(ftw), getmaxx(ftw), root_node, path, 0, checkMatchForHighlight, args_fct);
+
+  t = clock() - t;
+  double time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
+
+  // fprintf(stderr, "highlight() took %f seconds to execute part of check for highlight : %f \n", time_taken, sum_check_match_for_highlight);
 
   free((Cursor *)args_fct[10]);
   free(args_fct);

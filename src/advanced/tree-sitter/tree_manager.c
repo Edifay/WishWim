@@ -71,7 +71,8 @@ bool loadNewParser(ParserContainer* container, char* language) {
     strcmp(language, "javascript") == 0 ||
     strcmp(language, "json") == 0 ||
     strcmp(language, "bash") == 0 ||
-    strcmp(language, "query") == 0
+    strcmp(language, "query") == 0 ||
+    strcmp(language, "vhdl") == 0
   ) {
     strcpy(container->lang_name, language);
 
@@ -143,6 +144,9 @@ bool loadNewParser(ParserContainer* container, char* language) {
     }
     else if (strcmp(language, "query") == 0) {
       container->lang = tree_sitter_query();
+    }
+    else if (strcmp(language, "vhdl") == 0) {
+      container->lang = tree_sitter_vhdl();
     }
 
     container->parser = ts_parser_new();
@@ -399,6 +403,10 @@ PayloadStateChange getPayloadStateChange(FileHighlightDatas* highlight_datas) {
 void onStateChangeTS(Action action, long* payload_p) {
   PayloadStateChange payload = *(PayloadStateChange *)payload_p;
 
+  if (payload.highlight_datas->is_active == false) {
+    return;
+  }
+
   TSInputEdit edit;
   switch (action.action) {
     case INSERT:
@@ -562,7 +570,7 @@ void parse_tree(FileNode** root, History** history_frame, FileHighlightDatas* hi
   t = clock() - t;
   double time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
 
-  fprintf(stderr, "parse() took %f seconds to execute \n", time_taken);
+  // fprintf(stderr, "parse() took %f seconds to execute \n", time_taken);
 
   *old_history_frame = *history_frame;
 }

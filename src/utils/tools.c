@@ -195,6 +195,11 @@ bool getLanguageForFile(char* lang_name, IO_FileID io_file) {
     strcpy(lang_name, "query");
     return true;
   }
+  // vhdl
+  if (strcmp(lang_name, "vhd") == 0) {
+    strcpy(lang_name, "vhdl");
+    return true;
+  }
 
   return false;
 }
