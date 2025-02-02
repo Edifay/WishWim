@@ -1,0 +1,90 @@
+================================================================================
+Bit values
+================================================================================
+
+A <= 'U' or 'X' or '0' or '1' or 'Z' or 'W' or 'L' or 'H' or '-';
+A <= 'A' or 'B' or '2' or '3' or '&';
+
+--------------------------------------------------------------------------------
+
+(design_file
+  (design_unit
+    (concurrent_simple_signal_assignment
+      (name
+        (identifier))
+      (signal_assignment)
+      (waveform
+        (waveform_element
+          (logical_expression
+            (logical_expression
+              (logical_expression
+                (logical_expression
+                  (logical_expression
+                    (logical_expression
+                      (logical_expression
+                        (logical_expression
+                          (simple_expression
+                            (name
+                              (library_constant_std_logic)))
+                          (logical_operator)
+                          (simple_expression
+                            (name
+                              (library_constant_std_logic))))
+                        (logical_operator)
+                        (simple_expression
+                          (name
+                            (library_constant_std_logic))))
+                      (logical_operator)
+                      (simple_expression
+                        (name
+                          (library_constant_std_logic))))
+                    (logical_operator)
+                    (simple_expression
+                      (name
+                        (library_constant_std_logic))))
+                  (logical_operator)
+                  (simple_expression
+                    (name
+                      (library_constant_std_logic))))
+                (logical_operator)
+                (simple_expression
+                  (name
+                    (library_constant_std_logic))))
+              (logical_operator)
+              (simple_expression
+                (name
+                  (library_constant_std_logic))))
+            (logical_operator)
+            (simple_expression
+              (name
+                (library_constant_std_logic)))))))
+    (concurrent_simple_signal_assignment
+      (name
+        (identifier))
+      (signal_assignment)
+      (waveform
+        (waveform_element
+          (logical_expression
+            (logical_expression
+              (logical_expression
+                (logical_expression
+                  (simple_expression
+                    (name
+                      (character_literal)))
+                  (logical_operator)
+                  (simple_expression
+                    (name
+                      (character_literal))))
+                (logical_operator)
+                (simple_expression
+                  (name
+                    (character_literal))))
+              (logical_operator)
+              (simple_expression
+                (name
+                  (character_literal))))
+            (logical_operator)
+            (simple_expression
+              (name
+                (character_literal)))))))))
+
