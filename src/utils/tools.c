@@ -186,7 +186,7 @@ bool getLanguageForFile(char* lang_name, IO_FileID io_file) {
     return true;
   }
   // bash/shell
-  if (strcmp(lang_name, "sh") == 0) {
+  if (strcmp(lang_name, "sh") == 0 || strcmp(lang_name, "conf") == 0) {
     strcpy(lang_name, "bash");
     return true;
   }

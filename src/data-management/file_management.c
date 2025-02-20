@@ -96,6 +96,7 @@ void setupFileContainer(char* path, FileContainer* container) {
   container->history_frame = container->history_root;
 
   container->cursor = createRoot(container->io_file);
+  container->old_cur = container->cursor;
   container->select_cursor = disableCursor(container->cursor);
   setDesiredColumn(container->cursor, &container->desired_column);
 
