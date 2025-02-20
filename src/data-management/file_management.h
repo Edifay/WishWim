@@ -70,6 +70,9 @@ Cursor insertCharArrayAtCursor(Cursor cursor, char* chs);
 
 Cursor byteCursorToCursor(Cursor cursor, int row, int byte_column);
 
+Cursor goToEnd(Cursor cursor);
+Cursor goToBegin(Cursor cursor);
+
 ////// -------------- SELECTION MANAGEMENT --------------
 
 

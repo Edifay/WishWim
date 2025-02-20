@@ -497,6 +497,28 @@ int main(int file_count, char** args) {
       // TODO check if the file selected is showing in ofw. If not move it in.
         refresh_ofw = true;
         break;
+      case H_KEY_BEGIN:
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
+        *cursor = goToBegin(*cursor);
+        setDesiredColumn(*cursor, desired_column);
+      // Next is to go to the first non empty char and not to the begin of the line.
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
+        *cursor = moveToNextWord(*cursor);
+        setDesiredColumn(*cursor, desired_column);
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
+        *cursor = moveToPreviousWord(*cursor);
+        setDesiredColumn(*cursor, desired_column);
+        break;
+      case H_KEY_END:
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
+        *cursor = goToEnd(*cursor);
+        setDesiredColumn(*cursor, desired_column);
+        break;
+      case H_KEY_MAJ_END:
+        setSelectCursorOn(*cursor, select_cursor);
+        *cursor = goToEnd(*cursor);
+        setDesiredColumn(*cursor, desired_column);
+        break;
 
       // ---------------------- FILE MANAGEMENT ----------------------
 

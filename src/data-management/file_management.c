@@ -364,6 +364,16 @@ Cursor byteCursorToCursor(Cursor cursor, int row, int byte_column) {
   return cursor;
 }
 
+
+Cursor goToEnd(Cursor cursor) {
+  cursor = cursorOf(cursor.file_id, tryToReachAbsColumn(cursor.line_id, INT_MAX));
+  return cursor;
+}
+Cursor goToBegin(Cursor cursor) {
+  cursor = cursorOf(cursor.file_id, tryToReachAbsColumn(cursor.line_id, 0));
+  return cursor;
+}
+
 ////// -------------- SELECTION MANAGEMENT --------------
 
 
