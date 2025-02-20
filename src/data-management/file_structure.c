@@ -1606,10 +1606,8 @@ void deleteFilePart(FileIdentifier file_id, int length) {
 
     // If the id is the begin of a node and If the node can be completely removed. We can improve perf.
     if (file_id.relative_row == 0 && file_id.file->element_number <= length - current_removed) {
-      fprintf(stderr, "NODE CAN BE COMPLETLY REMOVED\n");
       current_removed += file_id.file->element_number;
       if (file_id.file->prev != NULL) {
-        fprintf(stderr, "NODE WILL BE FREED\n");
         // If the node can be cleared.
         file_id.file = destroyCurrentFileNode(file_id.file);
         file_id.relative_row = file_id.file->element_number;
@@ -1617,7 +1615,6 @@ void deleteFilePart(FileIdentifier file_id, int length) {
       else {
         // If the node is fixed.
         // assert(false);
-        fprintf(stderr, "NODE WILL BE SET EMPTY\n");
         file_id.file->element_number = 0;
         file_id.file->byte_count = 0;
         file_id.file->current_max_element_number = 0;
@@ -1630,7 +1627,6 @@ void deleteFilePart(FileIdentifier file_id, int length) {
     }
     else {
       // Need to delete a part of the node.
-      fprintf(stderr, "NODE WILL BE REDUCED\n");
       int atDelete = min(length - current_removed, file_id.file->element_number - file_id.relative_row);
       for (int i = file_id.relative_row; i < file_id.relative_row + atDelete; i++) {
         destroyFullLine(file_id.file->lines + i);
@@ -1658,9 +1654,9 @@ void deleteFilePart(FileIdentifier file_id, int length) {
     }
   }
 
-  fprintf(stderr, " ====== DELETE FILE PART AFTER =====\n");
+  // fprintf(stderr, " ====== DELETE FILE PART AFTER =====\n");
   // printByteCount(tryToReachAbsRow(file_id, 1).file);
-  fprintf(stderr, " ====== DELETE FILE PART AFTER END =====\n");
+  // (stderr, " ====== DELETE FILE PART AFTER END =====\n");
 }
 
 /**
@@ -1837,7 +1833,6 @@ Cursor insertNewLineInLineC(Cursor cursor) {
 #endif
     // We are not moving the node for now but juste moving the Char_U8 array.
     if (line_id.line->next != NULL) {
-      fprintf(stderr, "Have something to do to insert new line in line.\n");
       newLine->ch = line_id.line->next->ch;
       newLine->next = line_id.line->next->next;
       newLine->current_max_element_number = line_id.line->next->current_max_element_number;
@@ -1935,7 +1930,7 @@ Cursor insertNewLineInLineC(Cursor cursor) {
  * */
 Cursor concatNeighbordsLinesC(Cursor cursor) {
   cursor = moduloCursor(cursor);
-  fprintf(stderr, "Concat\n");
+  // fprintf(stderr, "Concat\n");
 
   FileIdentifier file_id = cursor.file_id;
   LineIdentifier line_id = cursor.line_id;
@@ -2070,7 +2065,6 @@ Cursor bulkDelete(Cursor cursor, Cursor select_cursor) {
 
   if (cursor.file_id.absolute_row == select_cursor.file_id.absolute_row) {
     // Need to delete part of a line.
-    fprintf(stderr, "Inline\n");
     int old_byte_count = cursor.file_id.file->lines_byte_count[cursor.file_id.relative_row - 1];
     deleteLinePart(cursor.line_id, select_cursor.line_id.absolute_column - cursor.line_id.absolute_column);
     int new_byte_count = byteCountForCurrentLineToEnd(getLineForFileIdentifier(cursor.file_id), 0);
@@ -2078,7 +2072,6 @@ Cursor bulkDelete(Cursor cursor, Cursor select_cursor) {
     cursor.file_id.file->byte_count -= old_byte_count - new_byte_count;
   }
   else {
-    fprintf(stderr, "Multiple lines.\n");
     Cursor test = tryToReachAbsPosition(cursor, 1, 0);
     int old_byte_count = cursor.file_id.file->lines_byte_count[cursor.file_id.relative_row - 1];
     deleteLinePart(cursor.line_id, tryToReachAbsColumn(cursor.line_id, INT_MAX).absolute_column - cursor.line_id.absolute_column);

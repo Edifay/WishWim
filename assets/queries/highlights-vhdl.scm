@@ -3,19 +3,19 @@
 
 (decimal_integer @number)
 
-(entity: (identifier) @variable)
-
 (mode @function)
 (library_type @method)
 (library_function @function)
 
-(library_constant_std_logic @variable)
-(string_literal_std_logic @variable)
+(library_constant_std_logic @number)
+(string_literal_std_logic @number)
 
 "<=" @function
 
 (string_literal) @string
 (character_literal) @string
+
+(identifier @variable)
 
 [
   (library_namespace)
