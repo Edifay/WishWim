@@ -14,10 +14,7 @@ void setLspDatas(LSP_Datas* lsp_datas, IO_FileID io_file) {
   if (did_lang_was_found == true) {
     lsp_server = getLSPServerForLanguage(&lsp_servers, lsp_datas->name);
   }
-
-  if (lsp_server != NULL) {
-    lsp_datas->is_enable = true;
-  }
+  lsp_datas->is_enable = lsp_server != NULL;
 }
 
 

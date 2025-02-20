@@ -104,6 +104,7 @@ const TSLanguage* tree_sitter_bash(void);
 
 const TSLanguage* tree_sitter_query(void);
 
+const TSLanguage* tree_sitter_vhdl(void);
 
 void initParserList(ParserList* list);
 

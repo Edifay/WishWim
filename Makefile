@@ -28,6 +28,7 @@ modules= \
 	lib/tree-sitter-markdown/tree-sitter-markdown/libtree-sitter-markdown.a \
 	lib/tree-sitter-markdown/tree-sitter-markdown-inline/libtree-sitter-markdown-inline.a \
 	lib/tree-sitter-query/target/debug/libtree_sitter_query.rlib \
+	lib/tree-sitter-vhdl/target/debug/libtree_sitter_vhdl.rlib \
 	lib/cJSON/cJSON.o
 #	lib/tree-sitter-markdown/target/debug/libtree_sitter_markdown.rlib \
 #	lib/tree-sitter-c/src/parser.o \
@@ -82,6 +83,9 @@ lib/tree-sitter-markdown/target/debug/libtree_sitter_markdown.rlib:
 
 lib/tree-sitter-query/target/debug/libtree_sitter_query.rlib:
 	cd lib/tree-sitter-query/ && cargo build
+
+lib/tree-sitter-vhdl/target/debug/libtree_sitter_vhdl.rlib:
+	cd lib/tree-sitter-vhdl/ && cargo build
 
 lib/tree-sitter-python/libtree-sitter-python.a:
 	cd lib/tree-sitter-python/ && tree-sitter generate && $(MAKE)

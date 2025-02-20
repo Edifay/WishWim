@@ -56,38 +56,56 @@ bool saveToClipBoard(Cursor begin, Cursor end) {
 
 
   char* xclip = whereis("xclip");
+  char* wl_copy = whereis("wl-copy");
 
-  // If xclip is not found just using last_clip file.
-  if (xclip == NULL) {
+  // If xclip and wl-copy are not found just using last_clip file.
+  if (xclip == NULL && wl_copy == NULL) {
     return false;
   }
 
-  char x_clip_command[200];
-  sprintf(x_clip_command, "xclip -selection clipboard < %s ", tmp_file);
-  int result_xlip = system(x_clip_command);
+  bool xclip_worked = false;
+  if (xclip != NULL) {
+    free(xclip);
+    char x_clip_command[200];
+    sprintf(x_clip_command, "xclip -selection clipboard < %s ", tmp_file);
+    int result_xlip = system(x_clip_command);
 
-  if (result_xlip != 0) {
-    return false;
+    xclip_worked = result_xlip == 0;
+    if (result_xlip != 0 && wl_copy == NULL) {
+      return false;
+    }
   }
 
-  char rm_tmp_file_command[200];
-  sprintf(rm_tmp_file_command, "rm %s", tmp_file);
+  if (wl_copy != NULL) {
+    free(wl_copy);
+    char wl_copy_command[200];
+    sprintf(wl_copy_command, "wl-copy < %s ", tmp_file);
+    int result_wl_copy = system(wl_copy_command);
 
-  free(xclip);
+    if (result_wl_copy != 0 && xclip_worked == false) {
+      return false;
+    }
+  }
 
   return true;
 }
 
 Cursor loadFromClipBoard(Cursor cursor) {
   char* xclip = whereis("xclip");
+  char* wl_paste = whereis("wl-paste");
 
   FILE* f;
-  if (xclip == NULL) {
-    // If xclip is not found just using last_clip file.
+  if (xclip == NULL && wl_paste == NULL) {
+    // If xclip and wl_paste are not found just using last_clip file.
     f = fopen("/tmp/al/clipboard/last_clip", "r");
   }
   else {
-    f = popen("xclip -selection clipboard -out", "r");
+    // prefer using wl_paste instead of xclip
+    if (wl_paste != NULL) {
+      f = popen("wl-paste", "r");
+    } else if (xclip != NULL) { // redondant if
+      f = popen("xclip -selection clipboard -out", "r");
+    }
   }
 
   if (f == NULL) {

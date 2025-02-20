@@ -27,10 +27,11 @@
 
 
 /**   TODO list :
+ * 		 - Rework the query for highlight to optimise queries. 
  *      - Rework the printEditor for colors. Currently we override char with colored char, that's not optimized.
  *          Create a struct to define a coloration in a file, and calculate it before each paint.
  *
- *
+ *      
  *
  */
 
@@ -57,8 +58,8 @@ void dispatcher(cJSON* packet, long* payload) {
 
 int main(int file_count, char** args) {
   // TODO Remove when lsp_logs.txt will be unused.
-  system("echo "" > lsp_logs.txt");
-  system("echo "" > tree_logs.txt");
+  // system("echo "" > lsp_logs.txt");
+  // system("echo "" > tree_logs.txt");
   // remove first args which is the executable file name.
   char** file_names = args;
   file_names++;

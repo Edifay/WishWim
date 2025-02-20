@@ -26,8 +26,8 @@
  *
  */
 
-#define MAX_ELEMENT_NODE 2
-#define CACHE_SIZE 2
+#define MAX_ELEMENT_NODE 200
+#define CACHE_SIZE 50
 
 // #define LOGS
 
@@ -319,11 +319,16 @@ unsigned int getIndexForCursor(Cursor cursor);
 
 Cursor getCursorForIndex(Cursor cursor, unsigned int index);
 
-int readNBytesAtCursor(Cursor* cursor, char* dest, int length);
+int readNu8CharAtCursor(Cursor* cursor, char* dest, int length);
+
+int readNu8CharAtPosition(Cursor* cursor, int row_raw, int column_raw, char* dest, int length);
+
+int readNu8CharAtIndex(Cursor* cursor, int byte_index, char* dest, int length);
+
+
+int readNBytesCharAtCursor(Cursor* cursor, char* dest, int length);
 
 int readNBytesAtPosition(Cursor* cursor, int row_raw, int column_raw, char* dest, int length);
-
-int readNBytesAtIndex(Cursor* cursor, int byte_index, char* dest, int length);
 
 
 #endif

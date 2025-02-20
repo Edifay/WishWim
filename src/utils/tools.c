@@ -186,13 +186,18 @@ bool getLanguageForFile(char* lang_name, IO_FileID io_file) {
     return true;
   }
   // bash/shell
-  if (strcmp(lang_name, "sh") == 0) {
+  if (strcmp(lang_name, "sh") == 0 || strcmp(lang_name, "conf") == 0) {
     strcpy(lang_name, "bash");
     return true;
   }
   // scheme implementation
   if (strcmp(lang_name, "scm") == 0) {
     strcpy(lang_name, "query");
+    return true;
+  }
+  // vhdl
+  if (strcmp(lang_name, "vhd") == 0) {
+    strcpy(lang_name, "vhdl");
     return true;
   }
 

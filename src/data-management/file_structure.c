@@ -1606,10 +1606,8 @@ void deleteFilePart(FileIdentifier file_id, int length) {
 
     // If the id is the begin of a node and If the node can be completely removed. We can improve perf.
     if (file_id.relative_row == 0 && file_id.file->element_number <= length - current_removed) {
-      fprintf(stderr, "NODE CAN BE COMPLETLY REMOVED\n");
       current_removed += file_id.file->element_number;
       if (file_id.file->prev != NULL) {
-        fprintf(stderr, "NODE WILL BE FREED\n");
         // If the node can be cleared.
         file_id.file = destroyCurrentFileNode(file_id.file);
         file_id.relative_row = file_id.file->element_number;
@@ -1617,7 +1615,6 @@ void deleteFilePart(FileIdentifier file_id, int length) {
       else {
         // If the node is fixed.
         // assert(false);
-        fprintf(stderr, "NODE WILL BE SET EMPTY\n");
         file_id.file->element_number = 0;
         file_id.file->byte_count = 0;
         file_id.file->current_max_element_number = 0;
@@ -1630,7 +1627,6 @@ void deleteFilePart(FileIdentifier file_id, int length) {
     }
     else {
       // Need to delete a part of the node.
-      fprintf(stderr, "NODE WILL BE REDUCED\n");
       int atDelete = min(length - current_removed, file_id.file->element_number - file_id.relative_row);
       for (int i = file_id.relative_row; i < file_id.relative_row + atDelete; i++) {
         destroyFullLine(file_id.file->lines + i);
@@ -1658,9 +1654,9 @@ void deleteFilePart(FileIdentifier file_id, int length) {
     }
   }
 
-  fprintf(stderr, " ====== DELETE FILE PART AFTER =====\n");
+  // fprintf(stderr, " ====== DELETE FILE PART AFTER =====\n");
   // printByteCount(tryToReachAbsRow(file_id, 1).file);
-  fprintf(stderr, " ====== DELETE FILE PART AFTER END =====\n");
+  // (stderr, " ====== DELETE FILE PART AFTER END =====\n");
 }
 
 /**
@@ -1837,7 +1833,6 @@ Cursor insertNewLineInLineC(Cursor cursor) {
 #endif
     // We are not moving the node for now but juste moving the Char_U8 array.
     if (line_id.line->next != NULL) {
-      fprintf(stderr, "Have something to do to insert new line in line.\n");
       newLine->ch = line_id.line->next->ch;
       newLine->next = line_id.line->next->next;
       newLine->current_max_element_number = line_id.line->next->current_max_element_number;
@@ -1935,7 +1930,7 @@ Cursor insertNewLineInLineC(Cursor cursor) {
  * */
 Cursor concatNeighbordsLinesC(Cursor cursor) {
   cursor = moduloCursor(cursor);
-  fprintf(stderr, "Concat\n");
+  // fprintf(stderr, "Concat\n");
 
   FileIdentifier file_id = cursor.file_id;
   LineIdentifier line_id = cursor.line_id;
@@ -2070,7 +2065,6 @@ Cursor bulkDelete(Cursor cursor, Cursor select_cursor) {
 
   if (cursor.file_id.absolute_row == select_cursor.file_id.absolute_row) {
     // Need to delete part of a line.
-    fprintf(stderr, "Inline\n");
     int old_byte_count = cursor.file_id.file->lines_byte_count[cursor.file_id.relative_row - 1];
     deleteLinePart(cursor.line_id, select_cursor.line_id.absolute_column - cursor.line_id.absolute_column);
     int new_byte_count = byteCountForCurrentLineToEnd(getLineForFileIdentifier(cursor.file_id), 0);
@@ -2078,7 +2072,6 @@ Cursor bulkDelete(Cursor cursor, Cursor select_cursor) {
     cursor.file_id.file->byte_count -= old_byte_count - new_byte_count;
   }
   else {
-    fprintf(stderr, "Multiple lines.\n");
     Cursor test = tryToReachAbsPosition(cursor, 1, 0);
     int old_byte_count = cursor.file_id.file->lines_byte_count[cursor.file_id.relative_row - 1];
     deleteLinePart(cursor.line_id, tryToReachAbsColumn(cursor.line_id, INT_MAX).absolute_column - cursor.line_id.absolute_column);
@@ -2258,7 +2251,7 @@ Cursor getCursorForIndex(Cursor cursor, unsigned int index) {
   return cursor_at_index;
 }
 
-int readNBytesAtCursor(Cursor* cursor_p, char* dest, int utf8_char_length) {
+int readNu8CharAtCursor(Cursor* cursor_p, char* dest, int utf8_char_length) {
   Cursor cursor = moduloCursor(*cursor_p);
   int read = 0;
   int buff_length = 0;
@@ -2309,7 +2302,7 @@ int readNBytesAtCursor(Cursor* cursor_p, char* dest, int utf8_char_length) {
   return buff_length;
 }
 
-int readNBytesAtPosition(Cursor* cursor_p, int row_raw, int column_raw, char* dest, int utf8_char_length) {
+int readNu8CharAtPosition(Cursor* cursor_p, int row_raw, int column_raw, char* dest, int utf8_char_length) {
   int row = row_raw + 1;
   FileIdentifier file_id = tryToReachAbsRow(cursor_p->file_id, row);
   LineIdentifier line_id = moduloLineIdentifierR(getLineForFileIdentifier(file_id), 0);
@@ -2337,11 +2330,94 @@ int readNBytesAtPosition(Cursor* cursor_p, int row_raw, int column_raw, char* de
   assert(current_column_raw == column_raw);
 
   *cursor_p = cursorOf(file_id, line_id);
-  return readNBytesAtCursor(cursor_p, dest, utf8_char_length);
+  return readNu8CharAtCursor(cursor_p, dest, utf8_char_length);
 }
 
 
-int readNBytesAtIndex(Cursor* cursor_p, int byte_index, char* dest, int utf8_char_length) {
+int readNu8CharAtIndex(Cursor* cursor_p, int byte_index, char* dest, int utf8_char_length) {
   *cursor_p = getCursorForIndex(*cursor_p, byte_index);
-  return readNBytesAtCursor(cursor_p, dest, utf8_char_length);
+  return readNu8CharAtCursor(cursor_p, dest, utf8_char_length);
+}
+
+
+int readNBytesCharAtCursor(Cursor* cursor_p, char* dest, int length) {
+  Cursor cursor = moduloCursor(*cursor_p);
+  int read = 0;
+  int buff_length = 0;
+  while (buff_length < length) {
+    if (cursor.line_id.line->element_number == cursor.line_id.relative_column) {
+      if (hasElementAfterLine(cursor.line_id)) {
+        // has next in the line.
+        assert(cursor.line_id.line->next != NULL);
+        cursor.line_id.line = cursor.line_id.line->next;
+        cursor.line_id.relative_column = 0;
+      }
+      else if (hasElementAfterFile(cursor.file_id) == false) {// cursor currently at the end of the current file.
+        break;
+      }
+      else {
+        int old_cur_row = cursor.file_id.absolute_row;
+        cursor = moveRight_v2(cursor);
+        if (cursor.file_id.absolute_row + 1 == old_cur_row) {
+          // EOF
+          break;
+        }
+        dest[buff_length] = '\n';
+        buff_length++;
+        read++;
+      }
+      continue;
+    }
+
+    char temp_char;
+    while (cursor.line_id.relative_column < cursor.line_id.line->element_number && buff_length < length) {
+      // We assume that their is mainly ascii char so to improve perf we are using this condition internaly.
+      if (((temp_char = cursor.line_id.line->ch[cursor.line_id.relative_column].t[0]) >> 7 & 0b1) == 0) {
+        dest[buff_length] = temp_char;
+        buff_length++;
+      }
+      else {
+        for (int i = 0; i < sizeChar_U8(cursor.line_id.line->ch[cursor.line_id.relative_column]); i++) {
+          dest[buff_length] = cursor.line_id.line->ch[cursor.line_id.relative_column].t[i];
+          buff_length++;
+        }
+      }
+      read++;
+      cursor.line_id.relative_column++;
+      cursor.line_id.absolute_column++;
+    }
+  }
+  *cursor_p = cursor;
+  return buff_length;
+}
+
+int readNBytesAtPosition(Cursor* cursor_p, int row_raw, int column_raw, char* dest, int length) {
+  int row = row_raw + 1;
+  FileIdentifier file_id = tryToReachAbsRow(cursor_p->file_id, row);
+  LineIdentifier line_id = moduloLineIdentifierR(getLineForFileIdentifier(file_id), 0);
+
+  // reach column_raw.
+  int current_column_raw = 0;
+  while (current_column_raw < column_raw) {
+    // if we can skip current node.
+    if (current_column_raw + line_id.line->byte_count < column_raw) {
+      line_id.relative_column = 0;
+      line_id.absolute_column += line_id.line->element_number;
+      current_column_raw += line_id.line->byte_count;
+      line_id.line = line_id.line->next;
+      assert(line_id.line != NULL);
+      // INDEX OUT OF RANGE
+    }
+    else {
+      while (current_column_raw < column_raw) {
+        current_column_raw += sizeChar_U8(line_id.line->ch[line_id.relative_column]);
+        line_id.relative_column++;
+        line_id.absolute_column++;
+      }
+    }
+  }
+  assert(current_column_raw == column_raw);
+
+  *cursor_p = cursorOf(file_id, line_id);
+  return readNBytesCharAtCursor(cursor_p, dest, length);
 }
