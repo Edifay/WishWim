@@ -1,10 +1,11 @@
 #include "tree_manager.h"
 
 #include <assert.h>
-#include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <bits/time.h>
 #include <linux/limits.h>
 
 #include "scm_parser.h"
@@ -70,7 +71,8 @@ bool loadNewParser(ParserContainer* container, char* language) {
     strcmp(language, "javascript") == 0 ||
     strcmp(language, "json") == 0 ||
     strcmp(language, "bash") == 0 ||
-    strcmp(language, "query") == 0
+    strcmp(language, "query") == 0 ||
+    strcmp(language, "vhdl") == 0
   ) {
     strcpy(container->lang_name, language);
 
@@ -142,6 +144,9 @@ bool loadNewParser(ParserContainer* container, char* language) {
     }
     else if (strcmp(language, "query") == 0) {
       container->lang = tree_sitter_query();
+    }
+    else if (strcmp(language, "vhdl") == 0) {
+      container->lang = tree_sitter_vhdl();
     }
 
     container->parser = ts_parser_new();
@@ -302,9 +307,6 @@ void treeForEachNode(TSNode root_node, TreePath* path_symbol, int offset, void (
   path_symbol[offset].next = NULL;
   path_symbol[offset].reg = NULL;
 
-  // for (int i = 0; i < offset; i++) {
-  // fprintf(stderr, " ");
-  // }
 #ifdef PARSE_PRINT
   fprintf(stderr, "( %s [%d, %d] -> [%d, %d] | [%d] -> [%d] )",
           name, ts_node_start_point(root_node).row, ts_node_start_point(root_node).column,
@@ -363,7 +365,7 @@ void treeForEachNodeSized(int y_offset, int x_offset, int height, int width, TSN
     if (field != NULL) {
       offset++;
       path_symbol[offset].type = FIELD;
-      path_symbol[offset].name = ts_node_field_name_for_child(root_node, i);
+      path_symbol[offset].name = field;
       path_symbol[offset].next = NULL;
       path_symbol[offset].reg = NULL;
     }
@@ -375,352 +377,200 @@ void treeForEachNodeSized(int y_offset, int x_offset, int height, int width, TSN
 }
 
 
-void detectLanguage(FileHighlightDatas* data, IO_FileID io_file) {
-  if (strcmp(basename(io_file.path_abs), "Makefile") == 0) {
-    strcpy(data->lang_name, "make");
-  }
-  else if (strcmp(basename(io_file.path_abs), "config") == 0 || strcmp(basename(io_file.path_abs), ".bashrc") == 0) {
-    strcpy(data->lang_name, "bash");
-  }
-  else {
-    char* dot = strrchr(io_file.path_args, '.');
-    if (dot != NULL)
-      strncpy(data->lang_name, dot + 1, 99);
+void setFileHighlightDatas(FileHighlightDatas* data, IO_FileID io_file) {
+  bool did_lang_was_found = getLanguageForFile(data->lang_name, io_file);
 
-    // ADD_NEW_LANGUAGE
-    if (strcmp(data->lang_name, "h") == 0 || strcmp(data->lang_name, "c") == 0) {
-      strcpy(data->lang_name, "c");
-    }
-    else if (strcmp(data->lang_name, "py") == 0) {
-      strcpy(data->lang_name, "python");
-    }
-    else if (strcmp(data->lang_name, "md") == 0) {
-      strcpy(data->lang_name, "markdown");
-    }
-    else if (strcmp(data->lang_name, "java") == 0) {
-      strcpy(data->lang_name, "java");
-    }
-    else if (strcmp(data->lang_name, "cpp") == 0) {
-      strcpy(data->lang_name, "cpp");
-    }
-    else if (strcmp(data->lang_name, "cs") == 0) {
-      strcpy(data->lang_name, "c-sharp");
-    }
-    else if (strcmp(data->lang_name, "css") == 0 || strcmp(data->lang_name, "scss") == 0) {
-      strcpy(data->lang_name, "css");
-    }
-    else if (strcmp(data->lang_name, "dart") == 0) {
-      strcpy(data->lang_name, "dart");
-    }
-    else if (strcmp(data->lang_name, "go") == 0) {
-      strcpy(data->lang_name, "go");
-    }
-    else if (strcmp(data->lang_name, "js") == 0) {
-      strcpy(data->lang_name, "javascript");
-    }
-    else if (strcmp(data->lang_name, "json") == 0) {
-      strcpy(data->lang_name, "json");
-    }
-    else if (strcmp(data->lang_name, "sh") == 0) {
-      strcpy(data->lang_name, "bash");
-    }
-    else if (strcmp(data->lang_name, "scm") == 0) {
-      strcpy(data->lang_name, "query");
-    }
+  ParserContainer* parser = NULL;
+  if (did_lang_was_found == true) {
+    parser = getParserForLanguage(&parsers, data->lang_name);
   }
 
-  ParserContainer* parser = getParserForLanguage(&parsers, data->lang_name);
   if (parser != NULL) {
     data->is_active = true;
   }
+
   data->tree = NULL;
   data->tmp_file_dump = NULL;
 }
 
 
-void edit_tree(FileHighlightDatas* highlight_data, FileNode** root, char** tmp_file_dump, int* n_bytes, History** history_frame, History* old_history_frame) {
-  int relative_loc = 0;
-
-  History* current_hist = *history_frame;
-  while (current_hist != NULL && current_hist != old_history_frame) {
-    current_hist = current_hist->next;
-    relative_loc++;
-  }
-  if (current_hist == NULL) {
-    relative_loc = 0;
-  }
-  // If it wasn't found on the right.
-  if (relative_loc == 0) {
-    current_hist = *history_frame;
-    while (current_hist != NULL && current_hist != old_history_frame) {
-      current_hist = current_hist->prev;
-      relative_loc--;
-    }
-    // Wasn't found on the right AND on the left.
-    if (current_hist == NULL) {
-      printf("File state problem.\r\n");
-      exit(0);
-    }
-  }
-
-  // printf("Rela%dtive_loc \r\n", relative_loc);
-
-  ActionImprovedWithBytes improved_history[abs(relative_loc)];
-  if (relative_loc <= 0) {
-    current_hist = *history_frame;
-  }
-  else {
-    current_hist = old_history_frame;
-  }
-  for (int i = 0; i < abs(relative_loc); i++) {
-    assert(current_hist != NULL);
-    assert(current_hist->action.action != ACTION_NONE);
-    improved_history[i].history_frame = current_hist;
-    improved_history[i].byte_start = -1;
-    improved_history[i].byte_end = -1;
-    current_hist = current_hist->prev;
-  }
-
-  relative_loc = -relative_loc;
-
-
-  *n_bytes = 0;
-  FileNode* current_file_node = *root;
-  int relative_file = 0;
-  int abs_file = 1;
-  while (current_file_node != NULL) {
-    if (relative_file == current_file_node->element_number) {
-      current_file_node = current_file_node->next;
-      relative_file = 0;
-      continue;
-    }
-    (*n_bytes)++;
-    LineNode* current_line_node = current_file_node->lines + relative_file;
-
-    // Cur at begin of the line representing none char.
-    for (int i = 0; i < abs(relative_loc); i++) {
-      switch (improved_history[i].history_frame->action.action) {
-        case ACTION_NONE:
-          break;
-        case INSERT:
-          if (improved_history[i].history_frame->action.cur_end.file_id.absolute_row == abs_file
-              && improved_history[i].history_frame->action.cur_end.line_id.absolute_column == 0) {
-            improved_history[i].byte_end = *n_bytes;
-          }
-        case DELETE:
-        case DELETE_ONE:
-          if (improved_history[i].history_frame->action.cur.file_id.absolute_row == abs_file
-              && improved_history[i].history_frame->action.cur.line_id.absolute_column == 0) {
-            improved_history[i].byte_start = *n_bytes;
-          }
-          break;
-      }
-    }
-
-    int relative_line = 0;
-    int abs_line = 1;
-    while (current_line_node != NULL) {
-      if (relative_line == current_line_node->element_number) {
-        current_line_node = current_line_node->next;
-        relative_line = 0;
-        continue;
-      }
-      *n_bytes += sizeChar_U8(current_line_node->ch[relative_line]);
-      // Cursor representing chars.
-      for (int i = 0; i < abs(relative_loc); i++) {
-        switch (improved_history[i].history_frame->action.action) {
-          case ACTION_NONE:
-            assert(false);
-            break;
-          case INSERT:
-            if (improved_history[i].history_frame->action.cur_end.file_id.absolute_row == abs_file
-                && improved_history[i].history_frame->action.cur_end.line_id.absolute_column == abs_line) {
-              improved_history[i].byte_end = *n_bytes;
-            }
-          case DELETE:
-          case DELETE_ONE:
-            if (improved_history[i].history_frame->action.cur.file_id.absolute_row == abs_file
-                && improved_history[i].history_frame->action.cur.line_id.absolute_column == abs_line) {
-              improved_history[i].byte_start = *n_bytes;
-            }
-            break;
-        }
-      }
-      relative_line++;
-      abs_line++;
-    }
-
-    relative_file++;
-    abs_file++;
-  }
-
-  if (*n_bytes > MAX_SIZE_FILE_LOGIC) {
-    highlight_data->is_active = false;
-  }
-
-  // Check for perf.
-  free(*tmp_file_dump);
-  *tmp_file_dump = NULL;
-  *tmp_file_dump = realloc(*tmp_file_dump, *n_bytes);
-
-  // Dump File Node From ROOT.
-  current_file_node = *root;
-  relative_file = 0;
-  int current_index = 0;
-  while (current_file_node != NULL) {
-    if (relative_file == current_file_node->element_number) {
-      current_file_node = current_file_node->next;
-      relative_file = 0;
-      continue;
-    }
-    LineNode* current_line_node = current_file_node->lines + relative_file;
-
-    int relative_line = 0;
-    while (current_line_node != NULL) {
-      if (relative_line == current_line_node->element_number) {
-        current_line_node = current_line_node->next;
-        relative_line = 0;
-        continue;
-      }
-      for (int i = 0; i < sizeChar_U8(current_line_node->ch[relative_line]); i++) {
-        (*tmp_file_dump)[current_index++] = current_line_node->ch[relative_line].t[i];
-      }
-      relative_line++;
-    }
-
-    relative_file++;
-    (*tmp_file_dump)[current_index++] = '\n';
-  }
-
-
-  // TODO implement something to be able to remove next assert.
-  // It correspond to the fact that it's not possible to undo with multiple Action at once.
-  assert(abs(relative_loc) <= 1 || relative_loc > 0);
-  for (int i = 0; i < abs(relative_loc); i++) {
-    TSInputEdit edit;
-    switch (improved_history[i].history_frame->action.action) {
-      case INSERT:
-        assert(improved_history[i].byte_start != -1);
-        assert(improved_history[i].byte_end != -1);
-        edit.start_byte = improved_history[i].byte_start;
-        edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row - 1;
-        edit.start_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
-
-        edit.old_end_byte = improved_history[i].byte_start;
-        edit.old_end_point.row = edit.start_point.row;
-        edit.old_end_point.column = edit.start_point.column;
-
-        edit.new_end_byte = improved_history[i].byte_end;
-        edit.new_end_point.row = improved_history[i].history_frame->action.cur_end.file_id.absolute_row - 1;
-        edit.new_end_point.column = improved_history[i].history_frame->action.cur_end.line_id.absolute_column;
-      // To force the match with previous node.
-        edit.start_byte--;
-        ts_tree_edit(highlight_data->tree, &edit);
-        break;
-      case DELETE:
-        assert(improved_history[i].byte_start != -1);
-        edit.start_byte = improved_history[i].byte_start;
-        edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row - 1;
-        edit.start_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
-
-        int ch_len = strlen(improved_history[i].history_frame->action.ch);
-        edit.old_end_byte = improved_history[i].byte_start + ch_len;
-
-        char* ch = improved_history[i].history_frame->action.ch;
-        int current_row = edit.start_point.row;
-        int current_column = edit.start_point.column;
-
-        int current_ch_index = 0;
-        while (current_ch_index < ch_len) {
-          if (TAB_CHAR_USE == false) {
-            assert(ch[current_ch_index] != '\t');
-          }
-          if (ch[current_ch_index] == '\n') {
-            current_row++;
-            current_column = 0;
-          }
-          else {
-            Char_U8 tmp_ch = readChar_U8FromCharArray(ch + current_ch_index);
-            current_ch_index += sizeChar_U8(tmp_ch) - 1;
-            current_column++;
-          }
-          current_ch_index++;
-        }
-
-
-        edit.old_end_point.row = current_row;
-        edit.old_end_point.column = current_column;
-
-        edit.new_end_byte = improved_history[i].byte_start;
-        edit.new_end_point.row = edit.start_point.row;
-        edit.new_end_point.column = edit.start_point.column;
-      // To force the match with previous node.
-        edit.start_byte--;
-        ts_tree_edit(highlight_data->tree, &edit);
-        break;
-      case DELETE_ONE:
-        assert(improved_history[i].byte_start != -1);
-        edit.start_byte = improved_history[i].byte_start;
-        edit.start_point.row = improved_history[i].history_frame->action.cur.file_id.absolute_row - 1;
-        edit.start_point.column = improved_history[i].history_frame->action.cur.line_id.absolute_column;
-
-        edit.old_end_byte = improved_history[i].byte_start + 1;
-        edit.old_end_point.row = edit.start_point.row;
-        edit.old_end_point.column = edit.start_point.column;
-        if (improved_history[i].history_frame->action.unique_ch == '\n') {
-          edit.old_end_point.row++;
-          edit.old_end_point.column = 0;
-        }
-        else {
-          edit.old_end_point.column++;
-        }
-
-        edit.new_end_byte = improved_history[i].byte_start;
-        edit.new_end_point.row = edit.start_point.row;
-        edit.new_end_point.column = edit.start_point.column;
-      // To force the match with previous node.
-        edit.start_byte--;
-        ts_tree_edit(highlight_data->tree, &edit);
-        break;
-      case ACTION_NONE:
-        break;
-    }
-  }
-}
-
-
-void edit_and_parse_tree(FileNode** root, History** history_frame, FileHighlightDatas* highlight_data, History** old_history_frame) {
-  ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_name);
-
-  int new_dump_size;
-  edit_tree(highlight_data, root, &highlight_data->tmp_file_dump, &new_dump_size, history_frame, *old_history_frame);
-
-  TSTree* old_tree = highlight_data->tree;
-  highlight_data->tree = ts_parser_parse_string(
-    parser->parser,
-    highlight_data->tree,
-    highlight_data->tmp_file_dump,
-    new_dump_size
-  );
-  ts_tree_delete(old_tree);
-
-#ifdef PARSE_PRINT
-  TreePath symbols[100];
-  treeForEachNode(ts_tree_root_node(highlight_data->tree), symbols, 0, NULL, NULL);
-  fprintf(stderr, "\n");
-#endif
-  *old_history_frame = *history_frame;
-}
-
-
-long* get_payload_edit_and_parse_tree(FileNode*** root, FileHighlightDatas** highlight_data) {
-  long* payload = malloc(sizeof(long) * 2);
-  payload[0] = (long)root;
-  payload[1] = (long)highlight_data;
+PayloadStateChange getPayloadStateChange(FileHighlightDatas* highlight_datas) {
+  PayloadStateChange payload;
+  payload.highlight_datas = highlight_datas;
   return payload;
 }
 
-void edit_and_parse_tree_from_payload(History** history_frame, History** old_history_frame, long* payload) {
-  assert(payload != NULL);
-  edit_and_parse_tree(*((FileNode ***)payload[0]), history_frame, *((FileHighlightDatas **)payload[1]), old_history_frame);
+void onStateChangeTS(Action action, long* payload_p) {
+  PayloadStateChange payload = *(PayloadStateChange *)payload_p;
+
+  if (payload.highlight_datas->is_active == false) {
+    return;
+  }
+
+  TSInputEdit edit;
+  switch (action.action) {
+    case INSERT:
+      // system("echo \"=== INSERT ===\" >> tree_logs.txt");
+      assert(action.byte_start != -1);
+      assert(action.byte_end != -1);
+      edit.start_byte = action.byte_start;
+      edit.start_point.row = action.cur.file_id.absolute_row - 1;
+      edit.start_point.column = action.cur.line_id.absolute_column;
+
+      edit.old_end_byte = action.byte_start;
+      edit.old_end_point.row = edit.start_point.row;
+      edit.old_end_point.column = edit.start_point.column;
+
+      edit.new_end_byte = action.byte_end;
+      edit.new_end_point.row = action.cur_end.file_id.absolute_row - 1;
+      edit.new_end_point.column = action.cur_end.line_id.absolute_column;
+    // To force the match with previous node.
+      break;
+    case DELETE:
+      // system("echo \"=== DELETE ===\" >> tree_logs.txt");
+      assert(action.byte_start != -1);
+      edit.start_byte = action.byte_start;
+      edit.start_point.row = action.cur.file_id.absolute_row - 1;
+      edit.start_point.column = action.cur.line_id.absolute_column;
+
+      edit.old_end_byte = action.byte_end;
+
+    // TODO may optimize
+    // CALCULATE ROW AND COLUMN POINT
+      char* ch = action.ch;
+      int current_row = edit.start_point.row;
+      int current_column = edit.start_point.column;
+
+      int current_ch_index = 0;
+      while (current_ch_index < action.byte_end - action.byte_start) {
+        if (TAB_CHAR_USE == false) {
+          assert(ch[current_ch_index] != '\t');
+        }
+        if (ch[current_ch_index] == '\n') {
+          current_row++;
+          current_column = 0;
+        }
+        else {
+          Char_U8 tmp_ch = readChar_U8FromCharArray(ch + current_ch_index);
+          current_ch_index += sizeChar_U8(tmp_ch) - 1;
+          current_column++;
+        }
+        current_ch_index++;
+      }
+
+      edit.old_end_point.row = current_row;
+      edit.old_end_point.column = current_column;
+
+
+      edit.new_end_byte = action.byte_start;
+      edit.new_end_point.row = edit.start_point.row;
+      edit.new_end_point.column = edit.start_point.column;
+    // To force the match with previous node.
+      break;
+    case DELETE_ONE:
+      system("echo \"=== DELETE_ONE ===\" >> tree_logs.txt");
+      assert(action.byte_start != -1);
+      edit.start_byte = action.byte_start;
+      edit.start_point.row = action.cur.file_id.absolute_row - 1;
+      edit.start_point.column = action.cur.line_id.absolute_column;
+
+      edit.old_end_byte = action.byte_start + 1;
+      edit.old_end_point.row = edit.start_point.row;
+      edit.old_end_point.column = edit.start_point.column;
+      if (action.unique_ch == '\n') {
+        edit.old_end_point.row++;
+        edit.old_end_point.column = 0;
+      }
+      else {
+        edit.old_end_point.column++;
+      }
+
+      edit.new_end_byte = action.byte_start;
+      edit.new_end_point.row = edit.start_point.row;
+      edit.new_end_point.column = edit.start_point.column;
+    // To force the match with previous node.
+
+      break;
+    default:
+      assert(action.action == ACTION_NONE);
+      return;
+  }
+
+  /*
+  // PRINT TO JSON EDITs
+  cJSON* obj = cJSON_CreateObject();
+  cJSON_AddNumberToObject(obj, "start_byte", edit.start_byte);
+  cJSON_AddNumberToObject(obj, "start_point.row", edit.start_point.row);
+  cJSON_AddNumberToObject(obj, "start_point.column", edit.start_point.column);
+
+  cJSON_AddNumberToObject(obj, "old_end_byte", edit.old_end_byte);
+  cJSON_AddNumberToObject(obj, "old_end_point.row", edit.old_end_point.row);
+  cJSON_AddNumberToObject(obj, "old_end_point.column", edit.old_end_point.column);
+
+  cJSON_AddNumberToObject(obj, "new_end_byte", edit.new_end_byte);
+  cJSON_AddNumberToObject(obj, "new_end_point.row", edit.new_end_point.row);
+  cJSON_AddNumberToObject(obj, "new_end_point.column", edit.new_end_point.column);
+
+  char* obj_text = cJSON_Print(obj);
+
+  FILE *f = fopen("tree_logs.txt", "a");
+  fprintf(f, obj_text);
+  fprintf(f,"\n");
+  fclose(f);
+
+
+  free(obj_text);
+  cJSON_Delete(obj);*/
+
+  ts_tree_edit(payload.highlight_datas->tree, &edit);
+}
+
+char read_buffer[CHAR_CHUNK_SIZE_TSINPUT * 4];
+
+const char* internalReaderForTree(void* payload, uint32_t byte_index, TSPoint position, uint32_t* bytes_read) {
+  PayloadInternalReader* values = payload;
+  // fprintf(stderr, "READ FROM READER\n");
+  *bytes_read = readNu8CharAtPosition(&values->cursor, position.row, position.column, read_buffer, CHAR_CHUNK_SIZE_TSINPUT);
+  return read_buffer;
+}
+
+
+void parse_tree(FileNode** root, History** history_frame, FileHighlightDatas* highlight_data, History** old_history_frame) {
+  if (highlight_data->is_active == false)
+    return;
+
+  ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_name);
+
+  Cursor cursor_root = moduloCursorR(*root, 1, 0);
+
+
+  PayloadInternalReader reader_payload;
+  reader_payload.file = NULL;
+  reader_payload.size = 0;
+  reader_payload.root = *root;
+  reader_payload.cursor = cursor_root;
+
+  TSInput input;
+  input.encoding = TSInputEncodingUTF8;
+  input.read = internalReaderForTree;
+  input.payload = &reader_payload;
+
+  clock_t t;
+  t = clock();
+
+  TSTree* old_tree = highlight_data->tree;
+  highlight_data->tree = ts_parser_parse(
+    parser->parser,
+    highlight_data->tree,
+    input
+  );
+  ts_tree_delete(old_tree);
+
+
+  t = clock() - t;
+  double time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
+
+  // fprintf(stderr, "parse() took %f seconds to execute \n", time_taken);
+
+  *old_history_frame = *history_frame;
 }

@@ -7,7 +7,10 @@
 
 
 bool configExist() {
-  FILE* f = fopen(CONFIG_PATH, "r");
+  char path[PATH_MAX];
+  sprintf(path, "%s/%s", getenv("HOME"), CONFIG_PATH);
+
+  FILE* f = fopen(path, "r");
   if (f == NULL)
     return false;
   fclose(f);

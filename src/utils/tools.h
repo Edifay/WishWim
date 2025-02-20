@@ -6,6 +6,8 @@
 #define TOOLS_H
 #include <ncurses.h>
 
+#include "../io_management/io_manager.h"
+
 typedef long long time_val;
 
 time_val timeInMilliseconds(void);
@@ -27,5 +29,9 @@ char* whereis(char* prog);
 void getLocalURI(char* realive_abs_path, char* uri);
 
 bool isDir(char *path);
+
+bool getLanguageForFile(char *lang, IO_FileID io_file);
+
+int hashString(unsigned char* str);
 
 #endif //TOOLS_H

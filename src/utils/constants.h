@@ -3,6 +3,8 @@
 
 #include <cjson/cJSON.h>
 #include "../advanced/tree-sitter/tree_manager.h"
+#include "../advanced/lsp/lsp_handler.h"
+#include "../io_management/workspace_settings.h"
 
 
 // #define PARSE_PRINT
@@ -35,6 +37,8 @@ extern int color_pair;
 
 extern cJSON *config;
 extern ParserList parsers;
+extern LSPServerLinkedList lsp_servers;
+extern WorkspaceSettings loaded_settings;
 
 
 #endif //CONTANTS_H

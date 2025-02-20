@@ -7,7 +7,6 @@
 
 #include "state_control.h"
 #include "file_management.h"
-#include "../io_management/viewport_history.h"
 
 
 void initHistory(History* history) {
@@ -18,62 +17,52 @@ void initHistory(History* history) {
 }
 
 
-Cursor undo(History** history_p, Cursor cursor, void (*forEachUndo)(History** history_frame, History** old_history_frame, long* payload), long* payload) {
+Cursor undo(History** history_p, Cursor cursor, void (*onEachStateChange)(Action action, long* payload), long* payload) {
   History* history = *history_p;
 
-  // If hisotory is at root return and do nothing. Cannot undo nothing ;).
+  // If history is at root return and do nothing. Can't undo ;).
   if (history->action.action == ACTION_NONE) {
     return cursor;
   }
 
   time_val canceled_time_action = history->action.time;
-  cursor = doReverseAction(&history->action, cursor);
+  cursor = doReverseAction(&history->action, cursor, onEachStateChange, payload);
   history->action.time = canceled_time_action;
 
-  History* old_history = *history_p;
   *history_p = history->prev;
 
-  if (forEachUndo != NULL) {
-    forEachUndo(history_p, &old_history, payload);
-  }
-
   if (diff2Time(history->action.time, history->prev->action.time) < TIME_CONSIDER_UNIQUE_UNDO) {
-    return undo(history_p, cursor, forEachUndo, payload);
+    return undo(history_p, cursor, onEachStateChange, payload);
   }
 
   return cursor;
 }
 
-Cursor redo(History** history_p, Cursor cursor, void (*forEachRedo)(History** history_frame, History** old_history_frame, long* payload), long* payload) {
+Cursor redo(History** history_p, Cursor cursor, void (*onEachStateChange)(Action action, long* payload), long* payload) {
   History* history = *history_p;
 
-  // If hisotory is at root return and do nothing. Cannot undo nothing ;).
+  // If history is at the end return and do nothing. Cannot redo nothing ;).
   if (history->next == NULL) {
     return cursor;
   }
 
-  History* old_history = *history_p;
   *history_p = history->next;
   history = *history_p;
 
   time_val canceled_time_action = history->action.time;
 
-  cursor = doReverseAction(&history->action, cursor);
+  cursor = doReverseAction(&history->action, cursor, onEachStateChange, payload);
   history->action.time = canceled_time_action;
 
-  if (forEachRedo != NULL) {
-    forEachRedo(history_p, &old_history, payload);
-  }
-
   if (history->next != NULL && diff2Time(history->action.time, history->next->action.time) < TIME_CONSIDER_UNIQUE_UNDO) {
-    return redo(history_p, cursor, forEachRedo, payload);
+    return redo(history_p, cursor, onEachStateChange, payload);
   }
 
   return cursor;
 }
 
 
-void saveAction(History** history_p, Action action) {
+void saveAction(History** history_p, Action action, void (*onEachStateChange)(Action action, long* payload), long* payload) {
   History* history = *history_p;
   if (action.action == ACTION_NONE) {
     return;
@@ -93,9 +82,13 @@ void saveAction(History** history_p, Action action) {
   history = history->next;
 
   *history_p = history;
+
+
+  if (onEachStateChange != NULL)
+    onEachStateChange(action, payload);
 }
 
-Cursor doReverseAction(Action* action_p, Cursor cursor) {
+Cursor doReverseAction(Action* action_p, Cursor cursor, void (*onEachStateChange)(Action action, long* payload), long* payload) {
   Action action = *action_p;
   Cursor tmp;
   Cursor tmp_end;
@@ -108,11 +101,15 @@ Cursor doReverseAction(Action* action_p, Cursor cursor) {
         cursor = insertNewLineInLineC(tmp);
         destroyAction(action);
         *action_p = createInsertAction(tmp, cursor);
+        if (onEachStateChange != NULL)
+          onEachStateChange(*action_p, payload);
         return cursor;
       }
       cursor = insertCharInLineC(tmp, readChar_U8FromInput(action.unique_ch));
       destroyAction(action);
       *action_p = createInsertAction(tmp, cursor);
+      if (onEachStateChange != NULL)
+        onEachStateChange(*action_p, payload);
       return cursor;
     case DELETE:
       tmp.file_id = tryToReachAbsRow(cursor.file_id, action.cur.file_id.absolute_row);
@@ -120,6 +117,8 @@ Cursor doReverseAction(Action* action_p, Cursor cursor) {
       cursor = insertCharArrayAtCursor(tmp, action.ch);
       destroyAction(action);
       *action_p = createInsertAction(tmp, cursor);
+      if (onEachStateChange != NULL)
+        onEachStateChange(*action_p, payload);
       return cursor;
     case INSERT:
       tmp.file_id = tryToReachAbsRow(cursor.file_id, action.cur.file_id.absolute_row);
@@ -130,6 +129,8 @@ Cursor doReverseAction(Action* action_p, Cursor cursor) {
       destroyAction(action);
       *action_p = createDeleteAction(tmp, tmp_end);
       deleteSelection(&tmp, &tmp_end);
+      if (onEachStateChange != NULL)
+        onEachStateChange(*action_p, payload);
       return tmp;
     case ACTION_NONE:
       return cursor;
@@ -158,68 +159,35 @@ Action createDeleteAction(Cursor cur1, Cursor cur2) {
   // Not used.
   action.cur_end = disableCursor(cur1);
 
-  Cursor it = cur1;
-  int byte_between_2_cursor = 0;
-  while (isCursorStrictPreviousThanOther(it, cur2)) {
-    Cursor tmp = it;
-    it = moveRight(it);
+  char *dump = dumpSelection(cur1, cur2);
 
-    if (hasElementBeforeLine(it.line_id) == true) {
-      byte_between_2_cursor += sizeChar_U8(getCharForLineIdentifier(it.line_id));
-    }
-    else {
-      assert(tmp.file_id.absolute_row != it.file_id.absolute_row);
-      byte_between_2_cursor++; // Add one byte alloc to save '\n' char.
-    }
-  }
-
-  if (byte_between_2_cursor == 0) {
+  if (dump[0] == '\0') { // Empty selection
+    free(dump);
     action.action = ACTION_NONE;
     action.time = 0;
     return action;
   }
 
-  assert(byte_between_2_cursor != 0);
-
   // If there is only 1 element to save we don't use malloc. We use unique_ch.
-  if (byte_between_2_cursor == 1) {
+  if (dump[1] == '\0') {
     action.action = DELETE_ONE;
     action.ch = NULL;
-    if (hasElementBeforeLine(it.line_id) == true) {
-      action.unique_ch = getCharForLineIdentifier(it.line_id).t[0];
-    }
-    else {
-      action.unique_ch = '\n';
-    }
+    action.unique_ch = dump[0];
+    action.byte_start = getIndexForCursor(cur1);
+    action.byte_end = action.byte_start + 1;
+
+    free(dump);
     return action;
   }
 
 
   action.action = DELETE;
   action.unique_ch = '\0';
-  action.ch = malloc(byte_between_2_cursor * sizeof(char) + 1 /*for EOF char*/);
+  action.ch = dump;
+  action.byte_start = getIndexForCursor(cur1);
+  action.byte_end = getIndexForCursor(cur2);
+
   assert(action.ch != NULL);
-
-  it = cur1;
-  int index = 0;
-  while (isCursorStrictPreviousThanOther(it, cur2)) {
-    it = moveRight(it);
-
-    if (hasElementBeforeLine(it.line_id) == true) {
-      Char_U8 ch = getCharForLineIdentifier(it.line_id);
-      int ch_size = sizeChar_U8(ch);
-      for (int i = 0; i < ch_size; i++) {
-        action.ch[index] = ch.t[i];
-        index++;
-      }
-    }
-    else {
-      action.ch[index] = '\n';
-      index++;
-    }
-  }
-
-  action.ch[index] = '\0';
 
   return action;
 }
@@ -239,6 +207,8 @@ Action createInsertAction(Cursor cur1, Cursor cur2) {
   action.time = timeInMilliseconds();
   action.unique_ch = '\0';
   action.ch = NULL;
+  action.byte_start = getIndexForCursor(action.cur);
+  action.byte_end = getIndexForCursor(action.cur_end);
   return action;
 }
 
@@ -295,17 +265,17 @@ void saveCurrentStateControl(History root, History* current_state, char* fileNam
 
     switch (current->action.action) {
       case DELETE:
-        fprintf(f, "%d %d\n", current->action.cur.file_id.absolute_row, current->action.cur.line_id.absolute_column);
+        fprintf(f, "%d %d %d\n", current->action.cur.file_id.absolute_row, current->action.cur.line_id.absolute_column, current->action.byte_start);
         fprintf(f, "%ld\n", strlen(current->action.ch));
         fprintf(f, "%s\n", current->action.ch);
         break;
       case DELETE_ONE:
-        fprintf(f, "%d %d\n", current->action.cur.file_id.absolute_row, current->action.cur.line_id.absolute_column);
+        fprintf(f, "%d %d %d\n", current->action.cur.file_id.absolute_row, current->action.cur.line_id.absolute_column, current->action.byte_start);
         fprintf(f, "%c\n", current->action.unique_ch);
         break;
       case INSERT:
-        fprintf(f, "%d %d\n", current->action.cur.file_id.absolute_row, current->action.cur.line_id.absolute_column);
-        fprintf(f, "%d %d\n", current->action.cur_end.file_id.absolute_row, current->action.cur_end.line_id.absolute_column);
+        fprintf(f, "%d %d %d\n", current->action.cur.file_id.absolute_row, current->action.cur.line_id.absolute_column, current->action.byte_start);
+        fprintf(f, "%d %d %d\n", current->action.cur_end.file_id.absolute_row, current->action.cur_end.line_id.absolute_column, current->action.byte_end);
         break;
       case ACTION_NONE:
         break;
@@ -362,7 +332,7 @@ void loadCurrentStateControl(History* root, History** current_state, IO_FileID i
 
     switch (action.action) {
       case DELETE:
-        fscanf(f, "%d%c%d%c", &action.cur.file_id.absolute_row, &scan_separtor, &action.cur.line_id.absolute_column, &scan_separtor);
+        fscanf(f, "%d%c%d%c%d%c", &action.cur.file_id.absolute_row, &scan_separtor, &action.cur.line_id.absolute_column, &scan_separtor, &action.byte_start, &scan_separtor);
         long str_len;
         fscanf(f, "%ld%c", &str_len, &scan_separtor);
         action.ch = malloc(str_len + 1);
@@ -377,12 +347,12 @@ void loadCurrentStateControl(History* root, History** current_state, IO_FileID i
         fscanf(f, "%c", &scan_separtor);
         break;
       case DELETE_ONE:
-        fscanf(f, "%d%c%d%c", &action.cur.file_id.absolute_row, &scan_separtor, &action.cur.line_id.absolute_column, &scan_separtor);
+        fscanf(f, "%d%c%d%c%d%c", &action.cur.file_id.absolute_row, &scan_separtor, &action.cur.line_id.absolute_column, &scan_separtor, &action.byte_start, &scan_separtor);
         fscanf(f, "%c%c", &action.unique_ch, &scan_separtor);
         break;
       case INSERT:
-        fscanf(f, "%d%c%d%c", &action.cur.file_id.absolute_row, &scan_separtor, &action.cur.line_id.absolute_column, &scan_separtor);
-        fscanf(f, "%d%c%d%c", &action.cur_end.file_id.absolute_row, &scan_separtor, &action.cur_end.line_id.absolute_column, &scan_separtor);
+        fscanf(f, "%d%c%d%c%d%c", &action.cur.file_id.absolute_row, &scan_separtor, &action.cur.line_id.absolute_column, &scan_separtor, &action.byte_start, &scan_separtor);
+        fscanf(f, "%d%c%d%c%d%c", &action.cur_end.file_id.absolute_row, &scan_separtor, &action.cur_end.line_id.absolute_column, &scan_separtor, &action.byte_end, &scan_separtor);
         break;
       case ACTION_NONE:
         break;
@@ -392,7 +362,8 @@ void loadCurrentStateControl(History* root, History** current_state, IO_FileID i
         assert(false);
     }
 
-    saveAction(current_state, action);
+    // Do not add a onEachStateChange function, here change must not be flagged ! Loading history.
+    saveAction(current_state, action, NULL, NULL);
     if (isCurrentState == 'y') {
       state_to_return = *current_state;
     }
@@ -402,6 +373,9 @@ void loadCurrentStateControl(History* root, History** current_state, IO_FileID i
 }
 
 
+/*
+ * Replace multiple delete or multiple insert by one big insert and one big delete.
+ */
 void optimizeHistory(History* root, History** history_frame) {
   History* current = root;
 

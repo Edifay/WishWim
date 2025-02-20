@@ -5,6 +5,7 @@
 #include <ncurses.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/ttydefaults.h>
 
 #include "advanced/theme.h"
 #include "advanced/tree-sitter/tree_manager.h"
@@ -21,18 +22,44 @@
 #include "terminal/term_handler.h"
 #include "terminal/highlight.h"
 #include "terminal/click_handler.h"
-#include "../lib/tree-sitter/lib/include/tree_sitter/api.h"
+#include "advanced/lsp/lsp_client.h"
 #include "config/config.h"
 
-#define CTRL_KEY(k) ((k)&0x1f)
 
+/**   TODO list :
+ * 		 - Rework the query for highlight to optimise queries. 
+ *      - Rework the printEditor for colors. Currently we override char with colored char, that's not optimized.
+ *          Create a struct to define a coloration in a file, and calculate it before each paint.
+ *
+ *      
+ *
+ */
+
+
+// Global vars.
 int color_pair = 3;
 int color_index = 100;
 cJSON* config;
 ParserList parsers;
+LSPServerLinkedList lsp_servers;
+WorkspaceSettings loaded_settings;
+
+
+void dispatcher(cJSON* packet, long* payload) {
+  if (packet != NULL) {
+    fprintf(stderr, "\n\n <<< ================ %s ================\n", cJSON_GetStringValue(cJSON_GetObjectItem(packet, "method")));
+    cJSON* params = cJSON_GetObjectItem(packet, "params");
+    char* text = cJSON_Print(params);
+    fprintf(stderr, "%s\n", text);
+    free(text);
+  }
+}
 
 
 int main(int file_count, char** args) {
+  // TODO Remove when lsp_logs.txt will be unused.
+  // system("echo "" > lsp_logs.txt");
+  // system("echo "" > tree_logs.txt");
   // remove first args which is the executable file name.
   char** file_names = args;
   file_names++;
@@ -44,6 +71,7 @@ int main(int file_count, char** args) {
 
   // Parser Datas
   initParserList(&parsers);
+  initLSPServerList(&lsp_servers);
 
   // Init GUI vars
   WINDOW* ftw = NULL; // File Text Window
@@ -95,17 +123,16 @@ int main(int file_count, char** args) {
 
   // Containers of current opened buffers.
   FileContainer* files;
-  int current_file = 0; // The current showed file.
+  int current_file_index = 0; // The current showed file.
 
   // Detect workspace settings
-  WorkspaceSettings loaded_settings;
-  bool usingWorkspace = false;
+  loaded_settings.is_used = false;
   if (file_count == 1 || file_count == 0) {
     char* dir_name = file_count == 0 ? getenv("PWD") : file_names[0];
 
     if (isDir(dir_name)) {
       loaded_settings.dir_path = dir_name;
-      usingWorkspace = true;
+      loaded_settings.is_used = true;
 
       bool settings_exist = loadWorkspaceSettings(dir_name, &loaded_settings);
 
@@ -125,7 +152,7 @@ int main(int file_count, char** args) {
         // --- UI State ---
 
         // Current showed file.
-        current_file = loaded_settings.current_opened_file;
+        current_file_index = loaded_settings.current_opened_file;
 
         // File Opened Window state.
         if (loaded_settings.showing_opened_file_window == true) {
@@ -137,9 +164,8 @@ int main(int file_count, char** args) {
 
         // File Explorer Window state.
         if (loaded_settings.showing_file_explorer_window == true) {
-          ungetch(CTRL_KEY('e'));
+          ungetch(CTRL('e'));
         }
-
       }
     }
   }
@@ -152,16 +178,25 @@ int main(int file_count, char** args) {
   // Fill files with args
   for (int i = 0; i < file_count; i++) {
     setupFileContainer(file_names[i], files + i);
+
+    if (files[i].lsp_datas.is_enable) {
+      char* dump = dumpSelection(tryToReachAbsPosition(files[i].cursor, 1, 0), tryToReachAbsPosition(files[i].cursor, INT_MAX, INT_MAX));
+      LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, files[i].lsp_datas.name), files[i].io_file.path_args, dump);
+      free(dump);
+    }
   }
   // If no args setup first untitled file.
   if (file_count == 0) {
     file_count = 1;
     setupFileContainer("", files);
+    if (files[0].lsp_datas.is_enable) {
+      LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, files[0].lsp_datas.name), files[0].io_file.path_args, "");
+    }
   }
 
   // Folder used for file explorer.
   ExplorerFolder pwd;
-  if (usingWorkspace == true) {
+  if (loaded_settings.is_used == true) {
     initFolder(loaded_settings.dir_path, &pwd);
   }
   else {
@@ -170,7 +205,7 @@ int main(int file_count, char** args) {
   pwd.open = true;
 
 
-  // Setup redirection of vars to use with out pass though file_container obj.
+  // Setup redirection of vars to use without pass though file_container obj.
   IO_FileID* io_file; // Describe the IO file on OS
   FileNode** root; // The root of the File object
   Cursor* cursor; // The current cursor for the root File
@@ -183,7 +218,7 @@ int main(int file_count, char** args) {
   int* old_screen_y; // old screen_y used to flag screen_y changes
   History** history_root; // Root of History object for the current File
   History** history_frame; // Current node of the History. Before -> Undo, After -> Redo.
-  FileHighlightDatas* highlight_data;
+  FileHighlightDatas* highlight_data; // Contain the configuration for file higlight.
 
   bool refresh_local_vars = true; // Need to re-set local vars
 
@@ -191,17 +226,19 @@ int main(int file_count, char** args) {
   Cursor tmp;
   MEVENT m_event;
   History* old_history_frame;
-  long* payload;
+  PayloadStateChange payload_state_change;
   bool mouse_drag = false;
   time_val last_time_mouse_drag = timeInMilliseconds();
   while (true) {
     //// --------------- Post Processing -----------------
 
     if (refresh_local_vars == true) {
-      setupLocalVars(files, current_file, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y, &history_root,
+      setupLocalVars(files, current_file_index, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y,
+                     &history_root,
                      &history_frame, &highlight_data);
       refresh_local_vars = false;
       old_history_frame = *history_frame;
+      payload_state_change = getPayloadStateChange(highlight_data);
     }
 
     // flag cursor change
@@ -213,6 +250,7 @@ int main(int file_count, char** args) {
     // flag screen_x change
     if (*old_screen_x != *screen_x) {
       *old_screen_x = *screen_x;
+      // UNUSED
     }
 
     // flag screen_y change
@@ -227,7 +265,8 @@ int main(int file_count, char** args) {
 
     // If it needed to reparse the current file for tree. Looking for state changes.
     if (highlight_data->is_active == true && (old_history_frame != *history_frame || highlight_data->tree == NULL)) {
-      edit_and_parse_tree(root, history_frame, highlight_data, &old_history_frame);
+      // edit_and_parse_tree(root, history_frame, highlight_data, &old_history_frame);
+      parse_tree(root, history_frame, highlight_data, &old_history_frame);
       optimizeHistory(*history_root, history_frame);
       old_history_frame = *history_frame;
     }
@@ -244,8 +283,8 @@ int main(int file_count, char** args) {
     }
 
     // Refresh File Opened Window
-    if ((refresh_ofw == true || files[current_file].io_file.status == NONE) && ofw_height != 0) {
-      printOpenedFile(files, file_count, current_file, current_file_offset, ofw);
+    if ((refresh_ofw == true || files[current_file_index].io_file.status == NONE) && ofw_height != 0) {
+      printOpenedFile(files, file_count, current_file_index, current_file_offset, ofw);
       wrefresh(ofw);
       refresh_ofw = false;
     }
@@ -268,10 +307,36 @@ int main(int file_count, char** args) {
 
   read_input:
     int c = getch();
+    int hash = c;
+
+    if (c != KEY_MOUSE && c != -1) {
+      // fprintf(stderr, "Code %d, Key : '%s' hash into %d.\n", c, keyname(c), hashString(keyname(c)));
+    }
+
+
+    if (c != KEY_MOUSE && c != -1) {
+      const char* key_str = keyname(c);
+      if (key_str != NULL && key_str[0] != '\0') {
+        if (key_str[0] == '^') {
+        }
+        else {
+          hash = hashString(key_str);
+        }
+      }
+      else {
+        fprintf(stderr, "keyname is NULL");
+      }
+    }
 
     // TODO Here check to do background operation like lsp_servers.
 
-    switch (c) {
+    LSPServerLinkedList_Cell* cell = lsp_servers.head;
+    while (cell != NULL) {
+      LSP_dispatchOnReceive(&cell->lsp_server, dispatcher, NULL);
+      cell = cell->next;
+    }
+
+    switch (hash) {
       // ---------------------- NCURSES THINGS ----------------------
 
       case ERR:
@@ -279,7 +344,7 @@ int main(int file_count, char** args) {
 
       case BEGIN_MOUSE_LISTEN:
       case MOUSE_IN_OUT:
-      case KEY_RESIZE:
+      case H_KEY_RESIZE:
         // Was there but idk why... => Avoid biggest size only used on time before automated resize.
         assert((getmaxx(lnw) + few_width >= COLS) == false);
       // Resize Opened File Window
@@ -291,138 +356,143 @@ int main(int file_count, char** args) {
       // ---------------------- MOUSE ----------------------
 
       case KEY_MOUSE:
-        if (getmouse(&m_event) == OK) {
-          detectComplexEvents(&m_event);
+        if (getmouse(&m_event) != OK) {
+          fprintf(stderr, "MOUVE_EVENT_NOT_OK !\r\n");
+          exit(0);
+          break;
+        }
 
-          // Avoid refreshing when it's just mouse movement with no change.
-          if (m_event.bstate == NO_EVENT_MOUSE /*No event state*/ && mouse_drag == false) {
+        detectComplexEvents(&m_event);
+
+      // Avoid refreshing when it's just mouse movement with no change.
+        if (m_event.bstate == NO_EVENT_MOUSE /*No event state*/ && mouse_drag == false) {
+          goto read_input;
+        }
+
+      // Avoid too much refresh, to avoid input buffer full.
+        if (m_event.bstate == NO_EVENT_MOUSE && mouse_drag == true) {
+          if (diff2Time(last_time_mouse_drag, timeInMilliseconds()) < 30) {
             goto read_input;
           }
-
-          // Avoid too much refresh, to avoid input buffer full.
-          if (m_event.bstate == NO_EVENT_MOUSE && mouse_drag == true) {
-            if (diff2Time(last_time_mouse_drag, timeInMilliseconds()) < 30) {
-              goto read_input;
-            }
-            last_time_mouse_drag = timeInMilliseconds();
-          }
-
-
-          // If pressed enable drag
-          if (m_event.bstate & BUTTON1_PRESSED) {
-            mouse_drag = true;
-          }
-
-          if ((m_event.x < getbegx(lnw) && focus_w == NULL) || (few != NULL && focus_w == few)) {
-            // Click in File Explorer Window
-            if (m_event.bstate & BUTTON1_PRESSED) {
-              focus_w = few;
-            }
-            handleFileExplorerClick(&files, &file_count, &current_file, &pwd, &few_y_offset, &few_x_offset, &few_width, &few_selected_line, ofw_height, ofw_height, &few, &ofw,
-                                    &lnw, &ftw,
-                                    m_event, &refresh_few, &refresh_ofw, &refresh_edw, &refresh_local_vars);
-          }
-          else if ((m_event.y - ofw_height < 0 && focus_w == NULL) || (ofw != NULL && focus_w == ofw)) {
-            // Click on opened file window
-            if (m_event.bstate & BUTTON1_PRESSED) {
-              focus_w = ofw;
-            }
-            handleOpenedFileClick(files, &file_count, &current_file, m_event, &current_file_offset, ofw, &refresh_ofw, &refresh_local_vars, mouse_drag);
-          }
-          else {
-            // Click on editor windows
-            if (m_event.bstate & BUTTON1_PRESSED) {
-              focus_w = ftw;
-            }
-            handleEditorClick(getbegx(ftw), ofw_height, cursor, select_cursor, desired_column, screen_x, screen_y, &m_event, mouse_drag);
-          }
-
-          if (m_event.bstate & BUTTON1_RELEASED) {
-            focus_w = NULL;
-            mouse_drag = false;
-          }
+          last_time_mouse_drag = timeInMilliseconds();
         }
+
+
+      // If pressed enable drag
+        if (m_event.bstate & BUTTON1_PRESSED) {
+          mouse_drag = true;
+        }
+
+        if ((m_event.x < getbegx(lnw) && focus_w == NULL) || (few != NULL && focus_w == few)) {
+          // Click in File Explorer Window
+          if (m_event.bstate & BUTTON1_PRESSED) {
+            focus_w = few;
+          }
+          handleFileExplorerClick(&files, &file_count, &current_file_index, &pwd, &few_y_offset, &few_x_offset, &few_width, &few_selected_line, ofw_height, ofw_height, &few, &ofw,
+                                  &lnw, &ftw,
+                                  m_event, &refresh_few, &refresh_ofw, &refresh_edw, &refresh_local_vars);
+        }
+        else if ((m_event.y - ofw_height < 0 && focus_w == NULL) || (ofw != NULL && focus_w == ofw)) {
+          // Click on opened file window
+          if (m_event.bstate & BUTTON1_PRESSED) {
+            focus_w = ofw;
+          }
+          handleOpenedFileClick(files, &file_count, &current_file_index, m_event, &current_file_offset, ofw, &refresh_ofw, &refresh_local_vars, mouse_drag);
+        }
+        else {
+          // Click on editor windows
+          if (m_event.bstate & BUTTON1_PRESSED) {
+            focus_w = ftw;
+          }
+          handleEditorClick(getbegx(ftw), ofw_height, cursor, select_cursor, desired_column, screen_x, screen_y, &m_event, mouse_drag);
+        }
+
+        if (m_event.bstate & BUTTON1_RELEASED) {
+          focus_w = NULL;
+          mouse_drag = false;
+        }
+
         break;
 
       // ---------------------- MOVEMENT ----------------------
 
 
-      case KEY_RIGHT:
+      case H_KEY_RIGHT:
         if (isCursorDisabled(*select_cursor))
           *cursor = moveRight(*cursor);
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_LEFT:
+      case H_KEY_LEFT:
         if (isCursorDisabled(*select_cursor))
           *cursor = moveLeft(*cursor);
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_UP:
+      case H_KEY_UP:
         *cursor = moveUp(*cursor, *desired_column);
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
         break;
-      case KEY_DOWN:
+      case H_KEY_DOWN:
         *cursor = moveDown(*cursor, *desired_column);
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
         break;
-      case KEY_MAJ_RIGHT:
+      case H_KEY_MAJ_RIGHT:
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveRight(*cursor);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_MAJ_LEFT:
+      case H_KEY_MAJ_LEFT:
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveLeft(*cursor);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_MAJ_UP:
+      case H_KEY_MAJ_UP:
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveUp(*cursor, *desired_column);
         break;
-      case KEY_MAJ_DOWN:
+      case H_KEY_MAJ_DOWN:
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveDown(*cursor, *desired_column);
         break;
-      case KEY_CTRL_RIGHT:
+      case H_KEY_CTRL_RIGHT:
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
         *cursor = moveToNextWord(*cursor);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_CTRL_LEFT:
+      case H_KEY_CTRL_LEFT:
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
         *cursor = moveToPreviousWord(*cursor);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_CTRL_DOWN:
+      case H_KEY_CTRL_DOWN:
         selectWord(cursor, select_cursor);
         break;
-      case KEY_CTRL_UP:
+      case H_KEY_CTRL_UP:
         selectWord(cursor, select_cursor);
         break;
-      case KEY_CTRL_MAJ_RIGHT:
+      case H_KEY_CTRL_MAJ_RIGHT:
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveToNextWord(*cursor);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_CTRL_MAJ_LEFT:
+      case H_KEY_CTRL_MAJ_LEFT:
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveToPreviousWord(*cursor);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_CTRL_MAJ_DOWN:
+      case H_KEY_CTRL_MAJ_DOWN:
         // Do something with this.
-        if (current_file != 0)
-          current_file--;
+        if (current_file_index != 0)
+          current_file_index--;
         refresh_local_vars = true;
       // TODO check if the file selected is showing in ofw. If not move it in.
         refresh_ofw = true;
         break;
-      case KEY_CTRL_MAJ_UP:
+      case H_KEY_CTRL_MAJ_UP:
         // Do something with this.
-        if (current_file != file_count - 1)
-          current_file++;
+        if (current_file_index != file_count - 1)
+          current_file_index++;
         refresh_local_vars = true;
       // TODO check if the file selected is showing in ofw. If not move it in.
         refresh_ofw = true;
@@ -430,42 +500,38 @@ int main(int file_count, char** args) {
 
       // ---------------------- FILE MANAGEMENT ----------------------
 
-      case CTRL_KEY('z'):
+      case CTRL('z'):
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
-        payload = get_payload_edit_and_parse_tree(&root, &highlight_data);
-        *cursor = undo(history_frame, *cursor, edit_and_parse_tree_from_payload, payload);
-        free(payload);
-        old_history_frame = *history_frame;
+        *cursor = undo(history_frame, *cursor, onStateChangeTS, (long *)&payload_state_change);
+        old_history_frame = NULL;
         setDesiredColumn(*cursor, desired_column);
         break;
-      case CTRL_KEY('y'):
+      case CTRL('y'):
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
-        payload = get_payload_edit_and_parse_tree(&root, &highlight_data);
-        *cursor = redo(history_frame, *cursor, edit_and_parse_tree_from_payload, payload);
-        free(payload);
-        old_history_frame = *history_frame;
+        *cursor = redo(history_frame, *cursor, onStateChangeTS, (long *)&payload_state_change);
+        old_history_frame = NULL;
         setDesiredColumn(*cursor, desired_column);
         break;
-      case CTRL_KEY('c'):
+      case CTRL('c'):
         saveToClipBoard(*cursor, *select_cursor);
         break;
-      case CTRL_KEY('a'):
+      case CTRL('a'):
         *select_cursor = tryToReachAbsPosition(*cursor, 1, 0);
         *cursor = tryToReachAbsPosition(*cursor, INT_MAX, INT_MAX);
         break;
-      case CTRL_KEY('x'):
+      case CTRL('x'):
         saveToClipBoard(*cursor, *select_cursor);
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case CTRL_KEY('v'):
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+      case CTRL('v'):
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         tmp = *cursor;
         *cursor = loadFromClipBoard(*cursor);
-        saveAction(history_frame, createInsertAction(*cursor, tmp));
+        saveAction(history_frame, createInsertAction(*cursor, tmp), onStateChangeTS, (long *)&payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case CTRL_KEY('q'):
+      case CTRL('q'):
         // TODO refactor
         if (false)
           for (int i = 0; i < file_count; i++) {
@@ -478,10 +544,10 @@ int main(int file_count, char** args) {
             saveCurrentStateControl(*files[i].history_root, files[i].history_frame, files[i].io_file.path_abs);
           }
         goto end;
-      case CTRL_KEY('w'):
-        closeFile(&files, &file_count, &current_file, &refresh_ofw, &refresh_edw, &refresh_local_vars);
+      case CTRL('w'):
+        closeFile(&files, &file_count, &current_file_index, &refresh_ofw, &refresh_edw, &refresh_local_vars);
         break;
-      case CTRL_KEY('s'):
+      case CTRL('s'):
         if (io_file->status == NONE) {
           printf("\r\nNo specified file\r\n");
           goto end;
@@ -496,37 +562,44 @@ int main(int file_count, char** args) {
       // ---------------------- FILE EDITING ----------------------
 
 
-      case KEY_CTRL_DELETE:
+      case H_KEY_CTRL_DELETE:
+      case CTRL('H'):
         *cursor = moveToPreviousWord(*cursor);
         setSelectCursorOn(*cursor, select_cursor);
         *cursor = moveToNextWord(*cursor);
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
       case '\n':
       case KEY_ENTER:
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         tmp = *cursor;
         *cursor = insertNewLineInLineC(*cursor);
-        saveAction(history_frame, createInsertAction(tmp, *cursor));
+        saveAction(history_frame, createInsertAction(tmp, *cursor), onStateChangeTS, (long *)&payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_BACKSPACE:
+      case H_KEY_DELETE:
         if (isCursorDisabled(*select_cursor)) {
           *select_cursor = moveLeft(*cursor);
         }
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case KEY_SUPPR:
+      case H_KEY_SUPPR:
         if (isCursorDisabled(*select_cursor)) {
           *select_cursor = moveRight(*cursor);
         }
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
+        setDesiredColumn(*cursor, desired_column);
+        break;
+      case H_KEY_CTRL_SUPPR:
+        setSelectCursorOn(*cursor, select_cursor);
+        *cursor = moveToNextWord(*cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
       case KEY_TAB:
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         tmp = *cursor;
         if (TAB_CHAR_USE) {
           *cursor = insertCharInLineC(*cursor, readChar_U8FromInput('\t'));
@@ -536,15 +609,14 @@ int main(int file_count, char** args) {
             *cursor = insertCharInLineC(*cursor, readChar_U8FromInput(' '));
           }
         }
-
-        saveAction(history_frame, createInsertAction(tmp, *cursor));
+        saveAction(history_frame, createInsertAction(tmp, *cursor), onStateChangeTS, (long *)&payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
-      case CTRL_KEY('d'):
+      case CTRL('d'):
         if (isCursorDisabled(*select_cursor) == true) {
           selectLine(cursor, select_cursor);
         }
-        deleteSelectionWithHist(history_frame, cursor, select_cursor);
+        deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;
 
@@ -552,10 +624,10 @@ int main(int file_count, char** args) {
       // ---------------------- EDITOR SHORTCUTS ----------------------
 
 
-      case CTRL_KEY('e'): // File Explorer Window Switch
+      case CTRL('e'): // File Explorer Window Switch
         switchShowFew(&few, &ofw, &ftw, &lnw, &few_width, &saved_few_width, ofw_height, &refresh_few, &refresh_ofw);
         break;
-      case CTRL_KEY('l'): // Opened File Window Switch
+      case CTRL('l'): // Opened File Window Switch
         if (ofw_height == OPENED_FILE_WINDOW_HEIGHT) {
           ofw_height = 0;
         }
@@ -567,6 +639,9 @@ int main(int file_count, char** args) {
         refresh_ofw = true;
         refresh_edw = true;
         break;
+      case CTRL(' '): // LSP_completion
+
+        break;
 
 
       default:
@@ -574,11 +649,11 @@ int main(int file_count, char** args) {
           printf("Unsupported touch %d\r\n", c);
         }
         else {
-          deleteSelectionWithHist(history_frame, cursor, select_cursor);
+          deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
           tmp = *cursor;
           *cursor = insertCharInLineC(*cursor, readChar_U8FromInput(c));
           setDesiredColumn(*cursor, desired_column);
-          saveAction(history_frame, createInsertAction(tmp, *cursor));
+          saveAction(history_frame, createInsertAction(tmp, *cursor), onStateChangeTS, (long *)&payload_state_change);
         }
         break;
     }
@@ -592,9 +667,9 @@ end:
   fflush(stdout);
 
 
-  if (usingWorkspace == true) {
+  if (loaded_settings.is_used == true) {
     WorkspaceSettings new_settings;
-    getWorkspaceSettingsForCurrentDir(&new_settings, files, file_count, current_file, ofw_height != 0, few_width != 0, FILE_EXPLORER_WIDTH);
+    getWorkspaceSettingsForCurrentDir(&new_settings, files, file_count, current_file_index, ofw_height != 0, few_width != 0, FILE_EXPLORER_WIDTH);
     saveWorkspaceSettings(loaded_settings.dir_path, &new_settings);
     destroyWorkspaceSettings(&new_settings);
   }
@@ -607,7 +682,6 @@ end:
   free(files);
   cJSON_Delete(config);
   destroyParserList(&parsers);
-  destroyWorkspaceSettings(&loaded_settings);
 
   // We need to sleep a bit before flush input to wait for the terminal to disable mouse tracking.
   usleep(30000);

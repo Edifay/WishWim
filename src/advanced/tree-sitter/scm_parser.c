@@ -102,7 +102,7 @@ void pushRegex(TreePathSeq* seq, char* name) {
   seq->value->reg = malloc(sizeof(regex_t));
   int comp_res = regcomp(seq->value->reg, name, REG_EXTENDED);
   if (comp_res) {
-    printf("Error compiling regex %s\n.", name);
+    fprintf(stderr, "Error compiling regex %s\n.", name);
     exit(0);
   }
 }
@@ -112,7 +112,7 @@ bool parseSCMFile(TreePathSeq* seq, char* file_name) {
   initTreePathSeq(seq);
   FILE* f = fopen(file_name, "r");
   if (f == NULL) {
-    printf("Unable to parse %s file.\n\r", file_name);
+   fprintf(stderr, "Unable to parse %s file.\n\r", file_name);
     return false;
   }
 
@@ -174,7 +174,7 @@ bool parseSCMFile(TreePathSeq* seq, char* file_name) {
             case '#':
               while ((scan_res = fscanf(f, "%c", &c)) == 1 && c != '"'); // skip until reach the regex.
               if (scan_res != 1) {
-                printf("Syntax error %s, in match.\n", file_name);
+                fprintf(stderr, "Syntax error %s, in match.\n", file_name);
                 return false;
               }
               scan_res = fscanf(f, "%c", &c); // Skip the '"' char.
@@ -213,7 +213,7 @@ bool parseSCMFile(TreePathSeq* seq, char* file_name) {
               name[index] = '\0';
               if (scan_res != 1) {
                 // If end is reached.
-                printf("Syntax error %s.\n", file_name);
+                fprintf(stderr, "Syntax error %s.\n", file_name);
                 exit(0);
               }
             // If it end with ':' it's a field.
@@ -241,7 +241,7 @@ bool parseSCMFile(TreePathSeq* seq, char* file_name) {
         initTreePathSeq(intern_list);
         scan_res = fscanf(f, "%c", &c);
         if (scan_res != 1) {
-          printf("Syntax error, list not closed in file %s.\n", file_name);
+          fprintf(stderr, "Syntax error, list not closed in file %s.\n", file_name);
           return false;
         }
         TreePathSeq* current_intern_list = intern_list;
@@ -267,7 +267,7 @@ bool parseSCMFile(TreePathSeq* seq, char* file_name) {
               pushMatch(current_intern_list, name);
               if (c != '"') {
                 // If the string doesn't end with a '"' the string is not closed.
-                printf("Syntax error in file %s.\n", file_name);
+                fprintf(stderr, "Syntax error in file %s.\n", file_name);
                 exit(0);
                 return false;
               }
@@ -292,7 +292,7 @@ bool parseSCMFile(TreePathSeq* seq, char* file_name) {
               pushSymbol(current_intern_list, name);
               if (c != ')') {
                 // If the string doesn't end with a '"' the string is not closed.
-                printf("Syntax error in file %s.\n", file_name);
+                fprintf(stderr, "Syntax error in file %s.\n", file_name);
                 exit(0);
                 return false;
               }
@@ -311,12 +311,12 @@ bool parseSCMFile(TreePathSeq* seq, char* file_name) {
               }
               break;
             default:
-              printf("Syntax error ! %s\n", file_name);
+              fprintf(stderr, "Syntax error ! %s\n", file_name);
               break;
           }
         }
         if (scan_res != 1) {
-          printf("Syntax error, group not given for last array. %s.\n", file_name);
+          fprintf(stderr, "Syntax error, group not given for last array. %s.\n", file_name);
           return false;
         }
 
@@ -328,7 +328,7 @@ bool parseSCMFile(TreePathSeq* seq, char* file_name) {
         }
 
         if (c != '@') {
-          printf("Syntax error, need to give a group for the list. %s.\n", file_name);
+          fprintf(stderr, "Syntax error, need to give a group for the list. %s.\n", file_name);
           return false;
         }
 
@@ -373,7 +373,7 @@ bool parseSCMFile(TreePathSeq* seq, char* file_name) {
         pushMatch(current_seq_node, name);
         if (c != '"') {
           // If the string doesn't end with a '"' the string is not closed.
-          printf("Syntax error in file %s.\n", file_name);
+          fprintf(stderr, "Syntax error in file %s.\n", file_name);
           exit(0);
           return false;
         }
@@ -381,13 +381,13 @@ bool parseSCMFile(TreePathSeq* seq, char* file_name) {
         while ((scan_res = fscanf(f, "%c", &c)) == 1 && (c == '\n' || c == '\t' || c == ' ')) {
         }
         if (scan_res != 1) {
-          printf("Syntax error %s. Didn't find id for \"%s\"\n", file_name, name);
+          fprintf(stderr, "Syntax error %s. Didn't find id for \"%s\"\n", file_name, name);
           exit(0);
           return false;
         }
       // Assert that a group is given for the current match.
         if (c != '@') {
-          printf("Syntax error in file %s.\n", file_name);
+          fprintf(stderr, "Syntax error in file %s.\n", file_name);
           exit(0);
           return false;
         }

@@ -4,6 +4,7 @@
 #include "file_structure.h"
 #include "state_control.h"
 #include "../advanced/tree-sitter/tree_manager.h"
+#include "../advanced/lsp/lsp_handler.h"
 
 
 typedef struct {
@@ -17,9 +18,10 @@ typedef struct {
   int screen_y; // The y coord of the top left corner of the current viewport of the file
   int old_screen_x; // old screen_x used to flag screen_x changes
   int old_screen_y; // old screen_y used to flag screen_y changes
-  History *history_root; // Root of History object for the current File
+  History* history_root; // Root of History object for the current File
   History* history_frame; // Current node of the History. Before -> Undo, After -> Redo.
   FileHighlightDatas highlight_data; // Object which represent the highlight_data of the current file.
+  LSP_Datas lsp_datas; // Object which contain all the datas of lsp.
 } FileContainer;
 
 
@@ -71,13 +73,11 @@ Cursor byteCursorToCursor(Cursor cursor, int row, int byte_column);
 ////// -------------- SELECTION MANAGEMENT --------------
 
 
-bool isCursorPreviousThanOther(Cursor cursor, Cursor other);
-bool isCursorStrictPreviousThanOther(Cursor cursor, Cursor other);
-bool isCursorBetweenOthers(Cursor cursor, Cursor cur1, Cursor cur2);
-bool areCursorEqual(Cursor cur1, Cursor cur2);
 bool isCursorDisabled(Cursor cursor);
 
-int charBetween2Curso(Cursor cur1, Cursor cur2);
+int utf8CharBetween2Cursor(Cursor cur1, Cursor cur2);
+
+unsigned int byteBetween2Cursor(Cursor cur1, Cursor cur2);
 
 Cursor disableCursor(Cursor cursor);
 
@@ -89,7 +89,9 @@ void selectLine(Cursor *cursor, Cursor *select_cursor);
 
 void deleteSelection(Cursor* cursor, Cursor* select_cursor);
 
-void deleteSelectionWithHist(History **history_p, Cursor* cursor, Cursor* select_cursor);
+void deleteSelectionWithState(History **history_p, Cursor* cursor, Cursor* select_cursor, PayloadStateChange payload_state_change);
+
+char* dumpSelection(Cursor cur1, Cursor cur2);
 
 
 #endif //FILE_MANAGEMENT_H

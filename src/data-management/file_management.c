@@ -48,6 +48,13 @@ void openNewFile(char* file_path, FileContainer** files, int* file_count, int* c
 
   // Setup new file container with clicked file
   setupFileContainer(file_path, *files + *file_count - 1);
+
+  if ((*files)[*file_count - 1].lsp_datas.is_enable) {
+    char* dump = dumpSelection(tryToReachAbsPosition((*files)[*file_count - 1].cursor, 1, 0), tryToReachAbsPosition((*files)[*file_count - 1].cursor, INT_MAX, INT_MAX));
+    LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, (*files)[*file_count - 1].lsp_datas.name), (*files)[*file_count - 1].io_file.path_args, dump);
+    free(dump);
+  }
+
   *current_file = *file_count - 1;
 }
 
@@ -89,6 +96,7 @@ void setupFileContainer(char* path, FileContainer* container) {
   container->history_frame = container->history_root;
 
   container->cursor = createRoot(container->io_file);
+  container->old_cur = container->cursor;
   container->select_cursor = disableCursor(container->cursor);
   setDesiredColumn(container->cursor, &container->desired_column);
 
@@ -97,7 +105,8 @@ void setupFileContainer(char* path, FileContainer* container) {
   fetchSavedCursorPosition(container->io_file, &container->cursor, &container->screen_x, &container->screen_y);
   loadCurrentStateControl(container->history_root, &container->history_frame, container->io_file);
 
-  detectLanguage(&container->highlight_data, container->io_file);
+  setFileHighlightDatas(&container->highlight_data, container->io_file);
+  setLspDatas(&container->lsp_datas, container->io_file);
 }
 
 
@@ -291,18 +300,18 @@ Cursor insertCharArrayAtCursor(Cursor cursor, char* chs) {
   char c;
   while ((c = chs[index++]) != '\0') {
 #ifdef LOGS
-    assert(checkFileIntegrity(root) == true);
+    // assert(checkFileIntegrity(root) == true);
 #endif
     if (iscntrl(c)) {
       if (c == '\n') {
 #ifdef LOGS
-        printf("Enter\r\n");
+        // printf("Enter\r\n");
 #endif
         cursor = insertNewLineInLineC(cursor);
       }
       else if (c == 9) {
 #ifdef LOGS
-        printf("Tab\r\n");
+        // printf("Tab\r\n");
 #endif
         Char_U8 ch;
         if (TAB_CHAR_USE) {
@@ -318,7 +327,7 @@ Cursor insertCharArrayAtCursor(Cursor cursor, char* chs) {
       }
       else {
 #ifdef LOGS
-        printf("Unsupported Char loaded from file : '%d'.\r\n", c);
+        // printf("Unsupported Char loaded from file : '%d'.\r\n", c);
 #endif
         // exit(0);
       }
@@ -328,7 +337,7 @@ Cursor insertCharArrayAtCursor(Cursor cursor, char* chs) {
       index += sizeChar_U8(ch) - 1;
 #ifdef LOGS
       printChar_U8(stdout, ch);
-      printf("\r\n");
+      // printf("\r\n");
 #endif
       cursor = insertCharInLineC(cursor, ch);
     }
@@ -357,65 +366,51 @@ Cursor byteCursorToCursor(Cursor cursor, int row, int byte_column) {
 
 ////// -------------- SELECTION MANAGEMENT --------------
 
-bool isCursorPreviousThanOther(Cursor cursor, Cursor other) {
-  if (cursor.file_id.absolute_row < other.file_id.absolute_row)
-    return true;
-  if (cursor.file_id.absolute_row > other.file_id.absolute_row)
-    return false;
-  assert(cursor.file_id.absolute_row == other.file_id.absolute_row);
-
-  return cursor.line_id.absolute_column <= other.line_id.absolute_column;
-}
-
-bool isCursorStrictPreviousThanOther(Cursor cursor, Cursor other) {
-  if (cursor.file_id.absolute_row < other.file_id.absolute_row)
-    return true;
-  if (cursor.file_id.absolute_row > other.file_id.absolute_row)
-    return false;
-  assert(cursor.file_id.absolute_row == other.file_id.absolute_row);
-
-  return cursor.line_id.absolute_column < other.line_id.absolute_column;
-}
-
-bool isCursorBetweenOthers(Cursor cursor, Cursor cur1, Cursor cur2) {
-  if (isCursorPreviousThanOther(cur1, cur2) == false) {
-    Cursor tmp = cur1;
-    cur1 = cur2;
-    cur2 = tmp;
-  }
-
-  int row = cursor.file_id.absolute_row;
-  int column = cursor.line_id.absolute_column;
-
-  int row_start = cur1.file_id.absolute_row;
-  int column_start = cur1.line_id.absolute_column;
-
-  int row_end = cur2.file_id.absolute_row;
-  int column_end = cur2.line_id.absolute_column;
-
-
-  return (row_start < row || (row_start == row && column_start < column))
-         && (row < row_end || (row == row_end && column <= column_end));
-}
-
-
-bool areCursorEqual(Cursor cur1, Cursor cur2) {
-  return cur1.file_id.absolute_row == cur2.file_id.absolute_row && cur1.line_id.absolute_column == cur2.line_id.
-         absolute_column;
-}
-
 
 bool isCursorDisabled(Cursor cursor) {
   return cursor.file_id.absolute_row == -1;
 }
 
-int charBetween2Curso(Cursor cur1, Cursor cur2) {
+int utf8CharBetween2Cursor(Cursor cur1, Cursor cur2) {
+  if (isCursorPreviousThanOther(cur2, cur1)) {
+    Cursor tmp = cur1;
+    cur1 = cur2;
+    cur2 = tmp;
+  }
+
   int count = 0;
   while (isCursorPreviousThanOther(cur1, cur2)) {
     cur1 = moveRight(cur1);
     count++;
   }
   return count;
+}
+
+unsigned int byteBetween2Cursor(Cursor cur1, Cursor cur2) {
+  if (isCursorPreviousThanOther(cur2, cur1)) {
+    Cursor tmp = cur1;
+    cur1 = cur2;
+    cur2 = tmp;
+  }
+
+  Cursor it = cur1;
+  int byte_between_2_cursor = 0;
+  while (isCursorStrictPreviousThanOther(it, cur2)) {
+    Cursor tmp = it;
+    it = moveRight(it);
+
+    if (hasElementBeforeLine(it.line_id) == true) {
+      byte_between_2_cursor += sizeChar_U8(getCharForLineIdentifier(it.line_id));
+    }
+    else {
+      assert(tmp.file_id.absolute_row != it.file_id.absolute_row);
+      byte_between_2_cursor++; // Add one byte alloc to save '\n' char.
+    }
+  }
+
+  assert(areCursorEqual(it, cur2));
+
+  return byte_between_2_cursor;
 }
 
 Cursor disableCursor(Cursor cursor) {
@@ -487,22 +482,59 @@ void deleteSelection(Cursor* cursor, Cursor* select_cursor) {
 
   assert(isCursorPreviousThanOther(*cursor, *select_cursor));
 
-  if (cursor->file_id.absolute_row == select_cursor->file_id.absolute_row) {
-    // Need to delete part of a line.
-    deleteLinePart(cursor->line_id, select_cursor->line_id.absolute_column - cursor->line_id.absolute_column);
-  }
-  else {
-    deleteLinePart(cursor->line_id, tryToReachAbsColumn(cursor->line_id, INT_MAX).absolute_column - cursor->line_id.absolute_column);
-    deleteLinePart(tryToReachAbsColumn(select_cursor->line_id, 0), select_cursor->line_id.absolute_column);
-    deleteFilePart(tryToReachAbsRow(cursor->file_id, cursor->file_id.absolute_row), select_cursor->file_id.absolute_row - cursor->file_id.absolute_row - 1);
-    *cursor = moduloCursor(*cursor);
-    *cursor = supprCharAtCursor(*cursor);
-  }
+  *cursor = bulkDelete(*cursor, *select_cursor);
 
   *select_cursor = disableCursor(*select_cursor);
 }
 
-void deleteSelectionWithHist(History** history_p, Cursor* cursor, Cursor* select_cursor) {
-  saveAction(history_p, createDeleteAction(*cursor, *select_cursor));
+void deleteSelectionWithState(History** history_p, Cursor* cursor, Cursor* select_cursor, PayloadStateChange payload_state_change) {
+  saveAction(history_p, createDeleteAction(*cursor, *select_cursor), onStateChangeTS, (long*)&payload_state_change);
   deleteSelection(cursor, select_cursor);
+}
+
+
+char* dumpSelection(Cursor cur1, Cursor cur2) {
+  if (isCursorPreviousThanOther(cur2, cur1)) {
+    Cursor tmp = cur1;
+    cur1 = cur2;
+    cur2 = tmp;
+  }
+
+  char* dump = NULL;
+
+  unsigned int byte_between_2_cursor = byteBetween2Cursor(cur1, cur2);
+
+  if (byte_between_2_cursor == 0) {
+    dump = malloc(1 * sizeof(char));
+    dump[0] = '\0';
+    return dump;
+  }
+
+  assert(byte_between_2_cursor != 0);
+
+
+  dump = malloc(byte_between_2_cursor * sizeof(char) + 1 /*for EOF char*/);
+
+  Cursor it = cur1;
+  int index = 0;
+  while (isCursorStrictPreviousThanOther(it, cur2)) {
+    it = moveRight(it);
+
+    if (hasElementBeforeLine(it.line_id) == true) {
+      Char_U8 ch = getCharForLineIdentifier(it.line_id);
+      int ch_size = sizeChar_U8(ch);
+      for (int i = 0; i < ch_size; i++) {
+        dump[index] = ch.t[i];
+        index++;
+      }
+    }
+    else {
+      dump[index] = '\n';
+      index++;
+    }
+  }
+
+  dump[index] = '\0';
+
+  return dump;
 }
