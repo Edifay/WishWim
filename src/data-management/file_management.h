@@ -47,6 +47,8 @@ void setupLocalVars(FileContainer* files, int current_file, IO_FileID** io_file,
 
 bool isFileContainerEmpty(FileContainer *container);
 
+void setupOpenedFiles(int* file_count, char** file_names, FileContainer** files);
+
 
 ////// -------------- CURSOR ACTIONS --------------
 

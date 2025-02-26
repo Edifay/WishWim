@@ -385,10 +385,7 @@ void setFileHighlightDatas(FileHighlightDatas* data, IO_FileID io_file) {
     parser = getParserForLanguage(&parsers, data->lang_name);
   }
 
-  if (parser != NULL) {
-    data->is_active = true;
-  }
-
+  data->is_active = parser != NULL;
   data->tree = NULL;
   data->tmp_file_dump = NULL;
 }

@@ -109,6 +109,10 @@ bool getLanguageForFile(char* lang_name, IO_FileID io_file) {
 
   /// ---- FILE NAME ----
 
+  if (io_file.status == NONE) {
+    return false;
+  }
+
   // Make
   if (strcmp(basename(io_file.path_abs), "Makefile") == 0) {
     strcpy(lang_name, "make");

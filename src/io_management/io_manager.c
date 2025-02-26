@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -128,6 +129,7 @@ void setupFile(char* path, IO_FileID* file) {
     else {
       // File doesn't exist.
       file->status = DONT_EXIST;
+      strncpy(file->path_abs, path, PATH_MAX);
     }
   }
   else {
@@ -137,3 +139,5 @@ void setupFile(char* path, IO_FileID* file) {
     strcpy(file->path_abs, "untitled");
   }
 }
+
+

@@ -44,4 +44,4 @@
 #define BEGIN_MOUSE_LISTEN 588
 #define MOUSE_IN_OUT 589
 
-void detectComplexEvents(MEVENT* event);
+void detectComplexMouseEvents(MEVENT* event);

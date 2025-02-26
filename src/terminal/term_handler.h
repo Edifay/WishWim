@@ -7,30 +7,60 @@
 #include "../data-management/file_management.h"
 #include "../data-management/file_structure.h"
 #include "../io_management/io_explorer.h"
-#include "../advanced/theme.h"
 
 /* Unix call, use 'man wcwidth' to see explication. */
 int wcwidth(const wint_t wc);
 
+
+////// -------------- WINDOWS MANAGEMENTS --------------
+
+typedef struct {
+  // Init GUI vars
+  WINDOW* ftw; // File Text Window
+  WINDOW* lnw ; // Line Number Window
+  WINDOW* ofw; // Opened Files Window
+  WINDOW* few; // File Explorer Window
+  bool refresh_edw; // Need to reprint editor window
+  bool refresh_ofw; // Need to reprint opened file window
+  bool refresh_few; // Need to reprint file explorer window
+  WINDOW* focus_w; // Used to set the window where start mouse drag
+
+  // EDW Datas
+
+  // OFW Datas
+  int current_file_offset;
+  int ofw_height; // Height of Opened Files Window. 0 => Disabled on start.   OPENED_FILE_WINDOW_HEIGHT => Enabled on start.
+
+  // Few Datas
+  int few_width; // File explorer width
+  int saved_few_width;
+  int few_x_offset; /* TODO unused */
+  int few_y_offset; // Y Scroll state of File Explorer Window
+  int few_selected_line;
+} GUIContext;
+
+
+void initGUIContext(GUIContext* gui_context);
+
+void initNCurses(GUIContext* gui_context);
 ////// -------------- PRINT FUNCTIONS --------------
 
 void printChar_U8ToNcurses(WINDOW* w, Char_U8 ch);
 
-void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor select_cursor, int screen_x, int screen_y);
+void printEditor(GUIContext *gui_context, Cursor cursor, Cursor select_cursor, int screen_x, int screen_y);
 
-void printOpenedFile(FileContainer* files, int file_count, int current_file, int current_file_offset, WINDOW* ofw);
+void printOpenedFile(GUIContext* gui_context, FileContainer* files, int file_count, int current_file);
 
-void printFileExplorer(ExplorerFolder* pwd, WINDOW* few, int few_x_offset, int few_y_offset, int selected_line);
+void printFileExplorer(GUIContext *gui_context, ExplorerFolder* pwd);
 
 
 ////// -------------- RESIZE FUNCTIONS --------------
 
-void resizeEditorWindows(WINDOW** ftw, WINDOW** lnw, int y_file_editor, int lnw_width, int few_width);
+void resizeEditorWindows(GUIContext *gui_context, int lnw_new_width);
 
-void resizeOpenedFileWindow(WINDOW** ofw, bool* refresh_ofw, int edws_offset_y, int few_width);
+void resizeOpenedFileWindow(GUIContext *gui_context);
 
-void switchShowFew(WINDOW** few, WINDOW** ofw, WINDOW** ftw, WINDOW** lnw, int* few_width, int* saved_few_width, int ofw_height, bool* refresh_few,
-                   bool* refresh_ofw);
+void switchShowFew(GUIContext *gui_context);
 
 ////// -------------- UTILS FUNCTIONS --------------
 

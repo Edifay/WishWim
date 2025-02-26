@@ -1502,13 +1502,13 @@ bool checkByteCountIntegrity(FileNode* file) {
       }
       file_total += line_total;
       if (line_total != file->lines_byte_count[i]) {
-        fprintf(stderr, "In LineByteCount got : %d Saved : %d\n", line_total, file->lines_byte_count[i]);
+        fprintf(stderr, "In LineByteCount got : %d Saved : %d\n\r", line_total, file->lines_byte_count[i]);
         return false;
       }
     }
     file_total += file->element_number;
     if (file_total != file->byte_count) {
-      fprintf(stderr, "In FileTotal got : %d Saved : %d\n", file_total, file->byte_count);
+      fprintf(stderr, "In FileTotal got : %d Saved : %d\n\r", file_total, file->byte_count);
       return false;
     }
 
@@ -1518,7 +1518,7 @@ bool checkByteCountIntegrity(FileNode* file) {
     }
 
     if (table_sum + file->element_number != file->byte_count) {
-      fprintf(stderr, "In TableSum got : %d Saved : %d\n", table_sum + file->element_number, file->byte_count);
+      fprintf(stderr, "In TableSum got : %d Saved : %d\n\r", table_sum + file->element_number, file->byte_count);
       return false;
     }
 
@@ -2080,22 +2080,16 @@ Cursor bulkDelete(Cursor cursor, Cursor select_cursor) {
     cursor.file_id.file->byte_count -= old_byte_count - new_byte_count;
 
 
-    assert(checkByteCountIntegrity(test.file_id.file));
-
     old_byte_count = select_cursor.file_id.file->lines_byte_count[select_cursor.file_id.relative_row - 1];
     deleteLinePart(tryToReachAbsColumn(select_cursor.line_id, 0), select_cursor.line_id.absolute_column);
     new_byte_count = byteCountForCurrentLineToEnd(getLineForFileIdentifier(select_cursor.file_id), 0);
     select_cursor.file_id.file->lines_byte_count[select_cursor.file_id.relative_row - 1] = new_byte_count;
     select_cursor.file_id.file->byte_count -= old_byte_count - new_byte_count;
 
-    assert(checkByteCountIntegrity(test.file_id.file));
-
 
     deleteFilePart(tryToReachAbsRow(cursor.file_id, cursor.file_id.absolute_row), select_cursor.file_id.absolute_row - cursor.file_id.absolute_row - 1);
-    assert(checkByteCountIntegrity(test.file_id.file));
     cursor = moduloCursor(cursor);
     cursor = supprCharAtCursor_v2(cursor);
-    assert(checkByteCountIntegrity(test.file_id.file));
   }
 
   return cursor;
