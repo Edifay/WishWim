@@ -8,6 +8,62 @@
 #include "../utils/constants.h"
 
 
+////// -------------- WINDOWS MANAGEMENTS --------------
+
+
+void initGUIContext(GUIContext* gui_context) {
+  // Init GUI vars
+  gui_context->ftw = NULL; // File Text Window
+  gui_context->lnw = NULL; // Line Number Window
+  gui_context->ofw = NULL; // Opened Files Window
+  gui_context->few = NULL; // File Explorer Window
+  gui_context->refresh_edw = true; // Need to reprint editor window
+  gui_context->refresh_ofw = true; // Need to reprint opened file window
+  gui_context->refresh_few = true; // Need to reprint file explorer window
+  gui_context->focus_w = NULL; // Used to set the window where start mouse drag
+
+  // EDW Datas
+
+  // OFW Datas
+  gui_context->current_file_offset = 0;
+  gui_context->ofw_height = 0; // Height of Opened Files Window. 0 => Disabled on start.   OPENED_FILE_WINDOW_HEIGHT => Enabled on start.
+
+  // Few Datas
+  gui_context->few_width = 0; // File explorer width
+  gui_context->saved_few_width = FILE_EXPLORER_WIDTH;
+  gui_context->few_x_offset = 0; /* TODO unused */
+  gui_context->few_y_offset = 0; // Y Scroll state of File Explorer Window
+  gui_context->few_selected_line = -1;
+}
+
+void initNCurses(GUIContext* gui_context) {
+  // Init ncurses
+  initscr();
+  gui_context->ftw = newwin(0, 0, gui_context->ofw_height, gui_context->few_width);
+  gui_context->lnw = newwin(0, 0, 0, gui_context->few_width);
+  gui_context->ofw = newwin(gui_context->ofw_height, 0, 0, gui_context->few_width);
+  // Keyboard setup
+  raw();
+  keypad(stdscr, TRUE);
+  noecho();
+  curs_set(0);
+  // Mouse setup
+  mouseinterval(0);
+  mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
+  timeout(100);
+  printf("\033[?1003h"); // enable mouse tracking
+  fflush(stdout);
+  // Color setup
+  start_color();
+  // Default color.
+  init_color(COLOR_HOVER, 390, 390, 390);
+  init_pair(DEFAULT_COLOR_PAIR, COLOR_WHITE, COLOR_BLACK);
+  init_pair(DEFAULT_COLOR_HOVER_PAIR, COLOR_WHITE, COLOR_HOVER);
+  init_pair(ERROR_COLOR_PAIR, COLOR_RED, COLOR_BLACK);
+  init_pair(ERROR_COLOR_HOVER_PAIR, COLOR_RED, COLOR_HOVER);
+}
+
+
 ////// -------------- PRINT FUNCTIONS --------------
 
 
@@ -18,12 +74,12 @@ void printChar_U8ToNcurses(WINDOW* w, Char_U8 ch) {
   }
 }
 
-void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) {
-  wmove(ftw, 0, 0);
+void printEditor(GUIContext *gui_context, Cursor cursor, Cursor select_cursor, int screen_x, int screen_y) {
+  wmove(gui_context->ftw, 0, 0);
   FileIdentifier file_cur = cursor.file_id;
 
-  int current_lines = getmaxy(ftw);
-  int current_columns = getmaxx(ftw);
+  int current_lines = getmaxy(gui_context->ftw);
+  int current_columns = getmaxx(gui_context->ftw);
 
   // print text
   for (int row = screen_y; row < screen_y + current_lines; row++) {
@@ -32,12 +88,12 @@ void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor se
 
     // if the row is couldn't be reached.
     if (file_cur.absolute_row != row) {
-      wmove(lnw, row - screen_y, 0);
-      for (int i = 0; i < getmaxx(lnw); i++) {
-        wprintw(lnw, " ");
+      wmove(gui_context->lnw, row - screen_y, 0);
+      for (int i = 0; i < getmaxx(gui_context->lnw); i++) {
+        wprintw(gui_context->lnw, " ");
       }
 
-      wprintw(ftw, "~\n");
+      wprintw(gui_context->ftw, "~\n");
 
       continue;
     }
@@ -49,24 +105,24 @@ void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor se
     int lineNumberSize = strlen(line_number);
 
     if (file_cur.absolute_row != cursor.file_id.absolute_row)
-      wattron(lnw, A_DIM);
+      wattron(gui_context->lnw, A_DIM);
     else
-      wattron(lnw, A_BOLD);
+      wattron(gui_context->lnw, A_BOLD);
 
-    wmove(lnw, row - screen_y, 0);
-    for (int i = 0; i < getmaxx(lnw) - lineNumberSize - 1; i++) {
-      wprintw(lnw, " ");
+    wmove(gui_context->lnw, row - screen_y, 0);
+    for (int i = 0; i < getmaxx(gui_context->lnw) - lineNumberSize - 1; i++) {
+      wprintw(gui_context->lnw, " ");
     }
-    wprintw(lnw, "%s", line_number);
+    wprintw(gui_context->lnw, "%s", line_number);
     if (file_cur.absolute_row == cursor.file_id.absolute_row)
-      wprintw(lnw, "🭳");
+      wprintw(gui_context->lnw, "🭳");
     else
-      wprintw(lnw, "🭵");
+      wprintw(gui_context->lnw, "🭵");
 
     if (file_cur.absolute_row != cursor.file_id.absolute_row)
-      wattroff(lnw, A_DIM);
+      wattroff(gui_context->lnw, A_DIM);
     else
-      wattroff(lnw, A_BOLD);
+      wattroff(gui_context->lnw, A_BOLD);
 
 
     // Print line chars
@@ -97,21 +153,21 @@ void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor se
       bool selected_style = isCursorDisabled(select_cursor) == false && isCursorBetweenOthers(cursorOf(file_cur, begin_screen_line_cur), select_cursor, cursor);
 
       if (selected_style) {
-        wattr_set(ftw, A_NORMAL, DEFAULT_COLOR_HOVER_PAIR, 0);
+        wattr_set(gui_context->ftw, A_NORMAL, DEFAULT_COLOR_HOVER_PAIR, 0);
       }
 
       if (ch.t[0] == '\t') {
         for (int i = 0; i < TAB_SIZE; i++) {
           Char_U8 space = readChar_U8FromInput(' ');
-          printChar_U8ToNcurses(ftw, space);
+          printChar_U8ToNcurses(gui_context->ftw, space);
         }
       }
       else {
-        printChar_U8ToNcurses(ftw, ch);
+        printChar_U8ToNcurses(gui_context->ftw, ch);
       }
 
       if (selected_style) {
-        wattr_set(ftw, A_NORMAL, 0, NULL);
+        wattr_set(gui_context->ftw, A_NORMAL, 0, NULL);
       }
 
       // move to next column
@@ -125,27 +181,27 @@ void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor se
       if (isCursorDisabled(select_cursor) == false
           && isCursorBetweenOthers(cursorOf(file_cur, begin_screen_line_cur), select_cursor, cursor)) {
         // if line selected
-        wattr_set(ftw, A_NORMAL, DEFAULT_COLOR_HOVER_PAIR, 0);
-        wprintw(ftw, " ");
-        wattr_set(ftw, A_NORMAL, 0, NULL);
+        wattr_set(gui_context->ftw, A_NORMAL, DEFAULT_COLOR_HOVER_PAIR, 0);
+        wprintw(gui_context->ftw, " ");
+        wattr_set(gui_context->ftw, A_NORMAL, 0, NULL);
       }
     }
 
     // If the line is not fully display show '>'
     if (hasElementAfterLine(end_screen_line_cur)) {
-      wattron(ftw, A_BOLD|A_UNDERLINE|A_DIM);
-      wprintw(ftw, ">");
-      wattroff(ftw, A_BOLD|A_UNDERLINE|A_DIM);
+      wattron(gui_context->ftw, A_BOLD|A_UNDERLINE|A_DIM);
+      wprintw(gui_context->ftw, ">");
+      wattroff(gui_context->ftw, A_BOLD|A_UNDERLINE|A_DIM);
     }
 
-    wprintw(ftw, "\n");
+    wprintw(gui_context->ftw, "\n");
   }
 
   // Check if cursor is in the screen and print it if needed.
   if (cursor.file_id.absolute_row >= screen_y && cursor.file_id.absolute_row < screen_y + current_lines
       && cursor.line_id.absolute_column >= screen_x - 1 && cursor.line_id.absolute_column <= screen_x + current_columns - 3) {
     int x = getScreenXForCursor(cursor, screen_x);
-    wmove(ftw, cursor.file_id.absolute_row - screen_y, x);
+    wmove(gui_context->ftw, cursor.file_id.absolute_row - screen_y, x);
 
     char size = 1;
     if (hasElementAfterLine(cursor.line_id) == true) {
@@ -154,60 +210,60 @@ void printEditor(WINDOW* ftw, WINDOW* lnw, WINDOW* ofw, Cursor cursor, Cursor se
       size = charPrintSize(getCharForLineIdentifier(tmp.line_id));
     }
 
-    wchgat(ftw, size, A_STANDOUT, 0, NULL);
+    wchgat(gui_context->ftw, size, A_STANDOUT, 0, NULL);
   }
   // box(ofw, 0, 0);
 }
 
-void printOpenedFile(FileContainer* files, int file_count, int current_file, int current_file_offset, WINDOW* ofw) {
+void printOpenedFile(GUIContext* gui_context, FileContainer* files, int file_count, int current_file) {
   // The current position of the cursor for the first line.
-  wmove(ofw, 0, 0);
-  int current_offset = getbegx(ofw);
-  if (current_file_offset != 0) {
+  wmove(gui_context->ofw, 0, 0);
+  int current_offset = getbegx(gui_context->ofw);
+  if (gui_context->current_file_offset != 0) {
     current_offset += strlen("< | ");
-    wattron(ofw, A_DIM);
-    wprintw(ofw, "< | ");
-    wattroff(ofw, A_DIM);
+    wattron(gui_context->ofw, A_DIM);
+    wprintw(gui_context->ofw, "< | ");
+    wattroff(gui_context->ofw, A_DIM);
   }
   // Move to the top left corner.
-  for (int i = current_file_offset; i < file_count; i++) {
+  for (int i = gui_context->current_file_offset; i < file_count; i++) {
     // Style file names.
     if (i == current_file)
-      wattron(ofw, A_BOLD);
+      wattron(gui_context->ofw, A_BOLD);
     else
-      wattron(ofw, A_DIM);
+      wattron(gui_context->ofw, A_DIM);
     // Print file name
     char* file_name = basename(files[i].io_file.path_args);
     current_offset += strlen(file_name);
-    wprintw(ofw, "%s", file_name);
+    wprintw(gui_context->ofw, "%s", file_name);
     // Style file names.
     if (i == current_file)
-      wattroff(ofw, A_BOLD);
+      wattroff(gui_context->ofw, A_BOLD);
     else
-      wattroff(ofw, A_DIM);
+      wattroff(gui_context->ofw, A_DIM);
     // Print file name separator
     if (i < file_count - 1) {
-      wprintw(ofw, FILE_NAME_SEPARATOR);
+      wprintw(gui_context->ofw, FILE_NAME_SEPARATOR);
       current_offset += strlen(FILE_NAME_SEPARATOR);
     }
     // If the file names overflow the line, print the move right text.
     if (current_offset + strlen(FILE_NAME_SEPARATOR) > COLS) {
-      wmove(ofw, 0, COLS - getbegx(ofw) - strlen("... | >"));
-      wattron(ofw, A_DIM);
-      wprintw(ofw, "... | >");
-      wattroff(ofw, A_DIM);
+      wmove(gui_context->ofw, 0, COLS - getbegx(gui_context->ofw) - strlen("... | >"));
+      wattron(gui_context->ofw, A_DIM);
+      wprintw(gui_context->ofw, "... | >");
+      wattroff(gui_context->ofw, A_DIM);
       // assert((i < argc && i < max_opened_file + 1) == false);
       break;
     }
   }
   // To erase the end of the line to avoid garbage on scroll to right.
   for (int i = current_offset; i < COLS; i++) {
-    wprintw(ofw, " ");
+    wprintw(gui_context->ofw, " ");
   }
   // Print the bottom line.
-  wmove(ofw, 1, 0);
+  wmove(gui_context->ofw, 1, 0);
   for (int i = 0; i < COLS; i++) {
-    wprintw(ofw, "🭸");
+    wprintw(gui_context->ofw, "🭸");
   }
 }
 
@@ -287,53 +343,52 @@ void internalPrintExplorerRec(ExplorerFolder* folder, WINDOW* few, int* few_x_of
   }
 }
 
-void printFileExplorer(ExplorerFolder* pwd, WINDOW* few, int few_x_offset, int few_y_offset, int selected_line) {
-  wmove(few, 0, 0);
+void printFileExplorer(GUIContext* gui_context, ExplorerFolder* pwd) {
+  wmove(gui_context->few, 0, 0);
 
-  internalPrintExplorerRec(pwd, few, &few_x_offset, &few_y_offset, 0, &selected_line);
+  internalPrintExplorerRec(pwd, gui_context->few, &gui_context->few_x_offset, &gui_context->few_y_offset, 0, &gui_context->few_selected_line);
   // Clear end of window
-  for (int i = getcury(few) + 1; i < getmaxy(few); i++) {
-    wprintw(few, "\n");
+  for (int i = getcury(gui_context->few) + 1; i < getmaxy(gui_context->few); i++) {
+    wprintw(gui_context->few, "\n");
   }
-  for (int i = getbegy(few); i < getmaxy(few); i++) {
-    mvwprintw(few, i, getmaxx(few) - 1, "│");
+  for (int i = getbegy(gui_context->few); i < getmaxy(gui_context->few); i++) {
+    mvwprintw(gui_context->few, i, getmaxx(gui_context->few) - 1, "│");
   }
 }
 
 ////// -------------- RESIZE FUNCTIONS --------------
 
-void resizeEditorWindows(WINDOW** ftw, WINDOW** lnw, int y_file_editor, int lnw_width, int few_width) {
-  delwin(*ftw);
-  delwin(*lnw);
-  *ftw = newwin(0, 0, y_file_editor, lnw_width + few_width);
-  *lnw = newwin(0, lnw_width, y_file_editor, few_width);
+void resizeEditorWindows(GUIContext* gui_context, int lnw_new_width) {
+  delwin(gui_context->ftw);
+  delwin(gui_context->lnw);
+  gui_context->ftw = newwin(0, 0, gui_context->ofw_height, lnw_new_width + gui_context->few_width);
+  gui_context->lnw = newwin(0, lnw_new_width, gui_context->ofw_height, gui_context->few_width);
 }
 
-void resizeOpenedFileWindow(WINDOW** ofw, bool* refresh_ofw, int edws_offset_y, int few_width) {
-  delwin(*ofw);
-  *ofw = newwin(edws_offset_y, 0, 0, few_width);
-  *refresh_ofw = true;
+void resizeOpenedFileWindow(GUIContext *gui_context) {
+  delwin(gui_context->ofw);
+  gui_context->ofw = newwin(gui_context->ofw_height, 0, 0, gui_context->few_width);
+  gui_context->refresh_ofw = true;
 }
 
-void switchShowFew(WINDOW** few, WINDOW** ofw, WINDOW** ftw, WINDOW** lnw, int* few_width, int* saved_few_width, int ofw_height, bool* refresh_few,
-                   bool* refresh_ofw) {
-  if (*few == NULL) {
+void switchShowFew(GUIContext *gui_context) {
+  if (gui_context->few == NULL) {
     // Open File Explorer Window
-    *few_width = *saved_few_width;
-    *few = newwin(0, *few_width, 0, 0);
-    *refresh_few = true;
+    gui_context->few_width = gui_context->saved_few_width;
+    gui_context->few = newwin(0, gui_context->few_width, 0, 0);
+    gui_context->refresh_few = true;
   }
   else {
     // Close File Explorer Window
-    *saved_few_width = getmaxx(*few);
-    delwin(*few);
-    *few = NULL;
-    *few_width = 0;
+    gui_context->saved_few_width = getmaxx(gui_context->few);
+    delwin(gui_context->few);
+    gui_context->few = NULL;
+    gui_context->few_width = 0;
   }
   // Resize Opened File Window
-  resizeOpenedFileWindow(ofw, refresh_ofw, ofw_height, *few_width);
+  resizeOpenedFileWindow(gui_context);
   // Resize Editor Window
-  resizeEditorWindows(ftw, lnw, ofw_height, getmaxx(*lnw), *few_width);
+  resizeEditorWindows(gui_context, getmaxx(gui_context->lnw));
 }
 
 

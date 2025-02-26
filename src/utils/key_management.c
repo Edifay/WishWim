@@ -14,7 +14,7 @@ int last_clicked_y = 0;
 
 
 // Hard to implement bc there are different behaviour depend on mouse or touchpad is used.
-void detectComplexEvents(MEVENT* event) {
+void detectComplexMouseEvents(MEVENT* event) {
   time_val current_time = timeInMilliseconds();
 
   event->bstate = event->bstate & ~BUTTON1_CLICKED;

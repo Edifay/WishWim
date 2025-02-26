@@ -138,6 +138,31 @@ bool isFileContainerEmpty(FileContainer* container) {
          && areCursorEqual(container->cursor, moveRight(container->cursor));
 }
 
+void setupOpenedFiles(int* file_count, char** file_names, FileContainer** files) {
+  // allocating space for file at open.
+  *files = malloc(sizeof(FileContainer) * max(1, *file_count));
+
+
+  // Fill files with args
+  for (int i = 0; i < *file_count; i++) {
+    setupFileContainer(file_names[i], *files + i);
+
+    if ((*files)[i].lsp_datas.is_enable) {
+      char* dump = dumpSelection(tryToReachAbsPosition((*files)[i].cursor, 1, 0), tryToReachAbsPosition((*files)[i].cursor, INT_MAX, INT_MAX));
+      LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, (*files)[i].lsp_datas.name), (*files)[i].io_file.path_args, dump);
+      free(dump);
+    }
+  }
+  // If no args setup first untitled file.
+  if (*file_count == 0) {
+    *file_count = 1;
+    setupFileContainer("", *files);
+    if ((*files)[0].lsp_datas.is_enable) {
+      LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, (*files)[0].lsp_datas.name), (*files)[0].io_file.path_args, "");
+    }
+  }
+}
+
 //// -------------- CURSOR MANAGEMENT --------------
 
 Cursor moveRight(Cursor cursor) {
@@ -364,6 +389,17 @@ Cursor byteCursorToCursor(Cursor cursor, int row, int byte_column) {
   return cursor;
 }
 
+
+Cursor goToEnd(Cursor cursor) {
+  cursor = cursorOf(cursor.file_id, tryToReachAbsColumn(cursor.line_id, INT_MAX));
+  return cursor;
+}
+
+Cursor goToBegin(Cursor cursor) {
+  cursor = cursorOf(cursor.file_id, tryToReachAbsColumn(cursor.line_id, 0));
+  return cursor;
+}
+
 ////// -------------- SELECTION MANAGEMENT --------------
 
 
@@ -488,7 +524,7 @@ void deleteSelection(Cursor* cursor, Cursor* select_cursor) {
 }
 
 void deleteSelectionWithState(History** history_p, Cursor* cursor, Cursor* select_cursor, PayloadStateChange payload_state_change) {
-  saveAction(history_p, createDeleteAction(*cursor, *select_cursor), onStateChangeTS, (long*)&payload_state_change);
+  saveAction(history_p, createDeleteAction(*cursor, *select_cursor), onStateChangeTS, (long *)&payload_state_change);
   deleteSelection(cursor, select_cursor);
 }
 

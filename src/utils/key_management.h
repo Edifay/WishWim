@@ -34,6 +34,9 @@
 #define H_KEY_CTRL_MAJ_LEFT 263856044
 #define H_KEY_CTRL_MAJ_DOWN 2090395544
 #define H_KEY_CTRL_MAJ_UP 2090414123
+#define H_KEY_BEGIN 1223300438
+#define H_KEY_END 948120068
+#define H_KEY_MAJ_END 1223684887
 
 
 // MOUSE BIND
@@ -41,4 +44,4 @@
 #define BEGIN_MOUSE_LISTEN 588
 #define MOUSE_IN_OUT 589
 
-void detectComplexEvents(MEVENT* event);
+void detectComplexMouseEvents(MEVENT* event);

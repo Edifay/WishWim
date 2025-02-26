@@ -27,8 +27,8 @@
 
 
 /**   TODO list :
- * 		 - Rework the query for highlight to optimise queries. 
- *      - Rework the printEditor for colors. Currently we override char with colored char, that's not optimized.
+ *       - Rework the query for highlight to optimise queries.
+ *       - Rework the printEditor for colors. Currently we override char with colored char, that's not optimized.
  *          Create a struct to define a coloration in a file, and calculate it before each paint.
  *
  *      
@@ -57,151 +57,44 @@ void dispatcher(cJSON* packet, long* payload) {
 
 
 int main(int file_count, char** args) {
+  setlocale(LC_ALL, "");
   // TODO Remove when lsp_logs.txt will be unused.
   // system("echo "" > lsp_logs.txt");
   // system("echo "" > tree_logs.txt");
+
   // remove first args which is the executable file name.
   char** file_names = args;
   file_names++;
   file_count--;
-  setlocale(LC_ALL, "");
 
+  /// --- Init global vars ---
   // Load config
   config = loadConfig();
-
   // Parser Datas
   initParserList(&parsers);
+  // LSP Datas
   initLSPServerList(&lsp_servers);
 
-  // Init GUI vars
-  WINDOW* ftw = NULL; // File Text Window
-  WINDOW* lnw = NULL; // Line Number Window
-  WINDOW* ofw = NULL; // Opened Files Window
-  WINDOW* few = NULL; // File Explorer Window
-  bool refresh_edw = true; // Need to reprint editor window
-  bool refresh_ofw = true; // Need to reprint opened file window
-  bool refresh_few = true; // Need to reprint file explorer window
-  WINDOW* focus_w = NULL; // Used to set the window where start mouse drag
+  /// --- Init TUI ---
+  // Init GUIContext
+  GUIContext gui_context;
+  initGUIContext(&gui_context);
+  // Init terminal with ncurses
+  initNCurses(&gui_context);
 
-  // EDW Datas
-
-  // OFW Datas
-  int current_file_offset = 0;
-  int ofw_height = 0; // Height of Opened Files Window. 0 => Disabled on start.   OPENED_FILE_WINDOW_HEIGHT => Enabled on start.
-
-  // Few Datas
-  int few_width = 0; // File explorer width
-  int saved_few_width = FILE_EXPLORER_WIDTH;
-  int few_x_offset = 0; /* TODO unused */
-  int few_y_offset = 0; // Y Scroll state of File Explorer Window
-  int few_selected_line = -1;
-
-  // Init ncurses
-  initscr();
-  ftw = newwin(0, 0, ofw_height, few_width);
-  lnw = newwin(0, 0, 0, few_width);
-  ofw = newwin(ofw_height, 0, 0, few_width);
-  // Keyboard setup
-  raw();
-  keypad(stdscr, TRUE);
-  noecho();
-  curs_set(0);
-  // Mouse setup
-  mouseinterval(0);
-  mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
-  timeout(100);
-  printf("\033[?1003h"); // enable mouse tracking
-  fflush(stdout);
-  // Color setup
-  start_color();
-  // Default color.
-  init_color(COLOR_HOVER, 390, 390, 390);
-  init_pair(DEFAULT_COLOR_PAIR, COLOR_WHITE, COLOR_BLACK);
-  init_pair(DEFAULT_COLOR_HOVER_PAIR, COLOR_WHITE, COLOR_HOVER);
-  init_pair(ERROR_COLOR_PAIR, COLOR_RED, COLOR_BLACK);
-  init_pair(ERROR_COLOR_HOVER_PAIR, COLOR_RED, COLOR_HOVER);
-
+  /// --- Setup Files ---
   // Containers of current opened buffers.
   FileContainer* files;
   int current_file_index = 0; // The current showed file.
-
   // Detect workspace settings
-  loaded_settings.is_used = false;
-  if (file_count == 1 || file_count == 0) {
-    char* dir_name = file_count == 0 ? getenv("PWD") : file_names[0];
+  setupWorkspace(&loaded_settings, &file_count, &file_names, &gui_context, &current_file_index);
+  // Opening files and setup vars
+  setupOpenedFiles(&file_count, file_names, &files);
 
-    if (isDir(dir_name)) {
-      loaded_settings.dir_path = dir_name;
-      loaded_settings.is_used = true;
-
-      bool settings_exist = loadWorkspaceSettings(dir_name, &loaded_settings);
-
-      // consume dir name
-      if (file_count == 1) {
-        file_count--;
-        file_names++;
-      }
-      assert(file_count == 0);
-
-      if (settings_exist) {
-        // Setup opened files.
-        file_count = loaded_settings.file_count;
-        file_names = loaded_settings.files;
-
-
-        // --- UI State ---
-
-        // Current showed file.
-        current_file_index = loaded_settings.current_opened_file;
-
-        // File Opened Window state.
-        if (loaded_settings.showing_opened_file_window == true) {
-          ofw_height = OPENED_FILE_WINDOW_HEIGHT;
-        }
-        else {
-          ofw_height = 0;
-        }
-
-        // File Explorer Window state.
-        if (loaded_settings.showing_file_explorer_window == true) {
-          ungetch(CTRL('e'));
-        }
-      }
-    }
-  }
-
-
-  // allocating space for file at open.
-  files = malloc(sizeof(FileContainer) * max(1, file_count));
-
-
-  // Fill files with args
-  for (int i = 0; i < file_count; i++) {
-    setupFileContainer(file_names[i], files + i);
-
-    if (files[i].lsp_datas.is_enable) {
-      char* dump = dumpSelection(tryToReachAbsPosition(files[i].cursor, 1, 0), tryToReachAbsPosition(files[i].cursor, INT_MAX, INT_MAX));
-      LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, files[i].lsp_datas.name), files[i].io_file.path_args, dump);
-      free(dump);
-    }
-  }
-  // If no args setup first untitled file.
-  if (file_count == 0) {
-    file_count = 1;
-    setupFileContainer("", files);
-    if (files[0].lsp_datas.is_enable) {
-      LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, files[0].lsp_datas.name), files[0].io_file.path_args, "");
-    }
-  }
-
+  /// --- Init Folder Explorer ---
   // Folder used for file explorer.
   ExplorerFolder pwd;
-  if (loaded_settings.is_used == true) {
-    initFolder(loaded_settings.dir_path, &pwd);
-  }
-  else {
-    initFolder(getenv("PWD"), &pwd);
-  }
+  initFolder(loaded_settings.is_used == true ? loaded_settings.dir_path : getenv("PWD"), &pwd);
   pwd.open = true;
 
 
@@ -222,7 +115,7 @@ int main(int file_count, char** args) {
 
   bool refresh_local_vars = true; // Need to re-set local vars
 
-  // Start automated-machine
+  //  --- Begin of the Automaton ---
   Cursor tmp;
   MEVENT m_event;
   History* old_history_frame;
@@ -244,7 +137,7 @@ int main(int file_count, char** args) {
     // flag cursor change
     if (!areCursorEqual(*cursor, *old_cur)) {
       *old_cur = *cursor;
-      moveScreenToMatchCursor(ftw, *cursor, screen_x, screen_y);
+      moveScreenToMatchCursor(gui_context.ftw, *cursor, screen_x, screen_y);
     }
 
     // flag screen_x change
@@ -257,9 +150,9 @@ int main(int file_count, char** args) {
     if (*old_screen_y != *screen_y) {
       *old_screen_y = *screen_y;
       // resize lnw_w to match with line_number_length
-      int new_lnw_width = numberOfDigitOfNumber(*screen_y + getmaxy(ftw)) + 1 /* +1 for the line */;
-      if (new_lnw_width != getbegx(ftw)) {
-        resizeEditorWindows(&ftw, &lnw, ofw_height, new_lnw_width, few_width);
+      int new_lnw_width = numberOfDigitOfNumber(*screen_y + getmaxy(gui_context.ftw)) + 1 /* +1 for the line */;
+      if (new_lnw_width != getbegx(gui_context.ftw)) {
+        resizeEditorWindows(&gui_context, new_lnw_width);
       }
     }
 
@@ -276,50 +169,46 @@ int main(int file_count, char** args) {
     refresh();
 
     // Refresh File Explorer Window
-    if (refresh_few == true && few_width != 0 && few != NULL) {
-      printFileExplorer(&pwd, few, few_x_offset, few_y_offset, few_selected_line);
-      wrefresh(few);
-      refresh_few = false;
+    if (gui_context.refresh_few == true && gui_context.few_width != 0 && gui_context.few != NULL) {
+      printFileExplorer(&gui_context, &pwd);
+      wrefresh(gui_context.few);
+      gui_context.refresh_few = false;
     }
 
     // Refresh File Opened Window
-    if ((refresh_ofw == true || files[current_file_index].io_file.status == NONE) && ofw_height != 0) {
-      printOpenedFile(files, file_count, current_file_index, current_file_offset, ofw);
-      wrefresh(ofw);
-      refresh_ofw = false;
+    if ((gui_context.refresh_ofw == true || files[current_file_index].io_file.status == NONE) && gui_context.ofw_height != 0) {
+      printOpenedFile(&gui_context, files, file_count, current_file_index);
+      wrefresh(gui_context.ofw);
+      gui_context.refresh_ofw = false;
     }
 
     // Refresh Editor Windows
-    if (refresh_edw == true) {
-      printEditor(ftw, lnw, ofw, *cursor, *select_cursor, *screen_x, *screen_y);
+    if (gui_context.refresh_edw == true) {
+      printEditor(&gui_context, *cursor, *select_cursor, *screen_x, *screen_y);
 
       // If highlight is enable on this file.
       if (highlight_data->is_active == true) {
-        highlightCurrentFile(highlight_data, ftw, screen_x, screen_y, cursor, select_cursor);
+        highlightCurrentFile(highlight_data, gui_context.ftw, screen_x, screen_y, cursor, select_cursor);
       }
 
-      wrefresh(lnw);
-      wrefresh(ftw);
+      wrefresh(gui_context.lnw);
+      wrefresh(gui_context.ftw);
     }
 
 
     assert(checkFileIntegrity(*root) == true);
+    assert(checkByteCountIntegrity(*root) == true);
 
   read_input:
     int c = getch();
     int hash = c;
 
+    // When available use keyname instead of key_code which is not portable.
     if (c != KEY_MOUSE && c != -1) {
       // fprintf(stderr, "Code %d, Key : '%s' hash into %d.\n", c, keyname(c), hashString(keyname(c)));
-    }
-
-
-    if (c != KEY_MOUSE && c != -1) {
       const char* key_str = keyname(c);
       if (key_str != NULL && key_str[0] != '\0') {
-        if (key_str[0] == '^') {
-        }
-        else {
+        if (key_str[0] != '^') {
           hash = hashString(key_str);
         }
       }
@@ -346,11 +235,11 @@ int main(int file_count, char** args) {
       case MOUSE_IN_OUT:
       case H_KEY_RESIZE:
         // Was there but idk why... => Avoid biggest size only used on time before automated resize.
-        assert((getmaxx(lnw) + few_width >= COLS) == false);
+        assert((getmaxx(gui_context.lnw) + gui_context.few_width >= COLS) == false);
       // Resize Opened File Window
-        resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
-        resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw), few_width);
-        refresh_ofw = refresh_edw = refresh_few = true;
+        resizeOpenedFileWindow(&gui_context);
+        resizeEditorWindows(&gui_context, getmaxx(gui_context.lnw));
+        gui_context.refresh_ofw = gui_context.refresh_edw = gui_context.refresh_few = true;
         break;
 
       // ---------------------- MOUSE ----------------------
@@ -362,7 +251,7 @@ int main(int file_count, char** args) {
           break;
         }
 
-        detectComplexEvents(&m_event);
+        detectComplexMouseEvents(&m_event);
 
       // Avoid refreshing when it's just mouse movement with no change.
         if (m_event.bstate == NO_EVENT_MOUSE /*No event state*/ && mouse_drag == false) {
@@ -383,32 +272,30 @@ int main(int file_count, char** args) {
           mouse_drag = true;
         }
 
-        if ((m_event.x < getbegx(lnw) && focus_w == NULL) || (few != NULL && focus_w == few)) {
+        if ((m_event.x < getbegx(gui_context.lnw) && gui_context.focus_w == NULL) || (gui_context.few != NULL && gui_context.focus_w == gui_context.few)) {
           // Click in File Explorer Window
           if (m_event.bstate & BUTTON1_PRESSED) {
-            focus_w = few;
+            gui_context.focus_w = gui_context.few;
           }
-          handleFileExplorerClick(&files, &file_count, &current_file_index, &pwd, &few_y_offset, &few_x_offset, &few_width, &few_selected_line, ofw_height, ofw_height, &few, &ofw,
-                                  &lnw, &ftw,
-                                  m_event, &refresh_few, &refresh_ofw, &refresh_edw, &refresh_local_vars);
+          handleFileExplorerClick(&gui_context, &files, &file_count, &current_file_index, &pwd, m_event, &refresh_local_vars);
         }
-        else if ((m_event.y - ofw_height < 0 && focus_w == NULL) || (ofw != NULL && focus_w == ofw)) {
+        else if ((m_event.y - gui_context.ofw_height < 0 && gui_context.focus_w == NULL) || (gui_context.ofw != NULL && gui_context.focus_w == gui_context.ofw)) {
           // Click on opened file window
           if (m_event.bstate & BUTTON1_PRESSED) {
-            focus_w = ofw;
+            gui_context.focus_w = gui_context.ofw;
           }
-          handleOpenedFileClick(files, &file_count, &current_file_index, m_event, &current_file_offset, ofw, &refresh_ofw, &refresh_local_vars, mouse_drag);
+          handleOpenedFileClick(&gui_context, files, &file_count, &current_file_index, m_event, &refresh_local_vars, mouse_drag);
         }
         else {
           // Click on editor windows
           if (m_event.bstate & BUTTON1_PRESSED) {
-            focus_w = ftw;
+            gui_context.focus_w = gui_context.ftw;
           }
-          handleEditorClick(getbegx(ftw), ofw_height, cursor, select_cursor, desired_column, screen_x, screen_y, &m_event, mouse_drag);
+          handleEditorClick(&gui_context, cursor, select_cursor, desired_column, screen_x, screen_y, &m_event, mouse_drag);
         }
 
         if (m_event.bstate & BUTTON1_RELEASED) {
-          focus_w = NULL;
+          gui_context.focus_w = NULL;
           mouse_drag = false;
         }
 
@@ -487,7 +374,7 @@ int main(int file_count, char** args) {
           current_file_index--;
         refresh_local_vars = true;
       // TODO check if the file selected is showing in ofw. If not move it in.
-        refresh_ofw = true;
+        gui_context.refresh_ofw = true;
         break;
       case H_KEY_CTRL_MAJ_UP:
         // Do something with this.
@@ -495,7 +382,29 @@ int main(int file_count, char** args) {
           current_file_index++;
         refresh_local_vars = true;
       // TODO check if the file selected is showing in ofw. If not move it in.
-        refresh_ofw = true;
+        gui_context.refresh_ofw = true;
+        break;
+      case H_KEY_BEGIN:
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
+        *cursor = goToBegin(*cursor);
+        setDesiredColumn(*cursor, desired_column);
+      // Next is to go to the first non empty char and not to the begin of the line.
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
+        *cursor = moveToNextWord(*cursor);
+        setDesiredColumn(*cursor, desired_column);
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
+        *cursor = moveToPreviousWord(*cursor);
+        setDesiredColumn(*cursor, desired_column);
+        break;
+      case H_KEY_END:
+        setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
+        *cursor = goToEnd(*cursor);
+        setDesiredColumn(*cursor, desired_column);
+        break;
+      case H_KEY_MAJ_END:
+        setSelectCursorOn(*cursor, select_cursor);
+        *cursor = goToEnd(*cursor);
+        setDesiredColumn(*cursor, desired_column);
         break;
 
       // ---------------------- FILE MANAGEMENT ----------------------
@@ -545,7 +454,7 @@ int main(int file_count, char** args) {
           }
         goto end;
       case CTRL('w'):
-        closeFile(&files, &file_count, &current_file_index, &refresh_ofw, &refresh_edw, &refresh_local_vars);
+        closeFile(&files, &file_count, &current_file_index, &gui_context.refresh_ofw, &gui_context.refresh_edw, &refresh_local_vars);
         break;
       case CTRL('s'):
         if (io_file->status == NONE) {
@@ -625,19 +534,19 @@ int main(int file_count, char** args) {
 
 
       case CTRL('e'): // File Explorer Window Switch
-        switchShowFew(&few, &ofw, &ftw, &lnw, &few_width, &saved_few_width, ofw_height, &refresh_few, &refresh_ofw);
+        switchShowFew(&gui_context);
         break;
       case CTRL('l'): // Opened File Window Switch
-        if (ofw_height == OPENED_FILE_WINDOW_HEIGHT) {
-          ofw_height = 0;
+        if (gui_context.ofw_height == OPENED_FILE_WINDOW_HEIGHT) {
+          gui_context.ofw_height = 0;
         }
         else {
-          ofw_height = OPENED_FILE_WINDOW_HEIGHT;
+          gui_context.ofw_height = OPENED_FILE_WINDOW_HEIGHT;
         }
-        resizeOpenedFileWindow(&ofw, &refresh_ofw, ofw_height, few_width);
-        resizeEditorWindows(&ftw, &lnw, ofw_height, getmaxx(lnw), few_width);
-        refresh_ofw = true;
-        refresh_edw = true;
+        resizeOpenedFileWindow(&gui_context);
+        resizeEditorWindows(&gui_context, getmaxx(gui_context.lnw));
+        gui_context.refresh_ofw = true;
+        gui_context.refresh_edw = true;
         break;
       case CTRL(' '): // LSP_completion
 
@@ -669,7 +578,7 @@ end:
 
   if (loaded_settings.is_used == true) {
     WorkspaceSettings new_settings;
-    getWorkspaceSettingsForCurrentDir(&new_settings, files, file_count, current_file_index, ofw_height != 0, few_width != 0, FILE_EXPLORER_WIDTH);
+    getWorkspaceSettingsForCurrentDir(&new_settings, files, file_count, current_file_index, gui_context.ofw_height != 0, gui_context.few_width != 0, FILE_EXPLORER_WIDTH);
     saveWorkspaceSettings(loaded_settings.dir_path, &new_settings);
     destroyWorkspaceSettings(&new_settings);
   }

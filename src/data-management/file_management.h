@@ -47,6 +47,8 @@ void setupLocalVars(FileContainer* files, int current_file, IO_FileID** io_file,
 
 bool isFileContainerEmpty(FileContainer *container);
 
+void setupOpenedFiles(int* file_count, char** file_names, FileContainer** files);
+
 
 ////// -------------- CURSOR ACTIONS --------------
 
@@ -69,6 +71,9 @@ Cursor moveToPreviousWord(Cursor cursor);
 Cursor insertCharArrayAtCursor(Cursor cursor, char* chs);
 
 Cursor byteCursorToCursor(Cursor cursor, int row, int byte_column);
+
+Cursor goToEnd(Cursor cursor);
+Cursor goToBegin(Cursor cursor);
 
 ////// -------------- SELECTION MANAGEMENT --------------
 

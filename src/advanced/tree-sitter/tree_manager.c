@@ -385,10 +385,7 @@ void setFileHighlightDatas(FileHighlightDatas* data, IO_FileID io_file) {
     parser = getParserForLanguage(&parsers, data->lang_name);
   }
 
-  if (parser != NULL) {
-    data->is_active = true;
-  }
-
+  data->is_active = parser != NULL;
   data->tree = NULL;
   data->tmp_file_dump = NULL;
 }
@@ -468,7 +465,7 @@ void onStateChangeTS(Action action, long* payload_p) {
     // To force the match with previous node.
       break;
     case DELETE_ONE:
-      system("echo \"=== DELETE_ONE ===\" >> tree_logs.txt");
+      // system("echo \"=== DELETE_ONE ===\" >> tree_logs.txt");
       assert(action.byte_start != -1);
       edit.start_byte = action.byte_start;
       edit.start_point.row = action.cur.file_id.absolute_row - 1;

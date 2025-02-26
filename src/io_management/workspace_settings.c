@@ -1,7 +1,13 @@
 #include "workspace_settings.h"
+
+#include <assert.h>
+
 #include "../config/config.h"
 
 #include <string.h>
+#include <sys/ttydefaults.h>
+#include "../utils/constants.h"
+
 
 
 void getWorkspaceSettingsForCurrentDir(WorkspaceSettings* settings, FileContainer* files, int file_count, int current_file, bool showing_opened_file_window,
@@ -78,7 +84,7 @@ bool loadWorkspaceSettings(char* dir_path, WorkspaceSettings* settings) {
     settings->showing_file_explorer_window = false;
     settings->showing_opened_file_window = false;
     settings->file_explorer_size = 0;
-    fprintf(stderr, "Unable to load dir settings.\r\n");
+    // fprintf(stderr, "Unable to load dir settings.\r\n");
     return false;
   }
 
@@ -135,4 +141,50 @@ void JSONToWorkspaceSettings(WorkspaceSettings* settings, cJSON* json) {
   settings->showing_opened_file_window = cJSON_IsTrue(cJSON_GetObjectItem(json, "showing_opened_file_window"));
   settings->showing_file_explorer_window = cJSON_IsTrue(cJSON_GetObjectItem(json, "showing_file_explorer_window"));
   settings->file_explorer_size = cJSON_GetNumberValue(cJSON_GetObjectItem(json, "file_explorer_size"));
+}
+
+void setupWorkspace(WorkspaceSettings *loaded_settings, int* file_count, char*** file_names, GUIContext* gui_context, int* current_file_index) {
+  loaded_settings->is_used = false;
+  if (*file_count == 1 || *file_count == 0) {
+    char* dir_name = *file_count == 0 ? getenv("PWD") : (*file_names)[0];
+
+    if (isDir(dir_name)) {
+      loaded_settings->dir_path = dir_name;
+      loaded_settings->is_used = true;
+
+      bool settings_exist = loadWorkspaceSettings(dir_name, loaded_settings);
+
+      // consume dir name
+      if (*file_count == 1) {
+        (*file_count)--;
+        (*file_names)++;
+      }
+      assert((*file_count) == 0);
+
+      if (settings_exist) {
+        // Setup opened files.
+        *file_count = loaded_settings->file_count;
+        *file_names = loaded_settings->files;
+
+
+        // --- UI State ---
+
+        // Current showed file.
+        *current_file_index = loaded_settings->current_opened_file;
+
+        // File Opened Window state.
+        if (loaded_settings->showing_opened_file_window == true) {
+          gui_context->ofw_height = OPENED_FILE_WINDOW_HEIGHT;
+        }
+        else {
+          gui_context->ofw_height = 0;
+        }
+
+        // File Explorer Window state.
+        if (loaded_settings->showing_file_explorer_window == true) {
+          ungetch(CTRL('e'));
+        }
+      }
+    }
+  }
 }
