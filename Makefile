@@ -4,7 +4,7 @@ CC=clang
 CFLAGS=-g -O3 #-fsanitize=address # -lncurses # -Wall -Wextra -Werror -gdwarf-4
 #LDFLAGS +=-fsanitize=address
 
-executable= al lsp_test #test_line.o test_file.o  test_line test_file  # utils/debug.o
+executable= al # lsp_test #test_line.o test_file.o  test_line test_file  # utils/debug.o
 modules= \
 	src/data-management/utf_8_extractor.o src/data-management/file_structure.o src/data-management/file_management.o src/utils/tools.o    \
 	src/io_management/io_manager.o src/utils/key_management.o src/utils/clipboard_manager.o src/io_management/viewport_history.o         \
