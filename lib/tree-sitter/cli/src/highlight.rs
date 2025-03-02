@@ -1,22 +1,23 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::Write,
     fs,
     io::{self, Write as _},
-    path, str,
-    sync::atomic::AtomicUsize,
+    path::{self, Path, PathBuf},
+    str,
+    sync::{atomic::AtomicUsize, Arc},
     time::Instant,
 };
 
+use ansi_colours::{ansi256_from_rgb, rgb_from_ansi256};
 use anstyle::{Ansi256Color, AnsiColor, Color, Effects, RgbColor};
 use anyhow::Result;
-use lazy_static::lazy_static;
 use serde::{ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{json, Value};
 use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter, HtmlRenderer};
 use tree_sitter_loader::Loader;
 
-pub const HTML_HEADER: &str = "
+pub const HTML_HEAD_HEADER: &str = "
 <!doctype HTML>
 <head>
   <title>Tree-sitter Highlighting</title>
@@ -33,7 +34,9 @@ pub const HTML_HEADER: &str = "
     .line {
       white-space: pre;
     }
-  </style>
+  </style>";
+
+pub const HTML_BODY_HEADER: &str = "
 </head>
 <body>
 ";
@@ -41,11 +44,6 @@ pub const HTML_HEADER: &str = "
 pub const HTML_FOOTER: &str = "
 </body>
 ";
-
-lazy_static! {
-    static ref CSS_STYLES_BY_COLOR_ID: Vec<String> =
-        serde_json::from_str(include_str!("../vendor/xterm-colors.json")).unwrap();
-}
 
 #[derive(Debug, Default)]
 pub struct Style {
@@ -156,28 +154,32 @@ impl Serialize for Theme {
 impl Default for Theme {
     fn default() -> Self {
         serde_json::from_value(json!({
-              "attribute": {"color": 124, "italic": true},
-              "comment": {"color": 245, "italic": true},
-              "constant.builtin": {"color": 94, "bold": true},
-              "constant": 94,
-              "constructor": 136,
-              "embedded": null,
-              "function.builtin": {"color": 26, "bold": true},
-              "function": 26,
-              "keyword": 56,
-              "number": {"color": 94, "bold": true},
-              "module": 136,
-              "property": 124,
-              "operator": {"color": 239, "bold": true},
-              "punctuation.bracket": 239,
-              "punctuation.delimiter": 239,
-              "string.special": 30,
-              "string": 28,
-              "tag": 18,
-              "type": 23,
-              "type.builtin": {"color": 23, "bold": true},
-              "variable.builtin": {"bold": true},
-              "variable.parameter": {"underline": true}
+            "attribute": {"color": 124, "italic": true},
+            "comment": {"color": 245, "italic": true},
+            "constant": 94,
+            "constant.builtin": {"color": 94, "bold": true},
+            "constructor": 136,
+            "embedded": null,
+            "function": 26,
+            "function.builtin": {"color": 26, "bold": true},
+            "keyword": 56,
+            "module": 136,
+            "number": {"color": 94, "bold": true},
+            "operator": {"color": 239, "bold": true},
+            "property": 124,
+            "property.builtin": {"color": 124, "bold": true},
+            "punctuation": 239,
+            "punctuation.bracket": 239,
+            "punctuation.delimiter": 239,
+            "punctuation.special": 239,
+            "string": 28,
+            "string.special": 30,
+            "tag": 18,
+            "type": 23,
+            "type.builtin": {"color": 23, "bold": true},
+            "variable": 252,
+            "variable.builtin": {"color": 252, "bold": true},
+            "variable.parameter": {"color": 252, "underline": true}
         }))
         .unwrap()
     }
@@ -220,9 +222,8 @@ fn parse_style(style: &mut Style, json: Value) {
 
     if let Some(Color::Rgb(RgbColor(red, green, blue))) = style.ansi.get_fg_color() {
         if !terminal_supports_truecolor() {
-            style.ansi = style
-                .ansi
-                .fg_color(Some(closest_xterm_color(red, green, blue)));
+            let ansi256 = Color::Ansi256(Ansi256Color(ansi256_from_rgb((red, green, blue))));
+            style.ansi = style.ansi.fg_color(Some(ansi256));
         }
     }
 }
@@ -268,7 +269,7 @@ fn hex_string_to_rgb(s: &str) -> Option<(u8, u8, u8)> {
 }
 
 fn style_to_css(style: anstyle::Style) -> String {
-    let mut result = "style='".to_string();
+    let mut result = String::new();
     let effects = style.get_effects();
     if effects.contains(Effects::UNDERLINE) {
         write!(&mut result, "text-decoration: underline;").unwrap();
@@ -282,7 +283,6 @@ fn style_to_css(style: anstyle::Style) -> String {
     if let Some(color) = style.get_fg_color() {
         write_color(&mut result, color);
     }
-    result.push('\'');
     result
 }
 
@@ -300,126 +300,157 @@ fn write_color(buffer: &mut String, color: Color) {
             _ => unreachable!(),
         },
         Color::Ansi256(Ansi256Color(n)) => {
-            write!(buffer, "color: {}", CSS_STYLES_BY_COLOR_ID[n as usize]).unwrap()
+            let (r, g, b) = rgb_from_ansi256(n);
+            write!(buffer, "color: #{r:02x}{g:02x}{b:02x}").unwrap();
         }
         Color::Rgb(RgbColor(r, g, b)) => write!(buffer, "color: #{r:02x}{g:02x}{b:02x}").unwrap(),
     }
 }
 
 fn terminal_supports_truecolor() -> bool {
-    std::env::var("COLORTERM").map_or(false, |truecolor| {
-        truecolor == "truecolor" || truecolor == "24bit"
-    })
+    std::env::var("COLORTERM")
+        .is_ok_and(|truecolor| truecolor == "truecolor" || truecolor == "24bit")
 }
 
-fn closest_xterm_color(red: u8, green: u8, blue: u8) -> Color {
-    use std::cmp::{max, min};
-
-    let colors = CSS_STYLES_BY_COLOR_ID
-        .iter()
-        .enumerate()
-        .map(|(color_id, hex)| (color_id as u8, hex_string_to_rgb(hex).unwrap()));
-
-    // Get the xterm color with the minimum Euclidean distance to the target color
-    // i.e.  distance = √ (r2 - r1)² + (g2 - g1)² + (b2 - b1)²
-    let distances = colors.map(|(color_id, (r, g, b))| {
-        let r_delta = (max(r, red) - min(r, red)) as u32;
-        let g_delta = (max(g, green) - min(g, green)) as u32;
-        let b_delta = (max(b, blue) - min(b, blue)) as u32;
-        let distance = r_delta.pow(2) + g_delta.pow(2) + b_delta.pow(2);
-        // don't need to actually take the square root for the sake of comparison
-        (color_id, distance)
-    });
-
-    Color::Ansi256(Ansi256Color(
-        distances.min_by(|(_, d1), (_, d2)| d1.cmp(d2)).unwrap().0,
-    ))
+pub struct HighlightOptions {
+    pub theme: Theme,
+    pub check: bool,
+    pub captures_path: Option<PathBuf>,
+    pub inline_styles: bool,
+    pub html: bool,
+    pub quiet: bool,
+    pub print_time: bool,
+    pub cancellation_flag: Arc<AtomicUsize>,
 }
 
-pub fn ansi(
+pub fn highlight(
     loader: &Loader,
-    theme: &Theme,
-    source: &[u8],
+    path: &Path,
+    name: &str,
     config: &HighlightConfiguration,
-    print_time: bool,
-    cancellation_flag: Option<&AtomicUsize>,
+    print_name: bool,
+    opts: &HighlightOptions,
 ) -> Result<()> {
-    let stdout = io::stdout();
-    let mut stdout = stdout.lock();
-    let time = Instant::now();
-    let mut highlighter = Highlighter::new();
-
-    let events = highlighter.highlight(config, source, cancellation_flag, |string| {
-        loader.highlight_config_for_injection_string(string)
-    })?;
-
-    let mut style_stack = vec![theme.default_style().ansi];
-    for event in events {
-        match event? {
-            HighlightEvent::HighlightStart(highlight) => {
-                style_stack.push(theme.styles[highlight.0].ansi);
-            }
-            HighlightEvent::HighlightEnd => {
-                style_stack.pop();
-            }
-            HighlightEvent::Source { start, end } => {
-                let style = style_stack.last().unwrap();
-                write!(&mut stdout, "{style}").unwrap();
-                stdout.write_all(&source[start..end])?;
-                write!(&mut stdout, "{style:#}").unwrap();
+    if opts.check {
+        let names = if let Some(path) = opts.captures_path.as_deref() {
+            let file = fs::read_to_string(path)?;
+            let capture_names = file
+                .lines()
+                .filter_map(|line| {
+                    if line.trim().is_empty() || line.trim().starts_with(';') {
+                        return None;
+                    }
+                    line.split(';').next().map(|s| s.trim().trim_matches('"'))
+                })
+                .collect::<HashSet<_>>();
+            config.nonconformant_capture_names(&capture_names)
+        } else {
+            config.nonconformant_capture_names(&HashSet::new())
+        };
+        if names.is_empty() {
+            eprintln!("All highlight captures conform to standards.");
+        } else {
+            eprintln!(
+                "Non-standard highlight {} detected:",
+                if names.len() > 1 {
+                    "captures"
+                } else {
+                    "capture"
+                }
+            );
+            for name in names {
+                eprintln!("* {name}");
             }
         }
     }
 
-    if print_time {
-        eprintln!("Time: {}ms", time.elapsed().as_millis());
-    }
-
-    Ok(())
-}
-
-pub fn html(
-    loader: &Loader,
-    theme: &Theme,
-    source: &[u8],
-    config: &HighlightConfiguration,
-    quiet: bool,
-    print_time: bool,
-    cancellation_flag: Option<&AtomicUsize>,
-) -> Result<()> {
-    use std::io::Write;
-
+    let source = fs::read(path)?;
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
     let time = Instant::now();
     let mut highlighter = Highlighter::new();
+    let events =
+        highlighter.highlight(config, &source, Some(&opts.cancellation_flag), |string| {
+            loader.highlight_config_for_injection_string(string)
+        })?;
+    let theme = &opts.theme;
 
-    let events = highlighter.highlight(config, source, cancellation_flag, |string| {
-        loader.highlight_config_for_injection_string(string)
-    })?;
-
-    let mut renderer = HtmlRenderer::new();
-    renderer.render(events, source, &move |highlight| {
-        theme.styles[highlight.0]
-            .css
-            .as_ref()
-            .map_or_else(|| "".as_bytes(), |css_style| css_style.as_bytes())
-    })?;
-
-    if !quiet {
-        writeln!(&mut stdout, "<table>")?;
-        for (i, line) in renderer.lines().enumerate() {
-            writeln!(
-                &mut stdout,
-                "<tr><td class=line-number>{}</td><td class=line>{line}</td></tr>",
-                i + 1,
-            )?;
-        }
-
-        writeln!(&mut stdout, "</table>")?;
+    if !opts.quiet && print_name {
+        writeln!(&mut stdout, "{name}")?;
     }
 
-    if print_time {
+    if opts.html {
+        if !opts.quiet {
+            writeln!(&mut stdout, "{HTML_HEAD_HEADER}")?;
+            writeln!(&mut stdout, "  <style>")?;
+            let names = theme.highlight_names.iter();
+            let styles = theme.styles.iter();
+            for (name, style) in names.zip(styles) {
+                if let Some(css) = &style.css {
+                    writeln!(&mut stdout, "    .{name} {{ {css}; }}")?;
+                }
+            }
+            writeln!(&mut stdout, "  </style>")?;
+            writeln!(&mut stdout, "{HTML_BODY_HEADER}")?;
+        }
+
+        let mut renderer = HtmlRenderer::new();
+        renderer.render(events, &source, &move |highlight, output| {
+            if opts.inline_styles {
+                output.extend(b"style='");
+                output.extend(
+                    theme.styles[highlight.0]
+                        .css
+                        .as_ref()
+                        .map_or_else(|| "".as_bytes(), |css_style| css_style.as_bytes()),
+                );
+                output.extend(b"'");
+            } else {
+                output.extend(b"class='");
+                let mut parts = theme.highlight_names[highlight.0].split('.').peekable();
+                while let Some(part) = parts.next() {
+                    output.extend(part.as_bytes());
+                    if parts.peek().is_some() {
+                        output.extend(b" ");
+                    }
+                }
+                output.extend(b"'");
+            }
+        })?;
+
+        if !opts.quiet {
+            writeln!(&mut stdout, "<table>")?;
+            for (i, line) in renderer.lines().enumerate() {
+                writeln!(
+                    &mut stdout,
+                    "<tr><td class=line-number>{}</td><td class=line>{line}</td></tr>",
+                    i + 1,
+                )?;
+            }
+            writeln!(&mut stdout, "</table>")?;
+            writeln!(&mut stdout, "{HTML_FOOTER}")?;
+        }
+    } else {
+        let mut style_stack = vec![theme.default_style().ansi];
+        for event in events {
+            match event? {
+                HighlightEvent::HighlightStart(highlight) => {
+                    style_stack.push(theme.styles[highlight.0].ansi);
+                }
+                HighlightEvent::HighlightEnd => {
+                    style_stack.pop();
+                }
+                HighlightEvent::Source { start, end } => {
+                    let style = style_stack.last().unwrap();
+                    write!(&mut stdout, "{style}").unwrap();
+                    stdout.write_all(&source[start..end])?;
+                    write!(&mut stdout, "{style:#}").unwrap();
+                }
+            }
+        }
+    }
+
+    if opts.print_time {
         eprintln!("Time: {}ms", time.elapsed().as_millis());
     }
 
@@ -450,7 +481,7 @@ mod tests {
             style.ansi.get_fg_color(),
             Some(Color::Ansi256(Ansi256Color(36)))
         );
-        assert_eq!(style.css, Some("style=\'color: #00af87\'".to_string()));
+        assert_eq!(style.css, Some("color: #00af87".to_string()));
 
         // junglegreen is not an ANSI color and is preserved when the terminal supports it
         env::set_var("COLORTERM", "truecolor");
@@ -459,16 +490,16 @@ mod tests {
             style.ansi.get_fg_color(),
             Some(Color::Rgb(RgbColor(38, 166, 154)))
         );
-        assert_eq!(style.css, Some("style=\'color: #26a69a\'".to_string()));
+        assert_eq!(style.css, Some("color: #26a69a".to_string()));
 
-        // junglegreen gets approximated as darkcyan when the terminal does not support it
+        // junglegreen gets approximated as cadetblue when the terminal does not support it
         env::set_var("COLORTERM", "");
         parse_style(&mut style, Value::String(JUNGLE_GREEN.to_string()));
         assert_eq!(
             style.ansi.get_fg_color(),
-            Some(Color::Ansi256(Ansi256Color(36)))
+            Some(Color::Ansi256(Ansi256Color(72)))
         );
-        assert_eq!(style.css, Some("style=\'color: #26a69a\'".to_string()));
+        assert_eq!(style.css, Some("color: #26a69a".to_string()));
 
         if let Ok(environment_variable) = original_environment_variable {
             env::set_var("COLORTERM", environment_variable);

@@ -475,12 +475,13 @@ fn test_tree_cursor_child_for_point() {
     assert_eq!(c.node().kind(), "program");
 
     // descend to expression statement
-    assert_eq!(c.goto_first_child_for_point(Point::new(6, 6)), Some(0));
+    assert_eq!(c.goto_first_child_for_point(Point::new(6, 5)), Some(0));
     assert_eq!(c.node().kind(), "expression_statement");
 
     // step into ';' and back up
     assert_eq!(c.goto_first_child_for_point(Point::new(7, 0)), None);
-    assert_eq!(c.goto_first_child_for_point(Point::new(6, 6)), Some(1));
+    assert_eq!(c.goto_first_child_for_point(Point::new(6, 6)), None);
+    assert_eq!(c.goto_first_child_for_point(Point::new(6, 5)), Some(1));
     assert_eq!(
         (c.node().kind(), c.node().start_position()),
         (";", Point::new(6, 5))
@@ -517,7 +518,7 @@ fn test_tree_cursor_child_for_point() {
     assert!(c.goto_parent());
 
     // step into first ',' and back up
-    assert_eq!(c.goto_first_child_for_point(Point::new(1, 12)), Some(2));
+    assert_eq!(c.goto_first_child_for_point(Point::new(1, 11)), Some(2));
     assert_eq!(
         (c.node().kind(), c.node().start_position()),
         (",", Point::new(1, 11))
@@ -702,13 +703,40 @@ fn test_consistency_with_mid_codepoint_edit() {
     assert_eq!(tree3.root_node().to_sexp(), tree.root_node().to_sexp());
 }
 
+#[test]
+fn test_tree_cursor_on_aliased_root_with_extra_child() {
+    let source = r"
+fn main() {
+    C/* hi */::<D>::E;
+}
+";
+
+    let mut parser = Parser::new();
+    parser.set_language(&get_language("rust")).unwrap();
+
+    let tree = parser.parse(source, None).unwrap();
+
+    let function = tree.root_node().child(0).unwrap();
+    let block = function.child(3).unwrap();
+    let expression_statement = block.child(1).unwrap();
+    let scoped_identifier = expression_statement.child(0).unwrap();
+    let generic_type = scoped_identifier.child(0).unwrap();
+    assert_eq!(generic_type.kind(), "generic_type");
+
+    let mut cursor = generic_type.walk();
+    assert!(cursor.goto_first_child());
+    assert_eq!(cursor.node().kind(), "type_identifier");
+    assert!(cursor.goto_next_sibling());
+    assert_eq!(cursor.node().kind(), "block_comment");
+}
+
 fn index_of(text: &[u8], substring: &str) -> usize {
     str::from_utf8(text).unwrap().find(substring).unwrap()
 }
 
 fn range_of(text: &[u8], substring: &str) -> Range {
     let start_byte = index_of(text, substring);
-    let end_byte = start_byte + substring.as_bytes().len();
+    let end_byte = start_byte + substring.len();
     Range {
         start_byte,
         end_byte,
@@ -724,7 +752,7 @@ fn get_changed_ranges(
     edit: &Edit,
 ) -> Vec<Range> {
     perform_edit(tree, source_code, edit).unwrap();
-    let new_tree = parser.parse(&source_code, Some(tree)).unwrap();
+    let new_tree = parser.parse(source_code, Some(tree)).unwrap();
     let result = tree.changed_ranges(&new_tree).collect();
     *tree = new_tree;
     result

@@ -7,7 +7,7 @@ use tree_sitter_highlight::{Highlight, HighlightConfiguration, HighlightEvent, H
 use tree_sitter_loader::{Config, Loader};
 
 use super::{
-    query_testing::{parse_position_comments, Assertion},
+    query_testing::{parse_position_comments, to_utf8_point, Assertion, Utf8Point},
     test::paint,
     util,
 };
@@ -74,7 +74,7 @@ fn test_highlights_indented(
             indent_level = indent_level * 2
         );
         if test_file_path.is_dir() && test_file_path.read_dir()?.next().is_some() {
-            println!("{}:", test_file_name.into_string().unwrap());
+            println!("{}:", test_file_name.to_string_lossy());
             if test_highlights_indented(
                 loader,
                 loader_config,
@@ -141,7 +141,7 @@ fn test_highlights_indented(
 }
 pub fn iterate_assertions(
     assertions: &[Assertion],
-    highlights: &[(Point, Point, Highlight)],
+    highlights: &[(Utf8Point, Utf8Point, Highlight)],
     highlight_names: &[String],
 ) -> Result<usize> {
     // Iterate through all of the highlighting assertions, checking each one against the
@@ -150,11 +150,13 @@ pub fn iterate_assertions(
     let mut actual_highlights = Vec::new();
     for Assertion {
         position,
+        length,
         negative,
         expected_capture_name: expected_highlight,
     } in assertions
     {
         let mut passed = false;
+        let mut end_column = position.column + length - 1;
         actual_highlights.clear();
 
         // The assertions are ordered by position, so skip past all of the highlights that
@@ -165,11 +167,12 @@ pub fn iterate_assertions(
                 continue;
             }
 
-            // Iterate through all of the highlights that start at or before this assertion's,
+            // Iterate through all of the highlights that start at or before this assertion's
             // position, looking for one that matches the assertion.
             let mut j = i;
             while let (false, Some(highlight)) = (passed, highlights.get(j)) {
-                if highlight.0 > *position {
+                end_column = position.column + length - 1;
+                if highlight.0.column > end_column {
                     break 'highlight_loop;
                 }
 
@@ -193,7 +196,7 @@ pub fn iterate_assertions(
         if !passed {
             return Err(Failure {
                 row: position.row,
-                column: position.column,
+                column: end_column,
                 expected_highlight: expected_highlight.clone(),
                 actual_highlights: actual_highlights.into_iter().cloned().collect(),
             }
@@ -224,7 +227,7 @@ pub fn get_highlight_positions(
     highlighter: &mut Highlighter,
     highlight_config: &HighlightConfiguration,
     source: &[u8],
-) -> Result<Vec<(Point, Point, Highlight)>> {
+) -> Result<Vec<(Utf8Point, Utf8Point, Highlight)>> {
     let mut row = 0;
     let mut column = 0;
     let mut byte_offset = 0;
@@ -261,7 +264,10 @@ pub fn get_highlight_positions(
                     }
                 }
                 if let Some(highlight) = highlight_stack.last() {
-                    result.push((start_position, Point::new(row, column), *highlight));
+                    let utf8_start_position = to_utf8_point(start_position, source.as_bytes());
+                    let utf8_end_position =
+                        to_utf8_point(Point::new(row, column), source.as_bytes());
+                    result.push((utf8_start_position, utf8_end_position, *highlight));
                 }
             }
         }

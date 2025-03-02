@@ -28,14 +28,14 @@ Then, add a language as a dependency:
 
 ```toml
 [dependencies]
-tree-sitter = "0.22"
-tree-sitter-rust = "0.21"
+tree-sitter = "0.24"
+tree-sitter-rust = "0.23"
 ```
 
 To then use a language, you assign them to the parser.
 
 ```rust
-parser.set_language(&tree_sitter_rust::language()).expect("Error loading Rust grammar");
+parser.set_language(&tree_sitter_rust::LANGUAGE.into()).expect("Error loading Rust grammar");
 ```
 
 Now you can parse source code:
@@ -106,3 +106,11 @@ assert_eq!(
 ```
 
 [tree-sitter]: https://github.com/tree-sitter/tree-sitter
+
+## Features
+
+- **std** - This feature is enabled by default and allows `tree-sitter` to use the standard library.
+  - Error types implement the `std::error:Error` trait.
+  - `regex` performance optimizations are enabled.
+  - The DOT graph methods are enabled.
+- **wasm** - This feature allows `tree-sitter` to be built for Wasm targets using the `wasmtime-c-api` crate.

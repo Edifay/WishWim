@@ -1,5 +1,6 @@
 use std::{iter, sync::Arc};
 
+use streaming_iterator::StreamingIterator;
 use tree_sitter::{Language, Node, Parser, Point, Query, QueryCursor, TextProvider, Tree};
 
 use crate::tests::helpers::fixtures::get_language;
@@ -19,7 +20,7 @@ where
     let language = get_language("c");
     let mut parser = Parser::new();
     parser.set_language(&language).unwrap();
-    let tree = parser.parse_with(callback, None).unwrap();
+    let tree = parser.parse_with_options(callback, None, None).unwrap();
     // eprintln!("{}", tree.clone().root_node().to_sexp());
     assert_eq!("comment", tree.root_node().child(0).unwrap().kind());
     (tree, language)
@@ -30,8 +31,8 @@ fn tree_query<I: AsRef<[u8]>>(tree: &Tree, text: impl TextProvider<I>, language:
     let mut cursor = QueryCursor::new();
     let mut captures = cursor.captures(&query, tree.root_node(), text);
     let (match_, idx) = captures.next().unwrap();
-    let capture = match_.captures[idx];
-    assert_eq!(capture.index as usize, idx);
+    let capture = match_.captures[*idx];
+    assert_eq!(capture.index as usize, *idx);
     assert_eq!("comment", capture.node.kind());
 }
 

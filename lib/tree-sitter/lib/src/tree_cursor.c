@@ -1,5 +1,4 @@
 #include "tree_sitter/api.h"
-#include "./alloc.h"
 #include "./tree_cursor.h"
 #include "./language.h"
 #include "./tree.h"
@@ -212,7 +211,6 @@ bool ts_tree_cursor_goto_first_child(TSTreeCursor *self) {
         return false;
     }
   }
-  return false;
 }
 
 TreeCursorStep ts_tree_cursor_goto_last_child_internal(TSTreeCursor *_self) {
@@ -253,7 +251,6 @@ bool ts_tree_cursor_goto_last_child(TSTreeCursor *self) {
         return false;
     }
   }
-  return false;
 }
 
 static inline int64_t ts_tree_cursor_goto_first_child_for_byte_and_point(
@@ -274,7 +271,7 @@ static inline int64_t ts_tree_cursor_goto_first_child_for_byte_and_point(
     CursorChildIterator iterator = ts_tree_cursor_iterate_children(self);
     while (ts_tree_cursor_child_iterator_next(&iterator, &entry, &visible)) {
       Length entry_end = length_add(entry.position, ts_subtree_size(*entry.subtree));
-      bool at_goal = entry_end.bytes >= goal_byte && point_gte(entry_end.extent, goal_point);
+      bool at_goal = entry_end.bytes > goal_byte && point_gt(entry_end.extent, goal_point);
       uint32_t visible_child_count = ts_subtree_visible_child_count(*entry.subtree);
       if (at_goal) {
         if (visible) {
@@ -475,8 +472,9 @@ uint32_t ts_tree_cursor_current_descendant_index(const TSTreeCursor *_self) {
 TSNode ts_tree_cursor_current_node(const TSTreeCursor *_self) {
   const TreeCursor *self = (const TreeCursor *)_self;
   TreeCursorEntry *last_entry = array_back(&self->stack);
-  TSSymbol alias_symbol = self->root_alias_symbol;
-  if (self->stack.size > 1 && !ts_subtree_extra(*last_entry->subtree)) {
+  bool is_extra = ts_subtree_extra(*last_entry->subtree);
+  TSSymbol alias_symbol = is_extra ? 0 : self->root_alias_symbol;
+  if (self->stack.size > 1 && !is_extra) {
     TreeCursorEntry *parent_entry = &self->stack.contents[self->stack.size - 2];
     alias_symbol = ts_language_alias_at(
       self->tree->language,

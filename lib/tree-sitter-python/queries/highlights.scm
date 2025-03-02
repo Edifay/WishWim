@@ -1,18 +1,5 @@
 ; Identifier naming conventions
 
-
-(function_definition
-  name: (identifier) @function)
-
-(decorator) @function
-
-
-(call
-  function: (attribute attribute: (identifier) @function.method))
-(call
-  function: (identifier) @function)
-
-
 (identifier) @variable
 
 ((identifier) @constructor
@@ -23,7 +10,14 @@
 
 ; Function calls
 
+(decorator) @function
+(decorator
+  (identifier) @function)
 
+(call
+  function: (attribute attribute: (identifier) @function.method))
+(call
+  function: (identifier) @function)
 
 ; Builtin functions
 
@@ -35,7 +29,8 @@
 
 ; Function definitions
 
-
+(function_definition
+  name: (identifier) @function)
 
 (attribute attribute: (identifier) @property)
 (type (identifier) @type)
@@ -56,6 +51,10 @@
 (comment) @comment
 (string) @string
 (escape_sequence) @escape
+
+(interpolation
+  "{" @punctuation.special
+  "}" @punctuation.special) @embedded
 
 [
   "-"
@@ -99,6 +98,8 @@
   "is"
   "not"
   "or"
+  "is not"
+  "not in"
 ] @operator
 
 [

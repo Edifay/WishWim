@@ -14,6 +14,7 @@ extern "C" {
 #include <string.h>
 
 #ifdef _MSC_VER
+#pragma warning(push)
 #pragma warning(disable : 4101)
 #elif defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
@@ -66,9 +67,12 @@ extern "C" {
 /// Increase the array's size by `count` elements.
 /// New elements are zero-initialized.
 #define array_grow_by(self, count) \
-  (_array__grow((Array *)(self), count, array_elem_size(self)), \
-   memset((self)->contents + (self)->size, 0, (count) * array_elem_size(self)), \
-   (self)->size += (count))
+  do { \
+    if ((count) == 0) break; \
+    _array__grow((Array *)(self), count, array_elem_size(self)); \
+    memset((self)->contents + (self)->size, 0, (count) * array_elem_size(self)); \
+    (self)->size += (count); \
+  } while (0)
 
 /// Append all elements from one array to the end of another.
 #define array_push_all(self, other)                                       \
@@ -275,7 +279,7 @@ static inline void _array__splice(Array *self, size_t element_size,
 #define _compare_int(a, b) ((int)*(a) - (int)(b))
 
 #ifdef _MSC_VER
-#pragma warning(default : 4101)
+#pragma warning(pop)
 #elif defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif

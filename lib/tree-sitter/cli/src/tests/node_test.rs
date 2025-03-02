@@ -1,14 +1,12 @@
 use tree_sitter::{Node, Parser, Point, Tree};
+use tree_sitter_generate::load_grammar_file;
 
 use super::{
     get_random_edit,
     helpers::fixtures::{fixtures_dir, get_language, get_test_language},
     Rand,
 };
-use crate::{
-    generate::{generate_parser_for_grammar, load_grammar_file},
-    parse::perform_edit,
-};
+use crate::{parse::perform_edit, tests::generate_parser};
 
 const JSON_EXAMPLE: &str = r#"
 
@@ -171,20 +169,22 @@ fn test_node_child() {
     assert_eq!(tree.root_node().parent(), None);
 
     assert_eq!(
-        tree.root_node()
-            .child_containing_descendant(null_node)
-            .unwrap(),
+        tree.root_node().child_with_descendant(null_node).unwrap(),
         array_node
     );
     assert_eq!(
-        array_node.child_containing_descendant(null_node).unwrap(),
+        array_node.child_with_descendant(null_node).unwrap(),
         object_node
     );
     assert_eq!(
-        object_node.child_containing_descendant(null_node).unwrap(),
+        object_node.child_with_descendant(null_node).unwrap(),
         pair_node
     );
-    assert_eq!(pair_node.child_containing_descendant(null_node), None);
+    assert_eq!(
+        pair_node.child_with_descendant(null_node).unwrap(),
+        null_node
+    );
+    assert_eq!(null_node.child_with_descendant(null_node), None);
 }
 
 #[test]
@@ -286,10 +286,94 @@ fn test_parent_of_zero_width_node() {
     assert_eq!(block_parent.to_string(), "(function_definition name: (identifier) parameters: (parameters (identifier)) body: (block))");
 
     assert_eq!(
-        root.child_containing_descendant(block).unwrap(),
+        root.child_with_descendant(block).unwrap(),
         function_definition
     );
-    assert_eq!(function_definition.child_containing_descendant(block), None);
+    assert_eq!(
+        function_definition.child_with_descendant(block).unwrap(),
+        block
+    );
+    assert_eq!(block.child_with_descendant(block), None);
+
+    let code = "<script></script>";
+    parser.set_language(&get_language("html")).unwrap();
+
+    let tree = parser.parse(code, None).unwrap();
+    let root = tree.root_node();
+    let script_element = root.child(0).unwrap();
+    let raw_text = script_element.child(1).unwrap();
+    let parent = raw_text.parent().unwrap();
+    assert_eq!(parent, script_element);
+}
+
+#[test]
+fn test_next_sibling_of_zero_width_node() {
+    let grammar_json = load_grammar_file(
+        &fixtures_dir()
+            .join("test_grammars")
+            .join("next_sibling_from_zwt")
+            .join("grammar.js"),
+        None,
+    )
+    .unwrap();
+
+    let (parser_name, parser_code) = generate_parser(&grammar_json).unwrap();
+
+    let mut parser = Parser::new();
+    let language = get_test_language(&parser_name, &parser_code, None);
+    parser.set_language(&language).unwrap();
+
+    let tree = parser.parse("abdef", None).unwrap();
+
+    let root_node = tree.root_node();
+    let missing_c = root_node.child(2).unwrap();
+    assert!(missing_c.is_missing());
+    assert_eq!(missing_c.kind(), "c");
+    let node_d = root_node.child(3).unwrap();
+    assert_eq!(missing_c.next_sibling().unwrap(), node_d);
+
+    let prev_sibling = node_d.prev_sibling().unwrap();
+    assert_eq!(prev_sibling, missing_c);
+}
+
+#[test]
+fn test_first_child_for_offset() {
+    let mut parser = Parser::new();
+    parser.set_language(&get_language("javascript")).unwrap();
+    let tree = parser.parse("x10 + 100", None).unwrap();
+    let sum_node = tree.root_node().child(0).unwrap().child(0).unwrap();
+
+    assert_eq!(
+        sum_node.first_child_for_byte(0).unwrap().kind(),
+        "identifier"
+    );
+    assert_eq!(
+        sum_node.first_child_for_byte(1).unwrap().kind(),
+        "identifier"
+    );
+    assert_eq!(sum_node.first_child_for_byte(3).unwrap().kind(), "+");
+    assert_eq!(sum_node.first_child_for_byte(5).unwrap().kind(), "number");
+}
+
+#[test]
+fn test_first_named_child_for_offset() {
+    let mut parser = Parser::new();
+    parser.set_language(&get_language("javascript")).unwrap();
+    let tree = parser.parse("x10 + 100", None).unwrap();
+    let sum_node = tree.root_node().child(0).unwrap().child(0).unwrap();
+
+    assert_eq!(
+        sum_node.first_named_child_for_byte(0).unwrap().kind(),
+        "identifier"
+    );
+    assert_eq!(
+        sum_node.first_named_child_for_byte(1).unwrap().kind(),
+        "identifier"
+    );
+    assert_eq!(
+        sum_node.first_named_child_for_byte(3).unwrap().kind(),
+        "number"
+    );
 }
 
 #[test]
@@ -308,6 +392,13 @@ fn test_node_field_name_for_child() {
         .child_by_field_name("value")
         .unwrap();
 
+    // -------------------
+    // left: (identifier)  0
+    // operator: "+"       1 <--- (not a named child)
+    // (comment)           2 <--- (is an extra)
+    // right: (identifier) 3
+    // -------------------
+
     assert_eq!(binary_expression_node.field_name_for_child(0), Some("left"));
     assert_eq!(
         binary_expression_node.field_name_for_child(1),
@@ -321,6 +412,44 @@ fn test_node_field_name_for_child() {
     );
     // Negative test - Not a valid child index
     assert_eq!(binary_expression_node.field_name_for_child(4), None);
+}
+
+#[test]
+fn test_node_field_name_for_named_child() {
+    let mut parser = Parser::new();
+    parser.set_language(&get_language("c")).unwrap();
+    let tree = parser
+        .parse("int w = x + /* y is special! */ y;", None)
+        .unwrap();
+    let translation_unit_node = tree.root_node();
+    let declaration_node = translation_unit_node.named_child(0).unwrap();
+
+    let binary_expression_node = declaration_node
+        .child_by_field_name("declarator")
+        .unwrap()
+        .child_by_field_name("value")
+        .unwrap();
+
+    // -------------------
+    // left: (identifier)  0
+    // operator: "+"       _ <--- (not a named child)
+    // (comment)           1 <--- (is an extra)
+    // right: (identifier) 2
+    // -------------------
+
+    assert_eq!(
+        binary_expression_node.field_name_for_named_child(0),
+        Some("left")
+    );
+    // The comment should not have a field name, as it's just an extra
+    assert_eq!(binary_expression_node.field_name_for_named_child(1), None);
+    // The operator is not a named child, so the named child at index 2 is the right child
+    assert_eq!(
+        binary_expression_node.field_name_for_named_child(2),
+        Some("right")
+    );
+    // Negative test - Not a valid child index
+    assert_eq!(binary_expression_node.field_name_for_named_child(3), None);
 }
 
 #[test]
@@ -414,26 +543,27 @@ fn test_node_named_child() {
     assert_eq!(tree.root_node().parent(), None);
 
     assert_eq!(
-        tree.root_node()
-            .child_containing_descendant(null_node)
-            .unwrap(),
+        tree.root_node().child_with_descendant(null_node).unwrap(),
         array_node
     );
     assert_eq!(
-        array_node.child_containing_descendant(null_node).unwrap(),
+        array_node.child_with_descendant(null_node).unwrap(),
         object_node
     );
     assert_eq!(
-        object_node.child_containing_descendant(null_node).unwrap(),
+        object_node.child_with_descendant(null_node).unwrap(),
         pair_node
     );
-    assert_eq!(pair_node.child_containing_descendant(null_node), None);
+    assert_eq!(
+        pair_node.child_with_descendant(null_node).unwrap(),
+        null_node
+    );
+    assert_eq!(null_node.child_with_descendant(null_node), None);
 }
 
 #[test]
 fn test_node_named_child_with_aliases_and_extras() {
-    let (parser_name, parser_code) =
-        generate_parser_for_grammar(GRAMMAR_WITH_ALIASES_AND_EXTRAS).unwrap();
+    let (parser_name, parser_code) = generate_parser(GRAMMAR_WITH_ALIASES_AND_EXTRAS).unwrap();
 
     let mut parser = Parser::new();
     parser
@@ -603,6 +733,33 @@ fn test_node_descendant_for_range() {
     assert_eq!(pair_node.end_byte(), string_index + 9);
     assert_eq!(pair_node.start_position(), Point::new(6, 4));
     assert_eq!(pair_node.end_position(), Point::new(6, 13));
+
+    // Zero-width token
+    {
+        let code = "<script></script>";
+        let mut parser = Parser::new();
+        parser.set_language(&get_language("html")).unwrap();
+
+        let tree = parser.parse(code, None).unwrap();
+        let root = tree.root_node();
+
+        let child = root
+            .named_descendant_for_point_range(Point::new(0, 8), Point::new(0, 8))
+            .unwrap();
+        assert_eq!(child.kind(), "raw_text");
+
+        let child2 = root.named_descendant_for_byte_range(8, 8).unwrap();
+        assert_eq!(child2.kind(), "raw_text");
+
+        assert_eq!(child, child2);
+    }
+
+    // Negative test, start > end
+    assert_eq!(array_node.descendant_for_byte_range(1, 0), None);
+    assert_eq!(
+        array_node.descendant_for_point_range(Point::new(6, 8), Point::new(6, 7)),
+        None
+    );
 }
 
 #[test]
@@ -681,6 +838,20 @@ fn test_node_is_extra() {
 }
 
 #[test]
+fn test_node_is_error() {
+    let mut parser = Parser::new();
+    parser.set_language(&get_language("javascript")).unwrap();
+    let tree = parser.parse("foo(", None).unwrap();
+    let root_node = tree.root_node();
+    assert_eq!(root_node.kind(), "program");
+    assert!(root_node.has_error());
+
+    let child = root_node.child(0).unwrap();
+    assert_eq!(child.kind(), "ERROR");
+    assert!(child.is_error());
+}
+
+#[test]
 fn test_node_sexp() {
     let mut parser = Parser::new();
     parser.set_language(&get_language("javascript")).unwrap();
@@ -699,7 +870,7 @@ fn test_node_sexp() {
 
 #[test]
 fn test_node_field_names() {
-    let (parser_name, parser_code) = generate_parser_for_grammar(
+    let (parser_name, parser_code) = generate_parser(
         r#"
         {
             "name": "test_grammar_with_fields",
@@ -809,7 +980,7 @@ fn test_node_field_names() {
 
 #[test]
 fn test_node_field_calls_in_language_without_fields() {
-    let (parser_name, parser_code) = generate_parser_for_grammar(
+    let (parser_name, parser_code) = generate_parser(
         r#"
         {
             "name": "test_grammar_with_no_fields",
@@ -867,7 +1038,7 @@ fn test_node_is_named_but_aliased_as_anonymous() {
     )
     .unwrap();
 
-    let (parser_name, parser_code) = generate_parser_for_grammar(&grammar_json).unwrap();
+    let (parser_name, parser_code) = generate_parser(&grammar_json).unwrap();
 
     let mut parser = Parser::new();
     let language = get_test_language(&parser_name, &parser_code, None);
@@ -943,6 +1114,31 @@ fn test_node_numeric_symbols_respect_simple_aliases() {
     let binary_minus_node = binary_node.child_by_field_name("operator").unwrap();
     assert_eq!(binary_minus_node.kind(), "-");
     assert_eq!(unary_minus_node.kind_id(), binary_minus_node.kind_id());
+}
+
+#[test]
+fn test_hidden_zero_width_node_with_visible_child() {
+    let code = r"
+class Foo {
+  std::
+private:
+  std::string s;
+};
+";
+
+    let mut parser = Parser::new();
+    parser.set_language(&get_language("cpp")).unwrap();
+    let tree = parser.parse(code, None).unwrap();
+    let root = tree.root_node();
+
+    let class_specifier = root.child(0).unwrap();
+    let field_decl_list = class_specifier.child_by_field_name("body").unwrap();
+    let field_decl = field_decl_list.named_child(0).unwrap();
+    let field_ident = field_decl.child_by_field_name("declarator").unwrap();
+    assert_eq!(
+        field_decl.child_with_descendant(field_ident).unwrap(),
+        field_ident
+    );
 }
 
 fn get_all_nodes(tree: &Tree) -> Vec<Node> {

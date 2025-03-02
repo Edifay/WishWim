@@ -1,9 +1,9 @@
-use tree_sitter::{Parser, Point};
+use tree_sitter::Parser;
 use tree_sitter_tags::TagsContext;
 
 use super::helpers::fixtures::{get_language, get_tags_config};
 use crate::{
-    query_testing::{parse_position_comments, Assertion},
+    query_testing::{parse_position_comments, Assertion, Utf8Point},
     test_tags::get_tag_positions,
 };
 
@@ -30,10 +30,10 @@ fn test_tags_test_with_basic_test() {
     assert_eq!(
         assertions,
         &[
-            Assertion::new(1, 4, false, String::from("definition.function")),
-            Assertion::new(3, 9, false, String::from("reference.call")),
-            Assertion::new(5, 11, false, String::from("reference.call")),
-            Assertion::new(5, 13, true, String::from("variable.parameter")),
+            Assertion::new(1, 4, 1, false, String::from("definition.function")),
+            Assertion::new(3, 9, 1, false, String::from("reference.call")),
+            Assertion::new(5, 11, 1, false, String::from("reference.call")),
+            Assertion::new(5, 13, 1, true, String::from("variable.parameter")),
         ]
     );
 
@@ -43,18 +43,18 @@ fn test_tags_test_with_basic_test() {
         tag_positions,
         &[
             (
-                Point::new(1, 4),
-                Point::new(1, 7),
+                Utf8Point::new(1, 4),
+                Utf8Point::new(1, 7),
                 "definition.function".to_string()
             ),
             (
-                Point::new(3, 8),
-                Point::new(3, 11),
+                Utf8Point::new(3, 8),
+                Utf8Point::new(3, 11),
                 "reference.call".to_string()
             ),
             (
-                Point::new(5, 11),
-                Point::new(5, 12),
+                Utf8Point::new(5, 11),
+                Utf8Point::new(5, 12),
                 "reference.call".to_string()
             ),
         ]

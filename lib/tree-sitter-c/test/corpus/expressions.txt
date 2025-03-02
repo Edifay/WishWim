@@ -166,7 +166,8 @@ int main() {
             (string_literal
               (string_content))
             (number_literal)
-            (identifier)))))))
+            (extension_expression
+              (identifier))))))))
 
 ================================================================================
 GNU inline assembly
@@ -341,6 +342,7 @@ int main() {
   u'c';
   U'\xa1';
   u8'\x1A';
+  '\x3';
 }
 
 --------------------------------------------------------------------------------
@@ -370,6 +372,9 @@ int main() {
       (expression_statement
         (char_literal
           (character)))
+      (expression_statement
+        (char_literal
+          (escape_sequence)))
       (expression_statement
         (char_literal
           (escape_sequence)))
@@ -1426,3 +1431,53 @@ foo(PRI "hello");
           (identifier)
           (string_literal
             (string_content)))))))
+
+================================================================================
+Nonnull Type Qualifier
+================================================================================
+
+void foo() {
+  int *_Nonnull n;
+}
+
+---
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (declaration
+        (primitive_type)
+        (pointer_declarator
+          (type_qualifier)
+          (identifier))))))
+
+================================================================================
+Top Level Empty Expression Statement
+================================================================================
+
+;
+
+---
+
+(translation_unit
+  (expression_statement))
+
+================================================================================
+Sized Type Specifier With Type Qualifiers
+================================================================================
+
+unsigned const char *c;
+
+---
+
+(translation_unit
+  (declaration
+    (sized_type_specifier
+      (type_qualifier)
+      (primitive_type))
+    (pointer_declarator
+      (identifier))))

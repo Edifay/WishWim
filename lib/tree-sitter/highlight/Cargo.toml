@@ -15,12 +15,15 @@ license.workspace = true
 keywords = ["incremental", "parsing", "syntax", "highlighting"]
 categories = ["parsing", "text-editors"]
 
+[lints]
+workspace = true
+
 [lib]
 crate-type = ["lib", "staticlib"]
 
 [dependencies]
-lazy_static.workspace = true
 regex.workspace = true
 thiserror.workspace = true
+streaming-iterator.workspace = true
 
 tree-sitter.workspace = true

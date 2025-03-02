@@ -11,6 +11,10 @@ repository.workspace = true
 license.workspace = true
 keywords.workspace = true
 categories.workspace = true
+include = ["build.rs", "README.md", "benches/*", "src/**"]
+
+[lints]
+workspace = true
 
 [[bin]]
 name = "tree-sitter"
@@ -25,19 +29,22 @@ harness = false
 wasm = ["tree-sitter/wasm", "tree-sitter-loader/wasm"]
 
 [dependencies]
+ansi_colours.workspace = true
 anstyle.workspace = true
 anyhow.workspace = true
+bstr.workspace = true
 clap.workspace = true
+clap_complete.workspace = true
+clap_complete_nushell.workspace = true
 ctor.workspace = true
 ctrlc.workspace = true
-dirs.workspace = true
+dialoguer.workspace = true
 filetime.workspace = true
 glob.workspace = true
 heck.workspace = true
 html-escape.workspace = true
 indexmap.workspace = true
 indoc.workspace = true
-lazy_static.workspace = true
 log.workspace = true
 memchr.workspace = true
 rand.workspace = true
@@ -50,21 +57,23 @@ serde_derive.workspace = true
 serde_json.workspace = true
 similar.workspace = true
 smallbitvec.workspace = true
+streaming-iterator.workspace = true
 tiny_http.workspace = true
+url.workspace = true
 walkdir.workspace = true
 wasmparser.workspace = true
 webbrowser.workspace = true
 
 tree-sitter.workspace = true
+tree-sitter-generate.workspace = true
 tree-sitter-config.workspace = true
 tree-sitter-highlight.workspace = true
 tree-sitter-loader.workspace = true
 tree-sitter-tags.workspace = true
 
-[target."cfg(windows)".dependencies]
-url = "2.5.1"
-
 [dev-dependencies]
+encoding_rs = "0.8.35"
+widestring = "1.1.0"
 tree_sitter_proc_macro = { path = "src/tests/proc_macro", package = "tree-sitter-tests-proc-macro" }
 
 tempfile.workspace = true

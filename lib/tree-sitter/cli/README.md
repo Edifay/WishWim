@@ -7,14 +7,14 @@
 [npmjs.com]: https://www.npmjs.org/package/tree-sitter-cli
 [npmjs.com badge]: https://img.shields.io/npm/v/tree-sitter-cli.svg?color=%23BF4A4A
 
-The Tree-sitter CLI allows you to develop, test, and use Tree-sitter grammars from the command line. It works on MacOS, Linux, and Windows.
+The Tree-sitter CLI allows you to develop, test, and use Tree-sitter grammars from the command line. It works on `MacOS`, `Linux`, and `Windows`.
 
 ### Installation
 
 You can install the `tree-sitter-cli` with `cargo`:
 
 ```sh
-cargo install tree-sitter-cli
+cargo install --locked tree-sitter-cli
 ```
 
 or with `npm`:
