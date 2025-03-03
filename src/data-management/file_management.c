@@ -22,7 +22,6 @@ void destroyFileContainer(FileContainer* container) {
   destroyEndOfHistory(container->history_root);
   free(container->history_root);
   ts_tree_delete(container->highlight_data.tree);
-  free(container->highlight_data.tmp_file_dump);
 }
 
 void openNewFile(char* file_path, FileContainer** files, int* file_count, int* current_file, bool* refresh_ofw, bool* refresh_local_vars) {

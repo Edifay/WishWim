@@ -17,22 +17,6 @@ typedef enum {
   MATCH = 'm'
 } PATH_TYPE;
 
-struct TreePath_ {
-  PATH_TYPE type;
-  regex_t* reg;
-  char* name;
-  struct TreePath_* next;
-};
-
-typedef struct TreePath_ TreePath;
-
-struct TreePathSeq_ {
-  TreePath* value;
-  struct TreePathSeq_* next;
-};
-
-typedef struct TreePathSeq_ TreePathSeq;
-
 typedef struct {
   History* history_frame;
   int byte_start;
@@ -47,7 +31,8 @@ typedef struct {
   char lang_name[100];
   const TSLanguage* lang;
   TSParser* parser;
-  TreePathSeq highlight_queries;
+  TSQuery* queries;
+  TSQueryCursor *cursor;
   HighlightThemeList theme_list;
 } ParserContainer;
 
@@ -60,7 +45,6 @@ typedef struct {
   char lang_name[100];
   bool is_active;
   TSTree* tree;
-  char* tmp_file_dump;
 } FileHighlightDatas;
 
 typedef struct {
@@ -117,22 +101,11 @@ ParserContainer* getParserForLanguage(ParserList* list, char* language);
 bool loadNewParser(ParserContainer* container, char* language);
 
 
+
+////// ------------------- QUERIES -------------------
+
+
 ////// ------------------- TREE UTILS -------------------
-
-int lengthTreePath(TreePath* tree_path);
-
-void destroyTreePath(TreePath* path);
-
-void printTreePath(TreePath* path);
-
-// Return null if not matching, return a pointer on a group if match found.
-char* isTreePathMatchingQuery(char* last_node_text, TreePath tree_path[], int tree_path_length, TreePath* query);
-
-
-void treeForEachNode(TSNode root_node, TreePath* path_symbol, int offset, void (*func)(TSNode node, TreePath tree_path[], int tree_path_length, long* args), void* args);
-
-void treeForEachNodeSized(int y_offset, int x_offset, int height, int width, TSNode root_node, TreePath* path_symbol, int offset,
-                          void (*func)(TSNode node, TreePath tree_path[], int tree_path_length, long* args), void* args);
 
 void setFileHighlightDatas(FileHighlightDatas* data, IO_FileID io_file);
 

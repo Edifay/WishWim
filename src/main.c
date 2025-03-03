@@ -30,7 +30,7 @@
  *       - Rework the query for highlight to optimise queries.
  *       - Rework the printEditor for colors. Currently we override char with colored char, that's not optimized.
  *          Create a struct to define a coloration in a file, and calculate it before each paint.
- *
+ *       - Patch conditional jump (valgrind) when opening untitled file from a workspace.
  *      
  *
  */
@@ -188,7 +188,7 @@ int main(int file_count, char** args) {
 
       // If highlight is enable on this file.
       if (highlight_data->is_active == true) {
-        highlightCurrentFile(highlight_data, gui_context.ftw, screen_x, screen_y, cursor, select_cursor);
+        highlightCurrentFile(highlight_data, gui_context.ftw, *screen_x, *screen_y, *cursor, *select_cursor);
       }
 
       wrefresh(gui_context.lnw);

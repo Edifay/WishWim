@@ -24,9 +24,7 @@ void highlightLinePartWithBytes(WINDOW* ftw, int start_row_byte, int start_colum
 void highlightLinePart(WINDOW* ftw, int start_row, int start_column, int length, attr_t attr, NCURSES_PAIRS_T color, Cursor cursor, Cursor select, Cursor* tmp, int screen_y,
                        int screen_x);
 
-void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_length, long* args);
 
-
-void highlightCurrentFile(FileHighlightDatas* highlight_data, WINDOW* ftw, int* screen_x, int* screen_y, Cursor* cursor, Cursor* select_cursor);
+void highlightCurrentFile(FileHighlightDatas* highlight_data, WINDOW* ftw, int screen_x, int screen_y, Cursor cursor, Cursor select_cursor);
 
 #endif //HIGHLIGHT_H

@@ -17,7 +17,6 @@ MODULES= \
 	src/terminal/term_handler.o \
 	src/io_management/io_explorer.o \
 	src/advanced/lsp/lsp_client.o \
-	src/advanced/tree-sitter/scm_parser.o \
 	src/advanced/tree-sitter/tree_manager.o \
 	src/advanced/theme.o \
 	src/terminal/highlight.o \

@@ -106,7 +106,6 @@ bool isDir(char* path) {
 }
 
 bool getLanguageForFile(char* lang_name, IO_FileID io_file) {
-
   /// ---- FILE NAME ----
 
   if (io_file.status == NONE) {
@@ -218,4 +217,20 @@ int hashString(unsigned char* str) {
     hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
 
   return hash;
+}
+
+
+char* loadFullFile(const char* path, long* length) {
+  FILE* f = fopen(path, "rb");
+  fseek(f, 0, SEEK_END);
+  *length = ftell(f);
+  fseek(f, 0, SEEK_SET); /* same as rewind(f); */
+
+  char* string = malloc(*length + 1);
+  fread(string, *length, 1, f);
+  fclose(f);
+
+  string[*length] = 0;
+
+  return string;
 }

@@ -97,45 +97,64 @@ void highlightLinePart(WINDOW* ftw, int start_row, int start_column, int length,
 char litteral_text_node_buffer[REGEX_MAX_DUMP_SIZE * 4 + 1];
 double sum_check_match_for_highlight;
 
-void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_length, long* args) {
-  clock_t t;
-  t = clock();
-  // Un-abstracting args.
-  TreePathSeq* seq = ((TreePathSeq *)args[0]);
-  HighlightThemeList* theme_list = ((HighlightThemeList *)args[1]);
-  WINDOW* ftw = (WINDOW *)args[3];
-  int* screen_x = (int *)args[4];
-  int* screen_y = (int *)args[5];
-  Cursor cursor = *((Cursor *)args[8]);
-  Cursor select = *((Cursor *)args[9]);
-  Cursor* tmp = (Cursor *)args[10];
-  if (tmp == NULL) {
-    tmp = malloc(sizeof(Cursor));
-    args[10] = (long)tmp;
-    *tmp = cursor;
-  }
+void captureHighlight(TSQuery* query, TSQueryCursor* qcursor, FileHighlightDatas* highlight_data,
+                      HighlightThemeList theme_list, WINDOW* ftw, int screen_x,
+                      int screen_y, Cursor cursor, Cursor select) {
+  Cursor tmp = cursor;
+  int width = getmaxx(ftw);
+  int height = getmaxy(ftw);
 
+  TSPoint begin;
+  begin.row = screen_y - 1;
+  begin.column = screen_x;
 
-  // Get litteral string for current node. We don't extract if the litteral is higher than 200 char.
-#if REGEX_MAX_DUMP_SIZE != 0
-  int char_nb = ts_node_end_byte(node) - ts_node_start_byte(node);
-  int array_size = char_nb;
-  if (char_nb > REGEX_MAX_DUMP_SIZE) {
-    array_size = 0;
-  }
-  if (char_nb <= REGEX_MAX_DUMP_SIZE) {
-    // fprintf(stderr, "READ FROM HIGHLIGHT\n");
-    readNBytesAtPosition(tmp, ts_node_start_point(node).row, ts_node_start_point(node).column, litteral_text_node_buffer, char_nb);
-  }
-  litteral_text_node_buffer[array_size] = '\0';
-#else
-  char litteral_text_node[1];
-  litteral_text_node[0] = '\0';
-#endif
+  TSPoint end;
+  end.row = screen_y + height - 2;
+  end.column = screen_x + width;
 
+  ts_query_cursor_set_point_range(
+    qcursor,
+    begin,
+    end
+  );
 
-  while (seq != NULL) {
-    char* result = isTreePathMatchingQuery(litteral_text_node_buffer, tree_path, tree_path_length, seq->value);
+  ts_query_cursor_exec(qcursor, query, ts_tree_root_node(highlight_data->tree));
+
+  TSQueryMatch query_match;
+  uint32_t index = 0;
+  while (ts_query_cursor_next_capture(qcursor, &query_match, &index)) {
+    assert(index == 0);
+    assert(query_match.capture_count == 1);
+    fprintf(stderr, "===================\n%d match found on node !\n", query_match.capture_count);
+    fprintf(stderr, "Pattern Index %d\n", query_match.pattern_index);
+    TSNode node = query_match.captures[index].node;
+    fprintf(stderr, "Node (%d, %d) -> (%d, %d) : \n",
+            ts_node_start_point(node).row, ts_node_start_point(node).column,
+            ts_node_end_point(node).row, ts_node_end_point(node).column);
+
+    uint32_t pattern_size;
+    const TSQueryPredicateStep* steps = ts_query_predicates_for_pattern(query, query_match.pattern_index, &pattern_size);
+    for (int j = 0; j < pattern_size; j++) {
+      switch (steps[j].type) {
+        case TSQueryPredicateStepTypeCapture:
+          uint32_t size;
+          fprintf(stderr, "@%s -> ", ts_query_capture_name_for_id(query, steps[j].value_id, &size));
+          break;
+        case TSQueryPredicateStepTypeDone:
+          fprintf(stderr, "end.\n");
+          break;
+        case TSQueryPredicateStepTypeString:
+          uint32_t l;
+          fprintf(stderr, "'%s' -> ", ts_query_string_value_for_id(query, steps[j].value_id, &l));
+          break;
+      }
+    }
+    uint32_t size = 0;
+    const char* result = ts_query_capture_name_for_id(query, query_match.captures[index].index, &size);
+    fprintf(stderr, " -> capture name : %s\n", result);
+    if (pattern_size != 0) {
+      continue;
+    }
 
     attr_t attr = A_NORMAL;
     NCURSES_PAIRS_T color = DEFAULT_COLOR_PAIR;
@@ -144,10 +163,10 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
     if (result != NULL) {
       bool found = false;
       // Setup style for group found.
-      for (int i = 0; i < theme_list->size; i++) {
-        if (strcmp(theme_list->groups[i].group, result) == 0) {
-          attr |= getAttrForTheme(theme_list->groups[i]);
-          color = theme_list->groups[i].color_n;
+      for (int i = 0; i < theme_list.size; i++) {
+        if (strcmp(theme_list.groups[i].group, result) == 0) {
+          attr |= getAttrForTheme(theme_list.groups[i]);
+          color = theme_list.groups[i].color_n;
 
           found = true;
           break;
@@ -156,16 +175,17 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
 
       if (found == false) {
         // Quit if a query was found, but not theme for this group was found.
-        break;
+        fprintf(stderr, "      || No theme found for capture %s  || \n", result);
+        continue;
       }
 
 
       // TODO rework error system. It's not working properly.
-      for (int i = 0; i < tree_path_length; i++) {
-        if (tree_path[i].type == SYMBOL && strcmp("ERROR", tree_path[i].name) == 0) {
-          attr |= A_ITALIC;
-        }
-      }
+      // for (int i = 0; i < tree_path_length; i++) {
+      //   if (tree_path[i].type == SYMBOL && strcmp("ERROR", tree_path[i].name) == 0) {
+      //     attr |= A_ITALIC;
+      //   }
+      // }
 
       TSPoint start_point = ts_node_start_point(node);
       TSPoint end_point = ts_node_end_point(node);
@@ -173,80 +193,54 @@ void checkMatchForHighlight(TSNode node, TreePath tree_path[], int tree_path_len
 
       if (!USE_COLOR) {
         // quit if color are disabled.
-        break;
+        continue;
       }
 
       // Simple line node.
       if (start_point.row == end_point.row) {
         int length_byte = end_point.column - start_point.column;
-        highlightLinePartWithBytes(ftw, start_point.row, start_point.column, length_byte, attr, color, cursor, select, tmp, *screen_y, *screen_x);
+        highlightLinePartWithBytes(ftw, start_point.row, start_point.column, length_byte, attr, color, cursor, select, &tmp, screen_y, screen_x);
       }
       else // Mutiple line node.
       {
         // First line
-        highlightLinePartWithBytes(ftw, start_point.row, start_point.column, INT_MAX, attr, color, cursor, select, tmp, *screen_y, *screen_x);
+        highlightLinePartWithBytes(ftw, start_point.row, start_point.column, INT_MAX, attr, color, cursor, select, &tmp, screen_y, screen_x);
 
         // Between lines.
         int ligne_between = end_point.row - start_point.row - 1;
         for (int i = 1; i < ligne_between + 1; i++) {
-          highlightLinePartWithBytes(ftw, start_point.row + i, 0, INT_MAX, attr, color, cursor, select, tmp, *screen_y, *screen_x);
+          highlightLinePartWithBytes(ftw, start_point.row + i, 0, INT_MAX, attr, color, cursor, select, &tmp, screen_y, screen_x);
         }
 
         // End line
-        highlightLinePartWithBytes(ftw, end_point.row, 0, end_point.column, attr, color, cursor, select, tmp, *screen_y, *screen_x);
+        highlightLinePartWithBytes(ftw, end_point.row, 0, end_point.column, attr, color, cursor, select, &tmp, screen_y, screen_x);
       }
 
-      break;
+      continue;
       // End if group found.
-    }else {
-      // fprintf(stderr, "No color found for %s node.\n", tree_path[tree_path_length-1].name);
-
     }
-
-    seq = seq->next;
+    else {
+      // fprintf(stderr, "No color found for %s node.\n", tree_path[tree_path_length-1].name);
+    }
   }
-  t = clock() - t;
-  double time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
-  sum_check_match_for_highlight += time_taken;
-  // fprintf(stderr, "checkMatchForHighlight() took %f seconds to execute %d \n", time_taken, tree_path_length);
-  // for (int i = 0 ; i < tree_path_length ; i++) {
-  //   fprintf(stderr, "%s.", tree_path[i].name);
-  // }
-  // fprintf(stderr,"\n");
 }
 
 
-void highlightCurrentFile(FileHighlightDatas* highlight_data, WINDOW* ftw, int* screen_x, int* screen_y, Cursor* cursor, Cursor* select_cursor) {
+void highlightCurrentFile(FileHighlightDatas* highlight_data, WINDOW* ftw, int screen_x, int screen_y, Cursor cursor, Cursor select_cursor) {
+  assert(highlight_data->is_active == true);
   ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_name);
   assert(parser != NULL);
-
-  long* args_fct = malloc(11 * sizeof(long *));
-  args_fct[0] = (long)&parser->highlight_queries;
-  args_fct[1] = (long)&parser->theme_list;
-  args_fct[2] = (long)highlight_data->tmp_file_dump;
-  args_fct[3] = (long)ftw;
-  args_fct[4] = (long)screen_x;
-  args_fct[5] = (long)screen_y;
-  args_fct[6] = (long)getmaxx(ftw);
-  args_fct[7] = (long)getmaxy(ftw);
-  args_fct[8] = (long)cursor;
-  args_fct[9] = (long)select_cursor;
-  args_fct[10] = (long)NULL;
-
-  TSNode root_node = ts_tree_root_node(highlight_data->tree);
-  TreePath path[1000]; // TODO refactor this, there is a problem if the depth of the tree is bigger than 1000.
 
   clock_t t;
   t = clock();
 
-  sum_check_match_for_highlight = 0;
-  treeForEachNodeSized(*screen_y, *screen_x, getmaxy(ftw), getmaxx(ftw), root_node, path, 0, checkMatchForHighlight, args_fct);
+  // sum_check_match_for_highlight = 0;
+
+  captureHighlight(parser->queries, parser->cursor, highlight_data, parser->theme_list,
+                   ftw, screen_x, screen_y, cursor, select_cursor);
 
   t = clock() - t;
   double time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
 
-  // fprintf(stderr, "highlight() took %f seconds to execute part of check for highlight : %f \n", time_taken, sum_check_match_for_highlight);
-
-  free((Cursor *)args_fct[10]);
-  free(args_fct);
+  fprintf(stderr, "highlight() took %f seconds to execute part of check for highlight : %f \n", time_taken, sum_check_match_for_highlight);
 }

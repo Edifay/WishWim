@@ -1,27 +1,8 @@
-(string_literal) @string
-(system_lib_string) @string
-
-((identifier) @constant
- (#match? @constant "^[A-Z][A-Z\\d_]*$"))
-
-((comment) @todo
-	(#match? @todo "TODO"))
-
-
-(call_expression
-  function: (identifier) @function)
-(call_expression:
-  function: (field_expression
-    field: (field_identifier) @function))
-(function_declarator
-  declarator: (identifier) @function)
-(preproc_function_def
-  name: (identifier) @function)
-
 (identifier) @variable
 
+((identifier) @constant
+	(#match? @constant "^[A-Z][A-Z\\d_]*$"))
 
-"double" @keyword
 "break" @keyword
 "case" @keyword
 "const" @keyword
@@ -43,20 +24,6 @@
 "union" @keyword
 "volatile" @keyword
 "while" @keyword
-
-"true" @keyword
-"false" @keyword
-
-[
-	"char"
-	"int"
-	"long"
-	"byte"
-	"unsigned"
-	"void"
-	"goto"
-	"bool"
-] @keyword
 
 "#define" @keyword
 "#elif" @keyword
@@ -88,7 +55,11 @@
 "." @delimiter
 ";" @delimiter
 
+(false) @keyword
+(true) @keyword
 
+(string_literal) @string
+(system_lib_string) @string
 
 (null) @constant
 (number_literal) @number
@@ -97,8 +68,17 @@
 (field_identifier) @property
 (statement_identifier) @label
 (type_identifier) @type
-(primitive_type) @type
+(primitive_type) @keyword
 (sized_type_specifier) @type
 
+(call_expression
+	function: (identifier) @function)
+(call_expression
+	function: (field_expression
+							field: (field_identifier) @function))
+(function_declarator
+	declarator: (identifier) @function)
+(preproc_function_def
+	name: (identifier) @function.special)
 
 (comment) @comment
