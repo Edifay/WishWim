@@ -18,6 +18,7 @@ MODULES= \
 	src/io_management/io_explorer.o \
 	src/advanced/lsp/lsp_client.o \
 	src/advanced/tree-sitter/tree_manager.o \
+	src/advanced/tree-sitter/tree_query.o \
 	src/advanced/theme.o \
 	src/terminal/highlight.o \
 	src/terminal/click_handler.o \

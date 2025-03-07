@@ -6,6 +6,7 @@
 #include <time.h>
 
 #include "term_handler.h"
+#include "../advanced/tree-sitter/tree_query.h"
 #include "../data-management/file_structure.h"
 #include "../utils/constants.h"
 
@@ -97,6 +98,71 @@ void highlightLinePart(WINDOW* ftw, int start_row, int start_column, int length,
 char litteral_text_node_buffer[REGEX_MAX_DUMP_SIZE * 4 + 1];
 double sum_check_match_for_highlight;
 
+void printHighlightedChar(HighlightThemeList theme_list, WINDOW* ftw, int screen_x, int screen_y, Cursor cursor, Cursor select, Cursor tmp, TSNode node, const char* result) {
+  if (result == NULL) {
+    // fprintf(stderr, "No color found for %s node.\n", tree_path[tree_path_length-1].name);
+    return;
+  }
+
+  attr_t attr = A_NORMAL;
+  NCURSES_PAIRS_T color = DEFAULT_COLOR_PAIR;
+
+  bool found = false;
+  // Setup style for group found.
+  for (int i = 0; i < theme_list.size; i++) {
+    if (strcmp(theme_list.groups[i].group, result) == 0) {
+      attr |= getAttrForTheme(theme_list.groups[i]);
+      color = theme_list.groups[i].color_n;
+
+      found = true;
+      break;
+    }
+  }
+
+  if (found == false) {
+    // Quit if a query was found, but not theme for this group was found.
+    // fprintf(stderr, "      || No theme found for capture %s  || \n", result);
+    return;
+  }
+
+
+  // TODO rework error system. It's not working properly.
+  // for (int i = 0; i < tree_path_length; i++) {
+  //   if (tree_path[i].type == SYMBOL && strcmp("ERROR", tree_path[i].name) == 0) {
+  //     attr |= A_ITALIC;
+  //   }
+  // }
+
+#ifndef USE_COLOR
+        // quit if color are disabled.
+        continue;
+#endif
+
+  TSPoint start_point = ts_node_start_point(node);
+  TSPoint end_point = ts_node_end_point(node);
+  // Simple line node.
+  if (start_point.row == end_point.row) {
+    int length_byte = end_point.column - start_point.column;
+    highlightLinePartWithBytes(ftw, start_point.row, start_point.column, length_byte, attr, color, cursor, select, &tmp, screen_y, screen_x);
+  }
+  else // Mutiple line node.
+  {
+    // First line
+    highlightLinePartWithBytes(ftw, start_point.row, start_point.column, INT_MAX, attr, color, cursor, select, &tmp, screen_y, screen_x);
+
+    // Between lines.
+    int ligne_between = end_point.row - start_point.row - 1;
+    for (int i = 1; i < ligne_between + 1; i++) {
+      highlightLinePartWithBytes(ftw, start_point.row + i, 0, INT_MAX, attr, color, cursor, select, &tmp, screen_y, screen_x);
+    }
+
+    // End line
+    highlightLinePartWithBytes(ftw, end_point.row, 0, end_point.column, attr, color, cursor, select, &tmp, screen_y, screen_x);
+  }
+
+  // End if group found.
+}
+
 void captureHighlight(TSQuery* query, TSQueryCursor* qcursor, FileHighlightDatas* highlight_data,
                       HighlightThemeList theme_list, WINDOW* ftw, int screen_x,
                       int screen_y, Cursor cursor, Cursor select) {
@@ -104,14 +170,13 @@ void captureHighlight(TSQuery* query, TSQueryCursor* qcursor, FileHighlightDatas
   int width = getmaxx(ftw);
   int height = getmaxy(ftw);
 
+  // Setup cursor range
   TSPoint begin;
   begin.row = screen_y - 1;
   begin.column = screen_x;
-
   TSPoint end;
   end.row = screen_y + height - 2;
   end.column = screen_x + width;
-
   ts_query_cursor_set_point_range(
     qcursor,
     begin,
@@ -121,114 +186,46 @@ void captureHighlight(TSQuery* query, TSQueryCursor* qcursor, FileHighlightDatas
   ts_query_cursor_exec(qcursor, query, ts_tree_root_node(highlight_data->tree));
 
   TSQueryMatch query_match;
-  uint32_t index = 0;
-  while (ts_query_cursor_next_capture(qcursor, &query_match, &index)) {
-    assert(index == 0);
-    assert(query_match.capture_count == 1);
-    fprintf(stderr, "===================\n%d match found on node !\n", query_match.capture_count);
-    fprintf(stderr, "Pattern Index %d\n", query_match.pattern_index);
-    TSNode node = query_match.captures[index].node;
-    fprintf(stderr, "Node (%d, %d) -> (%d, %d) : \n",
-            ts_node_start_point(node).row, ts_node_start_point(node).column,
-            ts_node_end_point(node).row, ts_node_end_point(node).column);
-
-    uint32_t pattern_size;
-    const TSQueryPredicateStep* steps = ts_query_predicates_for_pattern(query, query_match.pattern_index, &pattern_size);
-    for (int j = 0; j < pattern_size; j++) {
-      switch (steps[j].type) {
-        case TSQueryPredicateStepTypeCapture:
-          uint32_t size;
-          fprintf(stderr, "@%s -> ", ts_query_capture_name_for_id(query, steps[j].value_id, &size));
-          break;
-        case TSQueryPredicateStepTypeDone:
-          fprintf(stderr, "end.\n");
-          break;
-        case TSQueryPredicateStepTypeString:
-          uint32_t l;
-          fprintf(stderr, "'%s' -> ", ts_query_string_value_for_id(query, steps[j].value_id, &l));
-          break;
-      }
-    }
-    uint32_t size = 0;
-    const char* result = ts_query_capture_name_for_id(query, query_match.captures[index].index, &size);
-    fprintf(stderr, " -> capture name : %s\n", result);
-    if (pattern_size != 0) {
-      continue;
-    }
-
-    attr_t attr = A_NORMAL;
-    NCURSES_PAIRS_T color = DEFAULT_COLOR_PAIR;
-
-    // If a group was found.
-    if (result != NULL) {
-      bool found = false;
-      // Setup style for group found.
-      for (int i = 0; i < theme_list.size; i++) {
-        if (strcmp(theme_list.groups[i].group, result) == 0) {
-          attr |= getAttrForTheme(theme_list.groups[i]);
-          color = theme_list.groups[i].color_n;
-
-          found = true;
-          break;
-        }
-      }
-
-      if (found == false) {
-        // Quit if a query was found, but not theme for this group was found.
-        fprintf(stderr, "      || No theme found for capture %s  || \n", result);
-        continue;
-      }
+  while (TSQueryCursorNextMatchWithPredicates(&tmp, query, qcursor, &query_match)) {
+    for (int index = 0; index < query_match.capture_count; index++) {
+      TSNode node = query_match.captures[index].node;
+      // fprintf(stderr, "Node (%d, %d) -> (%d, %d) : (index: %d) \n", ts_node_start_point(node).row, ts_node_start_point(node).column, ts_node_end_point(node).row,
+              // ts_node_end_point(node).column, index);
 
 
-      // TODO rework error system. It's not working properly.
-      // for (int i = 0; i < tree_path_length; i++) {
-      //   if (tree_path[i].type == SYMBOL && strcmp("ERROR", tree_path[i].name) == 0) {
-      //     attr |= A_ITALIC;
-      //   }
-      // }
+      uint32_t size = 0;
+      const char* result = ts_query_capture_name_for_id(query, query_match.captures[index].index, &size);
+      // fprintf(stderr, " -> capture name : %s\n", result);
 
-      TSPoint start_point = ts_node_start_point(node);
-      TSPoint end_point = ts_node_end_point(node);
-
-
-      if (!USE_COLOR) {
-        // quit if color are disabled.
-        continue;
-      }
-
-      // Simple line node.
-      if (start_point.row == end_point.row) {
-        int length_byte = end_point.column - start_point.column;
-        highlightLinePartWithBytes(ftw, start_point.row, start_point.column, length_byte, attr, color, cursor, select, &tmp, screen_y, screen_x);
-      }
-      else // Mutiple line node.
-      {
-        // First line
-        highlightLinePartWithBytes(ftw, start_point.row, start_point.column, INT_MAX, attr, color, cursor, select, &tmp, screen_y, screen_x);
-
-        // Between lines.
-        int ligne_between = end_point.row - start_point.row - 1;
-        for (int i = 1; i < ligne_between + 1; i++) {
-          highlightLinePartWithBytes(ftw, start_point.row + i, 0, INT_MAX, attr, color, cursor, select, &tmp, screen_y, screen_x);
-        }
-
-        // End line
-        highlightLinePartWithBytes(ftw, end_point.row, 0, end_point.column, attr, color, cursor, select, &tmp, screen_y, screen_x);
-      }
-
-      continue;
-      // End if group found.
-    }
-    else {
-      // fprintf(stderr, "No color found for %s node.\n", tree_path[tree_path_length-1].name);
+      // If a capture.
+      printHighlightedChar(theme_list, ftw, screen_x, screen_y, cursor, select, tmp, node, result);
     }
   }
 }
 
+// uint32_t pattern_size;
+// const TSQueryPredicateStep* steps = ts_query_predicates_for_pattern(query, query_match.pattern_index, &pattern_size);
+//
+// for (int j = 0; j < pattern_size; j++) {
+//   switch (steps[j].type) {
+//     case TSQueryPredicateStepTypeCapture:
+//       uint32_t size;
+//     fprintf(stderr, "@%s -> ", ts_query_capture_name_for_id(query, steps[j].value_id, &size));
+//     break;
+//     case TSQueryPredicateStepTypeDone:
+//       fprintf(stderr, "end.\n");
+//     break;
+//     case TSQueryPredicateStepTypeString:
+//       uint32_t l;
+//     fprintf(stderr, "'%s' -> ", ts_query_string_value_for_id(query, steps[j].value_id, &l));
+//     break;
+//   }
+// }
+
 
 void highlightCurrentFile(FileHighlightDatas* highlight_data, WINDOW* ftw, int screen_x, int screen_y, Cursor cursor, Cursor select_cursor) {
   assert(highlight_data->is_active == true);
-  ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_name);
+  ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_id);
   assert(parser != NULL);
 
   clock_t t;

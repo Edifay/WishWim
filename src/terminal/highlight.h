@@ -4,10 +4,9 @@
 #include "../advanced/theme.h"
 #include "../advanced/tree-sitter/tree_manager.h"
 #include "../data-management/file_structure.h"
-#include "../../lib/tree-sitter/lib/include/tree_sitter/api.h"
 
 
-#define USE_COLOR true
+#define USE_COLOR
 
 #define REGEX_MAX_DUMP_SIZE 1000
 

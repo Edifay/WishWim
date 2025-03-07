@@ -28,7 +28,7 @@ typedef struct {
 
 // TODO implement a parser abstraction.
 typedef struct {
-  char lang_name[100];
+  char lang_id[100];
   const TSLanguage* lang;
   TSParser* parser;
   TSQuery* queries;
@@ -42,7 +42,7 @@ typedef struct {
 } ParserList;
 
 typedef struct {
-  char lang_name[100];
+  char lang_id[100];
   bool is_active;
   TSTree* tree;
 } FileHighlightDatas;
@@ -90,6 +90,8 @@ const TSLanguage* tree_sitter_query(void);
 
 const TSLanguage* tree_sitter_vhdl(void);
 
+const TSLanguage * tree_sitter_lua(void);
+
 void initParserList(ParserList* list);
 
 void destroyParserList(ParserList* list);
@@ -97,6 +99,10 @@ void destroyParserList(ParserList* list);
 void addParserToParserList(ParserList* list, ParserContainer new_parser);
 
 ParserContainer* getParserForLanguage(ParserList* list, char* language);
+
+bool hasTSLanguageImplementation(char* language);
+
+void getTSLanguageFromString(const TSLanguage** lang, char* language);
 
 bool loadNewParser(ParserContainer* container, char* language);
 

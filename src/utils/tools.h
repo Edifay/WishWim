@@ -8,6 +8,14 @@
 
 #include "../io_management/io_manager.h"
 
+typedef struct {
+  const char* content;
+  uint32_t length;
+} String;
+
+bool areStringEquals(String str1, String str2);
+
+
 typedef long long time_val;
 
 time_val timeInMilliseconds(void);
@@ -30,7 +38,7 @@ void getLocalURI(char* realive_abs_path, char* uri);
 
 bool isDir(char *path);
 
-bool getLanguageForFile(char *lang, IO_FileID io_file);
+bool getLanguageStringIDForFile(char *lang, IO_FileID io_file);
 
 int hashString(unsigned char* str);
 

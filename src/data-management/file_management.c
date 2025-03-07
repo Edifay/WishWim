@@ -50,7 +50,7 @@ void openNewFile(char* file_path, FileContainer** files, int* file_count, int* c
 
   if ((*files)[*file_count - 1].lsp_datas.is_enable) {
     char* dump = dumpSelection(tryToReachAbsPosition((*files)[*file_count - 1].cursor, 1, 0), tryToReachAbsPosition((*files)[*file_count - 1].cursor, INT_MAX, INT_MAX));
-    LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, (*files)[*file_count - 1].lsp_datas.name), (*files)[*file_count - 1].io_file.path_args, dump);
+    LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, (*files)[*file_count - 1].lsp_datas.lang_id), (*files)[*file_count - 1].io_file.path_args, dump);
     free(dump);
   }
 
@@ -148,7 +148,7 @@ void setupOpenedFiles(int* file_count, char** file_names, FileContainer** files)
 
     if ((*files)[i].lsp_datas.is_enable) {
       char* dump = dumpSelection(tryToReachAbsPosition((*files)[i].cursor, 1, 0), tryToReachAbsPosition((*files)[i].cursor, INT_MAX, INT_MAX));
-      LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, (*files)[i].lsp_datas.name), (*files)[i].io_file.path_args, dump);
+      LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, (*files)[i].lsp_datas.lang_id), (*files)[i].io_file.path_args, dump);
       free(dump);
     }
   }
@@ -157,7 +157,7 @@ void setupOpenedFiles(int* file_count, char** file_names, FileContainer** files)
     *file_count = 1;
     setupFileContainer("", *files);
     if ((*files)[0].lsp_datas.is_enable) {
-      LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, (*files)[0].lsp_datas.name), (*files)[0].io_file.path_args, "");
+      LSP_notifyLspFileDidOpen(*getLSPServerForLanguage(&lsp_servers, (*files)[0].lsp_datas.lang_id), (*files)[0].io_file.path_args, "");
     }
   }
 }

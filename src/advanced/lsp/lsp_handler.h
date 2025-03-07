@@ -7,7 +7,7 @@
 
 
 typedef struct {
-  char name[100];
+  char lang_id[100];
   bool is_enable;
 } LSP_Datas;
 

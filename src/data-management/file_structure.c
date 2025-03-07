@@ -2257,7 +2257,8 @@ int readNu8CharAtCursor(Cursor* cursor_p, char* dest, int utf8_char_length) {
         cursor.line_id.line = cursor.line_id.line->next;
         cursor.line_id.relative_column = 0;
       }
-      else if (hasElementAfterFile(cursor.file_id) == false) {// cursor currently at the end of the current file.
+      else if (hasElementAfterFile(cursor.file_id) == false) {
+        // cursor currently at the end of the current file.
         break;
       }
       else {
@@ -2310,8 +2311,7 @@ int readNu8CharAtPosition(Cursor* cursor_p, int row_raw, int column_raw, char* d
       line_id.absolute_column += line_id.line->element_number;
       current_column_raw += line_id.line->byte_count;
       line_id.line = line_id.line->next;
-      assert(line_id.line != NULL);
-      // INDEX OUT OF RANGE
+      assert(line_id.line != NULL); // INDEX OUT OF RANGE
     }
     else {
       while (current_column_raw < column_raw) {
@@ -2346,7 +2346,8 @@ int readNBytesCharAtCursor(Cursor* cursor_p, char* dest, int length) {
         cursor.line_id.line = cursor.line_id.line->next;
         cursor.line_id.relative_column = 0;
       }
-      else if (hasElementAfterFile(cursor.file_id) == false) {// cursor currently at the end of the current file.
+      else if (hasElementAfterFile(cursor.file_id) == false) {
+        // cursor currently at the end of the current file.
         break;
       }
       else {

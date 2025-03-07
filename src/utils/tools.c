@@ -9,6 +9,11 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 
+bool areStringEquals(String str1, String str2) {
+  return strcmp(str1.content, str2.content) == 0;
+}
+
+
 time_val timeInMilliseconds(void) {
   struct timeval tv;
 
@@ -105,7 +110,7 @@ bool isDir(char* path) {
   return S_ISDIR(file_info.st_mode);
 }
 
-bool getLanguageForFile(char* lang_name, IO_FileID io_file) {
+bool getLanguageStringIDForFile(char* lang_id, IO_FileID io_file) {
   /// ---- FILE NAME ----
 
   if (io_file.status == NONE) {
@@ -114,13 +119,13 @@ bool getLanguageForFile(char* lang_name, IO_FileID io_file) {
 
   // Make
   if (strcmp(basename(io_file.path_abs), "Makefile") == 0) {
-    strcpy(lang_name, "make");
+    strcpy(lang_id, "make");
     return true;
   }
 
   // Bash
   if (strcmp(basename(io_file.path_abs), "config") == 0 || strcmp(basename(io_file.path_abs), ".bashrc") == 0) {
-    strcpy(lang_name, "bash");
+    strcpy(lang_id, "bash");
     return true;
   }
 
@@ -129,78 +134,83 @@ bool getLanguageForFile(char* lang_name, IO_FileID io_file) {
   // extracting extension
   char* dot = strrchr(io_file.path_args, '.');
   if (dot != NULL)
-    strncpy(lang_name, dot + 1, 99);
+    strncpy(lang_id, dot + 1, 99);
 
   // ADD_NEW_LANGUAGE
 
   // c
-  if (strcmp(lang_name, "h") == 0 || strcmp(lang_name, "c") == 0) {
-    strcpy(lang_name, "c");
+  if (strcmp(lang_id, "h") == 0 || strcmp(lang_id, "c") == 0) {
+    strcpy(lang_id, "c");
     return true;
   }
   // python
-  if (strcmp(lang_name, "py") == 0) {
-    strcpy(lang_name, "python");
+  if (strcmp(lang_id, "py") == 0) {
+    strcpy(lang_id, "python");
     return true;
   }
   // markdown
-  if (strcmp(lang_name, "md") == 0) {
-    strcpy(lang_name, "markdown");
+  if (strcmp(lang_id, "md") == 0) {
+    strcpy(lang_id, "markdown");
     return true;
   }
   // java
-  if (strcmp(lang_name, "java") == 0) {
-    strcpy(lang_name, "java");
+  if (strcmp(lang_id, "java") == 0) {
+    strcpy(lang_id, "java");
     return true;
   }
   // c++
-  if (strcmp(lang_name, "cpp") == 0 || strcmp(lang_name, "cc") == 0) {
-    strcpy(lang_name, "cpp");
+  if (strcmp(lang_id, "cpp") == 0 || strcmp(lang_id, "cc") == 0) {
+    strcpy(lang_id, "cpp");
     return true;
   }
   // c#
-  if (strcmp(lang_name, "cs") == 0) {
-    strcpy(lang_name, "c-sharp");
+  if (strcmp(lang_id, "cs") == 0) {
+    strcpy(lang_id, "c-sharp");
     return true;
   }
   // css / scss
-  if (strcmp(lang_name, "css") == 0 || strcmp(lang_name, "scss") == 0) {
-    strcpy(lang_name, "css");
+  if (strcmp(lang_id, "css") == 0 || strcmp(lang_id, "scss") == 0) {
+    strcpy(lang_id, "css");
     return true;
   }
   // dart
-  if (strcmp(lang_name, "dart") == 0) {
-    strcpy(lang_name, "dart");
+  if (strcmp(lang_id, "dart") == 0) {
+    strcpy(lang_id, "dart");
     return true;
   }
   // go-lang
-  if (strcmp(lang_name, "go") == 0) {
-    strcpy(lang_name, "go");
+  if (strcmp(lang_id, "go") == 0) {
+    strcpy(lang_id, "go");
     return true;
   }
   // java-script
-  if (strcmp(lang_name, "js") == 0) {
-    strcpy(lang_name, "javascript");
+  if (strcmp(lang_id, "js") == 0) {
+    strcpy(lang_id, "javascript");
     return true;
   }
   // json
-  if (strcmp(lang_name, "json") == 0) {
-    strcpy(lang_name, "json");
+  if (strcmp(lang_id, "json") == 0) {
+    strcpy(lang_id, "json");
     return true;
   }
   // bash/shell
-  if (strcmp(lang_name, "sh") == 0 || strcmp(lang_name, "conf") == 0) {
-    strcpy(lang_name, "bash");
+  if (strcmp(lang_id, "sh") == 0 || strcmp(lang_id, "conf") == 0) {
+    strcpy(lang_id, "bash");
     return true;
   }
   // scheme implementation
-  if (strcmp(lang_name, "scm") == 0) {
-    strcpy(lang_name, "query");
+  if (strcmp(lang_id, "scm") == 0) {
+    strcpy(lang_id, "query");
     return true;
   }
   // vhdl
-  if (strcmp(lang_name, "vhd") == 0) {
-    strcpy(lang_name, "vhdl");
+  if (strcmp(lang_id, "vhd") == 0) {
+    strcpy(lang_id, "vhdl");
+    return true;
+  }
+  // lua
+  if (strcmp(lang_id, "lua") == 0) {
+    strcpy(lang_id, "lua");
     return true;
   }
 

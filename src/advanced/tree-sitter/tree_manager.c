@@ -12,6 +12,7 @@
 #include "../../utils/constants.h"
 #include "../../../lib/tree-sitter/lib/include/tree_sitter/api.h"
 #include "../../utils/tools.h"
+#include "../tree-sitter/tree_query.h"
 
 
 void initParserList(ParserList* list) {
@@ -40,7 +41,7 @@ void destroyParserList(ParserList* list) {
 
 ParserContainer* getParserForLanguage(ParserList* list, char* language) {
   for (int i = 0; i < list->size; i++) {
-    if (strcmp(list->list[i].lang_name, language) == 0) {
+    if (strcmp(list->list[i].lang_id, language) == 0) {
       return list->list + i;
     }
   }
@@ -64,7 +65,7 @@ TSQuery* loadQueries(const ParserContainer* container, char path[PATH_MAX], uint
   return queries;
 }
 
-void getLanguageFromString(const TSLanguage** lang, char* language) {
+void getTSLanguageFromString(const TSLanguage** lang, char* language) {
   // ADD_NEW_LANGUAGE
   if (strcmp(language, "c") == 0) {
     *lang = tree_sitter_c();
@@ -111,9 +112,12 @@ void getLanguageFromString(const TSLanguage** lang, char* language) {
   else if (strcmp(language, "vhdl") == 0) {
     *lang = tree_sitter_vhdl();
   }
+  else if (strcmp(language, "lua") == 0) {
+    *lang = tree_sitter_lua();
+  }
 }
 
-bool isLanguageSupported(char* language) {
+bool hasTSLanguageImplementation(char* language) {
   // ADD_NEW_LANGUAGE
   return strcmp(language, "c") == 0 ||
          strcmp(language, "python") == 0 ||
@@ -129,45 +133,20 @@ bool isLanguageSupported(char* language) {
          strcmp(language, "json") == 0 ||
          strcmp(language, "bash") == 0 ||
          strcmp(language, "query") == 0 ||
+         strcmp(language, "lua") == 0 ||
          strcmp(language, "vhdl") == 0;
 }
 
-void printQueryLoadError(uint32_t error_offset, TSQueryError error_type) {
-  switch (error_type) {
-    case TSQueryErrorCapture:
-      fprintf(stderr, "ERROR : Query Capture Error\n");
-      break;
-    case TSQueryErrorField:
-      fprintf(stderr, "ERROR : Query Field Error\n");
-      break;
-    case TSQueryErrorLanguage:
-      fprintf(stderr, "ERROR : Query Language Error\n");
-      break;
-    case TSQueryErrorNone:
-      fprintf(stderr, "ERROR : No error.\n");
-      break;
-    case TSQueryErrorStructure:
-      fprintf(stderr, "ERROR : Query Structure Error\n");
-      break;
-    case TSQueryErrorSyntax:
-      fprintf(stderr, "ERROR : Query Syntax Error\n");
-      break;
-    case TSQueryErrorNodeType:
-      fprintf(stderr, "ERROR : Query NodeType Error\n");
-      break;
-  }
-  fprintf(stderr, "Syntax error at %d byte_offset.", error_offset);
-}
 
 bool loadNewParser(ParserContainer* container, char* language) {
-  if (!isLanguageSupported(language)) {
+  if (!hasTSLanguageImplementation(language)) {
     return false;
   }
   // Set file name
-  strcpy(container->lang_name, language);
+  strcpy(container->lang_id, language);
 
   // Getting TSLanguage
-  getLanguageFromString(&container->lang, language);
+  getTSLanguageFromString(&container->lang, language);
 
   // Fetching the folder where to load theme and queries.
   char* load_path = cJSON_GetStringValue(cJSON_GetObjectItem(config, "default_path"));
@@ -184,7 +163,7 @@ bool loadNewParser(ParserContainer* container, char* language) {
   }
 
   // Queries
-  sprintf(path, "%s/queries/highlights-%s.scm", load_path, container->lang_name);
+  sprintf(path, "%s/queries/highlights-%s.scm", load_path, container->lang_id);
 
   uint32_t error_offset;
   TSQueryError error_type;
@@ -210,11 +189,11 @@ bool loadNewParser(ParserContainer* container, char* language) {
 
 
 void setFileHighlightDatas(FileHighlightDatas* data, IO_FileID io_file) {
-  bool did_lang_was_found = getLanguageForFile(data->lang_name, io_file);
+  bool did_lang_was_found = getLanguageStringIDForFile(data->lang_id, io_file);
 
   ParserContainer* parser = NULL;
   if (did_lang_was_found == true) {
-    parser = getParserForLanguage(&parsers, data->lang_name);
+    parser = getParserForLanguage(&parsers, data->lang_id);
   }
 
   data->is_active = parser != NULL;
@@ -367,7 +346,7 @@ void parse_tree(FileNode** root, History** history_frame, FileHighlightDatas* hi
   if (highlight_data->is_active == false)
     return;
 
-  ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_name);
+  ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_id);
 
   Cursor cursor_root = moduloCursorR(*root, 1, 0);
 
