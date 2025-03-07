@@ -43,8 +43,8 @@ LIBS_MODULES= \
 	lib/tree-sitter-bash/target/debug/libtree_sitter_bash.rlib \
 	lib/tree-sitter-markdown/target/debug/libtree_sitter_md.rlib \
 	lib/tree-sitter-query/target/debug/libtree_sitter_query.rlib \
-	lib/tree-sitter-vhdl/target/debug/libtree_sitter_vhdl.rlib
-
+	lib/tree-sitter-vhdl/target/debug/libtree_sitter_vhdl.rlib \
+	lib/tree-sitter-lua/target/debug/libtree_sitter_lua.rlib
 
 ALL_MODULES= $(MODULES) $(LIBS_MODULES)
 

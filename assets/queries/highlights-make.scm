@@ -1,117 +1,119 @@
 [
- "("
- ")"
- "{"
- "}"
-] @punctuation.bracket
+  "("
+  ")"
+  "{"
+  "}"
+  ] @punctuation.bracket
 
 [
- ":"
- "&:"
- "::"
- "|"
- ";"
- "'"
- ","
-] @punctuation.delimiter
+  ":"
+  "&:"
+  "::"
+  "|"
+  ";"
+  "\""
+  "'"
+  ","
+  ] @punctuation.delimiter
 
 [
- "$"
- "$$"
-] @punctuation.special
+  "$"
+  "$$"
+  ] @punctuation.special
 
 (automatic_variable
- [ "@" "%" "<" "?" "^" "+" "/" "*" "D" "F"] @punctuation.special)
+  ["@" "%" "<" "?" "^" "+" "/" "*" "D" "F"] @punctuation.special)
 
 (automatic_variable
- "/" @error . ["D" "F"])
+  "/" @error . ["D" "F"])
 
 [
- "="
- ":="
- "::="
- "?="
- "+="
- "!="
- "@"
- "-"
- "+"
-] @operator
+  "="
+  ":="
+  "::="
+  "?="
+  "+="
+  "!="
+  "@"
+  "-"
+  "+"
+  ] @operator
 
 [
- (text)
- (string)
- (raw_text)
-] @string
+  (text)
+  (string)
+  (raw_text)
+  ] @string
 
 (variable_assignment (word) @string)
 
 [
- "ifeq"
- "ifneq"
- "ifdef"
- "ifndef"
- "else"
- "endif"
- "if"
- "or"
- "and"
-] @conditional
+  "ifeq"
+  "ifneq"
+  "ifdef"
+  "ifndef"
+  "else"
+  "endif"
+  "if"
+  "or"  ; boolean functions are conditional in make grammar
+  "and"
+  ] @conditional
 
 "foreach" @repeat
 
 [
- "define"
- "endef"
- "vpath"
- "undefine"
- "export"
- "unexport"
- "override"
- "private"
-] @keyword
+  "define"
+  "endef"
+  "vpath"
+  "undefine"
+  "export"
+  "unexport"
+  "override"
+  "private"
+  ; "load"
+  ] @keyword
 
 [
- "include"
- "sinclude"
- "-include"
-] @include
+  "include"
+  "sinclude"
+  "-include"
+  ] @include
 
 [
- "subst"
- "patsubst"
- "strip"
- "findstring"
- "filter"
- "filter-out"
- "sort"
- "word"
- "words"
- "wordlist"
- "firstword"
- "lastword"
- "dir"
- "notdir"
- "suffix"
- "basename"
- "addsuffix"
- "addprefix"
- "join"
- "wildcard"
- "realpath"
- "abspath"
- "call"
- "eval"
- "file"
- "value"
- "shell"
-] @keyword.function
+  "subst"
+  "patsubst"
+  "strip"
+  "findstring"
+  "filter"
+  "filter-out"
+  "sort"
+  "word"
+  "words"
+  "wordlist"
+  "firstword"
+  "lastword"
+  "dir"
+  "notdir"
+  "suffix"
+  "basename"
+  "addsuffix"
+  "addprefix"
+  "join"
+  "wildcard"
+  "realpath"
+  "abspath"
+  "call"
+  "eval"
+  "file"
+  "value"
+  "shell"
+  ] @keyword.function
 
 [
- "error"
- "warning"
- "info"
-] @exception
+  "error"
+  "warning"
+  "info"
+  ] @exception
 
 ;; Variable
 (variable_assignment
@@ -120,10 +122,11 @@
 (variable_reference
   (word) @constant)
 
-(comment) @comment
+(comment)+ @comment
 
-((word) @clean @string.regex
- (#match? @clean "[%\*\?]"))
+((word) @clean @string.regex @test
+  (#match? @clean "[%\*\?]")
+  (#eq? @clean "test"))
 
 (function_call
   function: "error"
@@ -141,17 +144,19 @@
 ;; Others special variables
 ;; Variables Used by Implicit Rules
 [
- "VPATH"
- ".RECIPEPREFIX"
-] @constant.builtin
+  "VPATH"
+  ".RECIPEPREFIX"
+  ] @constant.builtin
 
 (variable_assignment
   name: (word) @clean @constant.builtin
-        (#match? @clean "^(AR|AS|CC|CXX|CPP|FC|M2C|PC|CO|GET|LEX|YACC|LINT|MAKEINFO|TEX|TEXI2DVI|WEAVE|CWEAVE|TANGLE|CTANGLE|RM|ARFLAGS|ASFLAGS|CFLAGS|CXXFLAGS|COFLAGS|CPPFLAGS|FFLAGS|GFLAGS|LDFLAGS|LDLIBS|LFLAGS|YFLAGS|PFLAGS|RFLAGS|LINTFLAGS|PRE_INSTALL|POST_INSTALL|NORMAL_INSTALL|PRE_UNINSTALL|POST_UNINSTALL|NORMAL_UNINSTALL|MAKEFILE_LIST|MAKE_RESTARTS|MAKE_TERMOUT|MAKE_TERMERR|\.DEFAULT_GOAL|\.RECIPEPREFIX|\.EXTRA_PREREQS)$"))
+  (#match? @clean "^(AR|AS|CC|CXX|CPP|FC|M2C|PC|CO|GET|LEX|YACC|LINT|MAKEINFO|TEX|TEXI2DVI|WEAVE|CWEAVE|TANGLE|CTANGLE|RM|ARFLAGS|ASFLAGS|CFLAGS|CXXFLAGS|COFLAGS|CPPFLAGS|FFLAGS|GFLAGS|LDFLAGS|LDLIBS|LFLAGS|YFLAGS|PFLAGS|RFLAGS|LINTFLAGS|PRE_INSTALL|POST_INSTALL|NORMAL_INSTALL|PRE_UNINSTALL|POST_UNINSTALL|NORMAL_UNINSTALL|MAKEFILE_LIST|MAKE_RESTARTS|MAKE_TERMOUT|MAKE_TERMERR|\.DEFAULT_GOAL|\.RECIPEPREFIX|\.EXTRA_PREREQS)$"))
 
 (variable_reference
   (word) @clean @constant.builtin
   (#match? @clean "^(AR|AS|CC|CXX|CPP|FC|M2C|PC|CO|GET|LEX|YACC|LINT|MAKEINFO|TEX|TEXI2DVI|WEAVE|CWEAVE|TANGLE|CTANGLE|RM|ARFLAGS|ASFLAGS|CFLAGS|CXXFLAGS|COFLAGS|CPPFLAGS|FFLAGS|GFLAGS|LDFLAGS|LDLIBS|LFLAGS|YFLAGS|PFLAGS|RFLAGS|LINTFLAGS|PRE_INSTALL|POST_INSTALL|NORMAL_INSTALL|PRE_UNINSTALL|POST_UNINSTALL|NORMAL_UNINSTALL|MAKEFILE_LIST|MAKE_RESTARTS|MAKE_TERMOUT|MAKE_TERMERR|\.DEFAULT_GOAL|\.RECIPEPREFIX|\.EXTRA_PREREQS\.VARIABLES|\.FEATURES|\.INCLUDE_DIRS|\.LOADED)$"))
+
+(targets) @constant
 
 ;; Standart targets
 (targets

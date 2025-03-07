@@ -55,6 +55,8 @@
 "." @delimiter
 ";" @delimiter
 
+"goto" @keyword
+
 (false) @keyword
 (true) @keyword
 
