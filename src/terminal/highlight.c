@@ -203,25 +203,6 @@ void captureHighlight(TSQuery* query, TSQueryCursor* qcursor, FileHighlightDatas
   }
 }
 
-// uint32_t pattern_size;
-// const TSQueryPredicateStep* steps = ts_query_predicates_for_pattern(query, query_match.pattern_index, &pattern_size);
-//
-// for (int j = 0; j < pattern_size; j++) {
-//   switch (steps[j].type) {
-//     case TSQueryPredicateStepTypeCapture:
-//       uint32_t size;
-//     fprintf(stderr, "@%s -> ", ts_query_capture_name_for_id(query, steps[j].value_id, &size));
-//     break;
-//     case TSQueryPredicateStepTypeDone:
-//       fprintf(stderr, "end.\n");
-//     break;
-//     case TSQueryPredicateStepTypeString:
-//       uint32_t l;
-//     fprintf(stderr, "'%s' -> ", ts_query_string_value_for_id(query, steps[j].value_id, &l));
-//     break;
-//   }
-// }
-
 
 void highlightCurrentFile(FileHighlightDatas* highlight_data, WINDOW* ftw, int screen_x, int screen_y, Cursor cursor, Cursor select_cursor) {
   assert(highlight_data->is_active == true);

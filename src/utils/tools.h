@@ -5,6 +5,7 @@
 #ifndef TOOLS_H
 #define TOOLS_H
 #include <ncurses.h>
+#include <stdlib.h>
 
 #include "../io_management/io_manager.h"
 
@@ -43,5 +44,7 @@ bool getLanguageStringIDForFile(char *lang, IO_FileID io_file);
 int hashString(unsigned char* str);
 
 char* loadFullFile(const char* path, long* length);
+
+int mkdir_p(const char *path, mode_t mode);
 
 #endif //TOOLS_H

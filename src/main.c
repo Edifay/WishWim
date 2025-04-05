@@ -55,6 +55,9 @@ void dispatcher(cJSON* packet, long* payload) {
   }
 }
 
+//
+// 
+//
 
 int main(int file_count, char** args) {
   setlocale(LC_ALL, "");
@@ -473,9 +476,8 @@ int main(int file_count, char** args) {
 
       case H_KEY_CTRL_DELETE:
       case CTRL('H'):
-        *cursor = moveToPreviousWord(*cursor);
         setSelectCursorOn(*cursor, select_cursor);
-        *cursor = moveToNextWord(*cursor);
+        *cursor = moveToPreviousWord(*cursor);
         deleteSelectionWithState(history_frame, cursor, select_cursor, payload_state_change);
         setDesiredColumn(*cursor, desired_column);
         break;

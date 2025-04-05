@@ -92,6 +92,8 @@ const TSLanguage* tree_sitter_vhdl(void);
 
 const TSLanguage * tree_sitter_lua(void);
 
+const TSLanguage * tree_sitter_asm(void);
+
 void initParserList(ParserList* list);
 
 void destroyParserList(ParserList* list);

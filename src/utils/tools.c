@@ -1,10 +1,12 @@
 #include "tools.h"
 
+#include <errno.h>
 #include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <asm-generic/errno-base.h>
 #include <linux/limits.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -213,6 +215,11 @@ bool getLanguageStringIDForFile(char* lang_id, IO_FileID io_file) {
     strcpy(lang_id, "lua");
     return true;
   }
+  // asm
+  if (strcmp(lang_id, "s") == 0) {
+    strcpy(lang_id, "asm");
+    return true;
+  }
 
   return false;
 }
@@ -243,4 +250,33 @@ char* loadFullFile(const char* path, long* length) {
   string[*length] = 0;
 
   return string;
+}
+
+
+// Fonction qui crée récursivement les répertoires comme `mkdir -p`
+int mkdir_p(const char *path, mode_t mode) {
+  char tmp[1024];
+  char *p = NULL;
+  size_t len;
+
+  snprintf(tmp, sizeof(tmp), "%s", path);
+  len = strlen(tmp);
+  if (tmp[len - 1] == '/')
+    tmp[len - 1] = '\0';
+
+  for (p = tmp + 1; *p; p++) {
+    if (*p == '/') {
+      *p = '\0';
+      if (mkdir(tmp, mode) != 0 && errno != EEXIST) {
+        perror("mkdir");
+        return -1;
+      }
+      *p = '/';
+    }
+  }
+  if (mkdir(tmp, mode) != 0 && errno != EEXIST) {
+    perror("mkdir");
+    return -1;
+  }
+  return 0;
 }

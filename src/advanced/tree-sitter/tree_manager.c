@@ -115,6 +115,9 @@ void getTSLanguageFromString(const TSLanguage** lang, char* language) {
   else if (strcmp(language, "lua") == 0) {
     *lang = tree_sitter_lua();
   }
+  else if (strcmp(language, "asm") == 0) {
+    *lang = tree_sitter_asm();
+  }
 }
 
 bool hasTSLanguageImplementation(char* language) {
@@ -134,7 +137,8 @@ bool hasTSLanguageImplementation(char* language) {
          strcmp(language, "bash") == 0 ||
          strcmp(language, "query") == 0 ||
          strcmp(language, "lua") == 0 ||
-         strcmp(language, "vhdl") == 0;
+         strcmp(language, "vhdl") == 0 ||
+           strcmp(language, "asm") == 0;
 }
 
 
