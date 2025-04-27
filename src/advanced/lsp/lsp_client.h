@@ -3,10 +3,11 @@
  */
 #ifndef CLIENT_H
 #define CLIENT_H
+
 #include <stdbool.h>
-#include <cjson/cJSON.h>
 #include <sys/types.h>
 
+#include "../../../lib/cJSON/cJSON.h"
 
 typedef enum {
   REQUEST,

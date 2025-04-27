@@ -1,5 +1,6 @@
 #ifndef TREE_QUERY_H
 #define TREE_QUERY_H
+#include <regex.h>
 #include <stdbool.h>
 #include "../../../lib/tree-sitter/lib/include/tree_sitter/api.h"
 #include "../../utils/tools.h"
@@ -29,6 +30,8 @@ bool TSQueryCursorNextMatchWithPredicates(Cursor* tmp, TSQuery* query, TSQueryCu
 String getCaptureString(TSQuery* query, uint32_t index);
 
 bool isStringEqualToNodeContent(Cursor *tmp, String str, TSNode node);
+
+bool isRegexMatchingToNodeContent(Cursor* tmp, regex_t regex, TSNode node);
 
 
 ///// -------- STREAM --------

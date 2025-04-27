@@ -37,7 +37,7 @@ bool eq(ProcessPredicatePayload payload, bool any, bool not) {
   predicates_consumeCapture(payload.stream, payload.query, &predicate_capture_name);
 
   TSQueryPredicateStepType last_node_type = predicates_peekType(payload.stream);
-  if (last_node_type == TSQueryPredicateStepTypeCapture) {
+  if (last_node_type != TSQueryPredicateStepTypeString) {
     fprintf(stderr, "Predicates type '#eq? @capture_1 @capture_2' are not supported !\n");
     return false;
   }
@@ -59,11 +59,56 @@ bool eq(ProcessPredicatePayload payload, bool any, bool not) {
 }
 
 bool any_of(ProcessPredicatePayload payload) {
-  return false;
+  String predicate_capture_name;
+  predicates_consumeCapture(payload.stream, payload.query, &predicate_capture_name);
+
+  bool found = false;
+  while (predicates_peekType(payload.stream) != TSQueryPredicateStepTypeDone) {
+    String string_to_match;
+    predicates_consumeString(payload.stream, payload.query, &string_to_match);
+
+    if (found == true)
+      continue;
+
+    for (int i = 0; i < payload.qmatch.capture_count; i++) {
+      String match_capture_name = getCaptureString(payload.query, payload.qmatch.captures[i].index);
+      if (areStringEquals(predicate_capture_name, match_capture_name)) {
+        TSNode current_node = payload.qmatch.captures[i].node;
+        if (isStringEqualToNodeContent(payload.tmp, string_to_match, current_node) == true) {
+          found = true;
+          break;
+        }
+      }
+    }
+  }
+
+  return found;
 }
 
-bool match(ProcessPredicatePayload payload) {
-  return false;
+bool match(ProcessPredicatePayload payload, bool any, bool not) {
+  String predicate_capture_name;
+  predicates_consumeCapture(payload.stream, payload.query, &predicate_capture_name);
+
+  String regex_pattern_string;
+  predicates_consumeString(payload.stream, payload.query, &regex_pattern_string);
+
+  // TODO save compiled regex away to not compile each time.
+  regex_t regex;
+  regcomp(&regex, regex_pattern_string.content, REG_EXTENDED);
+
+  for (int i = 0; i < payload.qmatch.capture_count; i++) {
+    String match_capture_name = getCaptureString(payload.query, payload.qmatch.captures[i].index);
+    if (areStringEquals(predicate_capture_name, match_capture_name)) {
+      TSNode current_node = payload.qmatch.captures[i].node;
+      if (isRegexMatchingToNodeContent(payload.tmp, regex, current_node) == (any != not)) {
+        regfree(&regex);
+        return any;
+      }
+    }
+  }
+
+  regfree(&regex);
+  return !any;
 }
 
 
@@ -94,7 +139,16 @@ bool executeCurrentPredicate(ProcessPredicatePayload payload) {
     return any_of(payload);
   }
   if (strncmp(str.content, "match", str.length - 1) == 0) {
-    return match(payload);
+    return match(payload, false, false);
+  }
+  if (strncmp(str.content, "not-match", str.length - 1) == 0) {
+    return match(payload, false, true);
+  }
+  if (strncmp(str.content, "any-match", str.length - 1) == 0) {
+    return match(payload, true, false);
+  }
+  if (strncmp(str.content, "any-not-match", str.length - 1) == 0) {
+    return match(payload, true, true);
   }
 
 
@@ -124,53 +178,22 @@ bool arePredicatesMatching(Cursor* tmp, TSQuery* query, TSQueryMatch qmatch, con
 
 bool TSQueryCursorNextMatchWithPredicates(Cursor* tmp, TSQuery* query, TSQueryCursor* qcursor, TSQueryMatch* qmatch) {
   TSQueryMatch _qmatch;
-  uint32_t ignored;
   while (ts_query_cursor_next_match(qcursor, &_qmatch)) {
     uint32_t length;
     const TSQueryPredicateStep* predicates = ts_query_predicates_for_pattern(query, _qmatch.pattern_index, &length);
 
-    fprintf(stderr, " ======== MATCH ========\n");
-    fprintf(stderr, "Pattern match %d captures.\n", _qmatch.capture_count);
-    for (int i = 0; i < _qmatch.capture_count; i++) {
-      fprintf(stderr, " - %d : %s\n", i, getCaptureString(query, _qmatch.captures[i].index).content);
-    }
     // Pattern don't contain any predicates. We can send it.
     if (length == 0) {
       *qmatch = _qmatch;
       return true;
     }
 
-    // fprintf(stderr, " ======== MATCH ========\n");
-    // fprintf(stderr, "Pattern match %d captures.\n", _qmatch.capture_count);
-    // for (int i = 0; i < _qmatch.capture_count; i++) {
-    //   fprintf(stderr, " - %d : %s\n", i, getCaptureString(query, _qmatch.captures[i].index).content);
-    // }
-
-    uint32_t pattern_size;
-    const TSQueryPredicateStep* steps = ts_query_predicates_for_pattern(query, _qmatch.pattern_index, &pattern_size);
-
-    for (int j = 0; j < pattern_size; j++) {
-      switch (steps[j].type) {
-        case TSQueryPredicateStepTypeCapture:
-          uint32_t size;
-          fprintf(stderr, "@%s -> ", ts_query_capture_name_for_id(query, steps[j].value_id, &size));
-          break;
-        case TSQueryPredicateStepTypeDone:
-          fprintf(stderr, "end.\n");
-          break;
-        case TSQueryPredicateStepTypeString:
-          uint32_t l;
-          fprintf(stderr, "'%s' -> ", ts_query_string_value_for_id(query, steps[j].value_id, &l));
-          break;
-      }
-    }
-
-
     // If predicates matching send it.
     if (arePredicatesMatching(tmp, query, _qmatch, predicates, length)) {
       *qmatch = _qmatch;
       return true;
     }
+
     // If predicates don't match, process to the next match.
   }
 
@@ -193,6 +216,20 @@ bool isStringEqualToNodeContent(Cursor* tmp, String str, TSNode node) {
   readNBytesAtPosition(tmp, start_point.row, start_point.column, content, content_length);
 
   return str.length == content_length && strncmp(content, str.content, content_length) == 0;
+}
+
+bool isRegexMatchingToNodeContent(Cursor* tmp, regex_t regex, TSNode node) {
+  uint32_t content_length = ts_node_end_byte(node) - ts_node_start_byte(node);
+  char content[content_length + 1];
+  content[content_length] = '\0';
+
+  TSPoint start_point = ts_node_start_point(node);
+  readNBytesAtPosition(tmp, start_point.row, start_point.column, content, content_length);
+
+  regmatch_t reg_matchs[1];
+  int match_result = regexec(&regex, content, 1, reg_matchs, 0);
+
+  return match_result == 0;
 }
 
 

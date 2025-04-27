@@ -1,8 +1,8 @@
 #ifndef DIR_SETTINGS_H
 #define DIR_SETTINGS_H
 #include <stdbool.h>
-#include <cjson/cJSON.h>
 
+#include "../../lib/cJSON/cJSON.h"
 #include "../data-management/file_management.h"
 #include "../terminal/term_handler.h"
 

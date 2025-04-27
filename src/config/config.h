@@ -1,7 +1,8 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 #include <stdbool.h>
-#include <cjson/cJSON.h>
+
+#include "../../lib/cJSON/cJSON.h"
 
 #define CONFIG_PATH ".config/al/config"
 #define CONFIG_FOLDER ".config/al/"

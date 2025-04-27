@@ -25,6 +25,9 @@
 #include "advanced/lsp/lsp_client.h"
 #include "config/config.h"
 
+// #define SHOW_ERROR true
+#define SHOW_ERROR false
+
 
 /**   TODO list :
  *       - Rework the query for highlight to optimise queries.
@@ -59,7 +62,14 @@ void dispatcher(cJSON* packet, long* payload) {
 // 
 //
 
+
 int main(int file_count, char** args) {
+  if (!SHOW_ERROR) {
+    FILE* f = fopen("/dev/null", "w");
+    dup2(fileno(f), STDERR_FILENO);
+    fclose(f);
+  }
+
   setlocale(LC_ALL, "");
   // TODO Remove when lsp_logs.txt will be unused.
   // system("echo "" > lsp_logs.txt");

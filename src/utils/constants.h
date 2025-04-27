@@ -1,7 +1,6 @@
 #ifndef CONTANTS_H
 #define CONTANTS_H
 
-#include <cjson/cJSON.h>
 #include "../advanced/tree-sitter/tree_manager.h"
 #include "../advanced/lsp/lsp_handler.h"
 #include "../io_management/workspace_settings.h"

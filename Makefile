@@ -81,4 +81,7 @@ clean:
 	rm -rf *.o | rm -rf $(executable) $(MODULES)
 
 clean_all:
-	rm -rf *.o | rm -rf $(executable) $(ALL_MODULES)
+	rm -rf *.o && rm -rf $(executable) $(ALL_MODULES) && find . -type d -name "target" -exec rm -rf {} +
+
+
+# find . -type d -name "target" -exec rm -rf {} + # Remove target folders

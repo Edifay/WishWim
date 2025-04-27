@@ -81,6 +81,15 @@
 (function_declarator
 	declarator: (identifier) @function)
 (preproc_function_def
-	name: (identifier) @function.special)
+	name: (identifier) @function)
 
 (comment) @comment
+
+((comment) @todo
+	(#any-match? @todo "TODO"))
+
+((preproc_arg) @keyword
+	(#any-of? @keyword "true" "false"))
+
+((preproc_arg) @number
+	(#match? @number "^((0x[0-9A-Fa-f]+)|(0b[0-1]+)|([+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)))$"))
