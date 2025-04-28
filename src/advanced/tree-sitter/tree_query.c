@@ -85,16 +85,25 @@ bool any_of(ProcessPredicatePayload payload) {
   return found;
 }
 
+void getOrCreateRegex(ProcessPredicatePayload payload, String regex_pattern_string, uint32_t regex_id, regex_t* regex) {
+  bool exist = getRegexForRegexId(&payload.regex_map, regex_id, regex);
+  if (exist == false) {
+    addRegexPatternToRegexMap(&payload.regex_map, regex_pattern_string.content, regex_id);
+    exist = getRegexForRegexId(&payload.regex_map, regex_id, regex);
+    assert(exist == true);
+  }
+}
+
 bool match(ProcessPredicatePayload payload, bool any, bool not) {
   String predicate_capture_name;
   predicates_consumeCapture(payload.stream, payload.query, &predicate_capture_name);
 
   String regex_pattern_string;
+  uint32_t regex_id = payload.stream->predicates[payload.stream->index].value_id;
   predicates_consumeString(payload.stream, payload.query, &regex_pattern_string);
 
-  // TODO save compiled regex away to not compile each time.
   regex_t regex;
-  regcomp(&regex, regex_pattern_string.content, REG_EXTENDED);
+  getOrCreateRegex(payload, regex_pattern_string, regex_id, &regex);
 
   for (int i = 0; i < payload.qmatch.capture_count; i++) {
     String match_capture_name = getCaptureString(payload.query, payload.qmatch.captures[i].index);
@@ -107,7 +116,6 @@ bool match(ProcessPredicatePayload payload, bool any, bool not) {
     }
   }
 
-  regfree(&regex);
   return !any;
 }
 
@@ -157,13 +165,14 @@ bool executeCurrentPredicate(ProcessPredicatePayload payload) {
 }
 
 
-bool arePredicatesMatching(Cursor* tmp, TSQuery* query, TSQueryMatch qmatch, const TSQueryPredicateStep* predicates, uint32_t length) {
+bool arePredicatesMatching(Cursor* tmp, TSQuery* query, TSQueryMatch qmatch, const TSQueryPredicateStep* predicates, uint32_t length, RegexMap regex_map) {
   PredicateStream stream = predicates_stream(predicates, length);
   ProcessPredicatePayload payload;
   payload.qmatch = qmatch;
   payload.query = query;
   payload.stream = &stream;
   payload.tmp = tmp;
+  payload.regex_map = regex_map;
 
   while (predicates_hasNext(&stream)) {
     if (executeCurrentPredicate(payload) == false) {
@@ -176,7 +185,7 @@ bool arePredicatesMatching(Cursor* tmp, TSQuery* query, TSQueryMatch qmatch, con
 }
 
 
-bool TSQueryCursorNextMatchWithPredicates(Cursor* tmp, TSQuery* query, TSQueryCursor* qcursor, TSQueryMatch* qmatch) {
+bool TSQueryCursorNextMatchWithPredicates(Cursor* tmp, TSQuery* query, TSQueryCursor* qcursor, TSQueryMatch* qmatch, RegexMap regex_map) {
   TSQueryMatch _qmatch;
   while (ts_query_cursor_next_match(qcursor, &_qmatch)) {
     uint32_t length;
@@ -189,7 +198,7 @@ bool TSQueryCursorNextMatchWithPredicates(Cursor* tmp, TSQuery* query, TSQueryCu
     }
 
     // If predicates matching send it.
-    if (arePredicatesMatching(tmp, query, _qmatch, predicates, length)) {
+    if (arePredicatesMatching(tmp, query, _qmatch, predicates, length, regex_map)) {
       *qmatch = _qmatch;
       return true;
     }

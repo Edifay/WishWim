@@ -32,6 +32,7 @@ void destroyParserList(ParserList* list) {
     ts_language_delete(list->list[i].lang);
     ts_query_delete(list->list[i].queries);
     ts_query_cursor_delete(list->list[i].cursor);
+    destroyRegexMap(&list->list[i].regex_map);
     destroyThemeList(&list->list[i].theme_list);
   }
   free(list->list);
@@ -138,7 +139,7 @@ bool hasTSLanguageImplementation(char* language) {
          strcmp(language, "query") == 0 ||
          strcmp(language, "lua") == 0 ||
          strcmp(language, "vhdl") == 0 ||
-           strcmp(language, "asm") == 0;
+         strcmp(language, "asm") == 0;
 }
 
 
@@ -179,6 +180,9 @@ bool loadNewParser(ParserContainer* container, char* language) {
     printQueryLoadError(error_offset, error_type);
     return false;
   }
+
+  // Setup regex map for #match? predicate
+  initRegexMap(&container->regex_map);
 
   // Allocating a TSQueryCursor
   container->cursor = ts_query_cursor_new();
@@ -384,4 +388,35 @@ void parse_tree(FileNode** root, History** history_frame, FileHighlightDatas* hi
   // fprintf(stderr, "parse() took %f seconds to execute \n", time_taken);
 
   *old_history_frame = *history_frame;
+}
+
+
+void initRegexMap(RegexMap* regex_map) {
+  regex_map->size = 0;
+  regex_map->items = NULL;
+}
+
+void destroyRegexMap(RegexMap* regex_map) {
+  for (int i = 0; i < regex_map->size; i++) {
+    regfree(&regex_map->items[i].regex);
+  }
+  free(regex_map->items);
+}
+
+void addRegexPatternToRegexMap(RegexMap* regex_map, const char* pattern, uint32_t regex_id) {
+  regex_map->size++;
+  regex_map->items = realloc(regex_map->items, sizeof(RegexMapItem) * regex_map->size);
+  regex_map->items[regex_map->size - 1].regex_id = regex_id;
+  regcomp(&regex_map->items[regex_map->size - 1].regex, pattern, REG_EXTENDED);
+}
+
+bool getRegexForRegexId(const RegexMap* regex_map, uint32_t regex_id, regex_t* regex) {
+  for (int i = 0; i < regex_map->size; i++) {
+    if (regex_map->items[i].regex_id == regex_id) {
+      *regex = regex_map->items[i].regex;
+      return true;
+    }
+  }
+
+  return false;
 }

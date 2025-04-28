@@ -185,12 +185,17 @@ void captureHighlight(TSQuery* query, TSQueryCursor* qcursor, FileHighlightDatas
 
   ts_query_cursor_exec(qcursor, query, ts_tree_root_node(highlight_data->tree));
 
+  ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_id);
+  assert(parser != NULL);
+  RegexMap regex_map = parser->regex_map;
+
+
   TSQueryMatch query_match;
-  while (TSQueryCursorNextMatchWithPredicates(&tmp, query, qcursor, &query_match)) {
+  while (TSQueryCursorNextMatchWithPredicates(&tmp, query, qcursor, &query_match, regex_map)) {
     for (int index = 0; index < query_match.capture_count; index++) {
       TSNode node = query_match.captures[index].node;
       // fprintf(stderr, "Node (%d, %d) -> (%d, %d) : (index: %d) \n", ts_node_start_point(node).row, ts_node_start_point(node).column, ts_node_end_point(node).row,
-              // ts_node_end_point(node).column, index);
+      // ts_node_end_point(node).column, index);
 
 
       uint32_t size = 0;

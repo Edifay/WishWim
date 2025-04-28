@@ -68,6 +68,10 @@ int main(int file_count, char** args) {
     FILE* f = fopen("/dev/null", "w");
     dup2(fileno(f), STDERR_FILENO);
     fclose(f);
+  } else {
+    FILE* f = fopen("./logs.txt", "w");
+    dup2(fileno(f), STDERR_FILENO);
+    fclose(f);
   }
 
   setlocale(LC_ALL, "");

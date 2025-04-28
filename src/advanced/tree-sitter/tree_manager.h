@@ -23,16 +23,35 @@ typedef struct {
   int byte_end;
 } ActionImprovedWithBytes;
 
+////// ------------------- TOOLS FOR SAVE COMPILED REGEXs -------------------
+
+typedef struct {
+  uint32_t regex_id;
+  regex_t regex;
+} RegexMapItem;
+
+typedef struct {
+  int size;
+  RegexMapItem* items;
+} RegexMap;
+
+void initRegexMap(RegexMap* regex_map);
+
+void destroyRegexMap(RegexMap* regex_map);
+
+void addRegexPatternToRegexMap(RegexMap* regex_map, const char* pattern, uint32_t regex_id);
+
+bool getRegexForRegexId(const RegexMap* regex_map, uint32_t regex_id, regex_t* regex);
 
 ////// ------------------- TREE HANDLER -------------------
 
-// TODO implement a parser abstraction.
 typedef struct {
   char lang_id[100];
   const TSLanguage* lang;
   TSParser* parser;
   TSQuery* queries;
-  TSQueryCursor *cursor;
+  TSQueryCursor* cursor;
+  RegexMap regex_map;
   HighlightThemeList theme_list;
 } ParserContainer;
 
@@ -90,9 +109,9 @@ const TSLanguage* tree_sitter_query(void);
 
 const TSLanguage* tree_sitter_vhdl(void);
 
-const TSLanguage * tree_sitter_lua(void);
+const TSLanguage* tree_sitter_lua(void);
 
-const TSLanguage * tree_sitter_asm(void);
+const TSLanguage* tree_sitter_asm(void);
 
 void initParserList(ParserList* list);
 
@@ -109,7 +128,6 @@ void getTSLanguageFromString(const TSLanguage** lang, char* language);
 bool loadNewParser(ParserContainer* container, char* language);
 
 
-
 ////// ------------------- QUERIES -------------------
 
 
@@ -117,12 +135,11 @@ bool loadNewParser(ParserContainer* container, char* language);
 
 void setFileHighlightDatas(FileHighlightDatas* data, IO_FileID io_file);
 
-PayloadStateChange getPayloadStateChange(FileHighlightDatas *highlight_datas);
+PayloadStateChange getPayloadStateChange(FileHighlightDatas* highlight_datas);
 
 void onStateChangeTS(Action action, long* payload_p);
 
 void parse_tree(FileNode** root, History** history_frame, FileHighlightDatas* highlight_data, History** old_history_frame);
-
 
 
 #endif //TREE_MANAGER_H

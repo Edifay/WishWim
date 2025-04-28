@@ -2,6 +2,8 @@
 #define TREE_QUERY_H
 #include <regex.h>
 #include <stdbool.h>
+
+#include "tree_manager.h"
 #include "../../../lib/tree-sitter/lib/include/tree_sitter/api.h"
 #include "../../utils/tools.h"
 
@@ -16,6 +18,7 @@ typedef struct {
   TSQueryMatch qmatch;
   PredicateStream* stream;
   Cursor* tmp;
+  RegexMap regex_map;
 } ProcessPredicatePayload;
 
 ///// -------- QUERY --------
@@ -23,7 +26,7 @@ typedef struct {
 
 void printQueryLoadError(uint32_t error_offset, TSQueryError error_type);
 
-bool TSQueryCursorNextMatchWithPredicates(Cursor* tmp, TSQuery* query, TSQueryCursor* qcursor, TSQueryMatch* qmatch);
+bool TSQueryCursorNextMatchWithPredicates(Cursor* tmp, TSQuery* query, TSQueryCursor* qcursor, TSQueryMatch* qmatch, RegexMap regex_map);
 
 ///// -------- QUERY TOOLS --------
 
