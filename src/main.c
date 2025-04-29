@@ -68,10 +68,13 @@ int main(int file_count, char** args) {
     FILE* f = fopen("/dev/null", "w");
     dup2(fileno(f), STDERR_FILENO);
     fclose(f);
-  } else {
+  }
+  else {
     FILE* f = fopen("./logs.txt", "w");
-    dup2(fileno(f), STDERR_FILENO);
-    fclose(f);
+    if (f != NULL) {
+      dup2(fileno(f), STDERR_FILENO);
+      fclose(f);
+    }
   }
 
   setlocale(LC_ALL, "");
@@ -111,7 +114,9 @@ int main(int file_count, char** args) {
   /// --- Init Folder Explorer ---
   // Folder used for file explorer.
   ExplorerFolder pwd;
-  initFolder(loaded_settings.is_used == true ? loaded_settings.dir_path : getenv("PWD"), &pwd);
+  char* dir_path = getenv("PWD");
+  if (dir_path == NULL) dir_path = getenv("HOME");
+  initFolder(loaded_settings.is_used == true ? loaded_settings.dir_path : dir_path, &pwd);
   pwd.open = true;
 
 
