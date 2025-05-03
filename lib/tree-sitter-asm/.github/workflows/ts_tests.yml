@@ -1,0 +1,25 @@
+name: Tree-sitter test
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Tree-sitter grammar tests
+    runs-on: ubuntu-latest
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Install Rust Toolchain
+          uses: dtolnay/rust-toolchain@stable
+
+        - name: Install tree-sitter cli
+          uses: taiki-e/install-action@v2
+          with:
+            tool: tree-sitter-cli
+
+        - name: Run tree-sitter tests
+          run: tree-sitter test

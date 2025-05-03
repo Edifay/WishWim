@@ -1,0 +1,156 @@
+==========
+Instruction -- No args
+==========
+MOVLPS
+---
+(program
+    (instruction kind: (word)))
+
+==========
+Instruction -- One reg arg
+==========
+pushq %rbp
+---
+(program
+      (instruction
+            kind: (word)
+            (ident (reg))))
+
+==========
+Instruction -- Two reg args
+==========
+pushq %rbp, %rbp
+---
+(program
+      (instruction
+            kind: (word)
+            (ident (reg))
+            (ident (reg))))
+
+==========
+Instruction -- Pointer offset arg, reg arg
+==========
+movzbl	-1(%rbp), %eax
+---
+(program
+    (instruction
+        kind: (word)
+        (ptr
+            (int)
+            (reg))
+        (ident (reg))))
+
+==========
+Instruction -- Integer immediate arg, reg arg (GAS x86)
+==========
+andl	$15, %eax
+---
+(program
+    (instruction
+        kind: (word)
+        (int)
+        (ident (reg))))
+
+==========
+Instruction -- Reg arg, Integer immediate arg (ARM A64)
+==========
+mov X10, #1
+---
+(program
+    (instruction
+        (word)
+        (ident
+            (reg
+                (word)))
+        (int)))
+
+
+==========
+Instruction -- Reg arg, reg arg, address pointer with register and negative integer immediate arg, followed by exclmation mark (ARM A64)
+==========
+stp w0, w1, [sp, #-16]!
+---
+(program
+  (instruction
+    (word)
+    (ident
+      (reg
+        (word)))
+    (ident
+      (reg
+        (word)))
+    (ptr
+      (reg
+        (word))
+      (int))))
+
+
+==========
+Instruction -- Reg arg, address pointer with register and integer immediate arg (ARM A64)
+==========
+ldr x8, [sp, #8]
+---
+(program
+  (instruction
+    (word)
+    (ident
+      (reg
+        (word)))
+    (ptr
+      (reg
+        (word))
+      (int))))
+
+==========
+Instruction -- Reg arg, address pointer with register only (ARM A64)
+==========
+ldr x8, [sp]
+---
+(program
+  (instruction
+    (word)
+    (ident
+      (reg
+        (word)))
+    (ptr
+      (reg
+        (word)))))
+
+==========
+Instruction -- Reg arg, section address arg (ARM A64)
+==========
+adr X1, helloworld
+---
+(program
+    (instruction
+        (word)
+        (ident
+            (reg
+                (word)))
+         (ident
+              (reg
+              (word)))))
+
+==========
+Instruction -- Section address arg, reg arg (GAS x86)
+==========
+mov $msg, %ecx
+---
+(program
+    (instruction
+        (word)
+        (ident
+            (reg
+                (address)))
+         (ident
+              (reg))))
+
+==========
+Instruction -- Dotted label arg
+==========
+jne	.L5
+---
+(program
+    (instruction
+        kind: (word)
+        (ident)))
