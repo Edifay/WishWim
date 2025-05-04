@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <linux/prctl.h>
+#include <sys/poll.h>
 #include <sys/prctl.h>
 #include <sys/wait.h>
 #include "constants.h"
@@ -77,7 +78,6 @@ bool saveToClipBoard(Cursor begin, Cursor end) {
       printChar_U8(f_out, getCharForLineIdentifier(begin.line_id));
     }
   }
-  fprintf(f_out, "%c", EOF);
   fclose(f_out);
 
 
@@ -102,7 +102,7 @@ bool saveToClipBoard(Cursor begin, Cursor end) {
 
       prctl(PR_SET_PDEATHSIG, SIGTERM);
 
-      execl(xclip_path, xclip_path, "-selection", "-clipboard", NULL);
+      execl(xclip_path, xclip_path, "-selection", "clipboard", "-in", NULL);
       exit(1);
     }
   }
@@ -131,13 +131,16 @@ Cursor loadFromClipBoard(Cursor cursor) {
   updateWlPasteVars();
   updateXClipVars();
 
+  bool child_is_dead = true;
+  int child_pid = 0;
   int pipe_read[2];
   pipe(pipe_read);
 
   FILE* f;
   // prefer using wl_paste instead of xclip
   if (wl_paste == true) {
-    int child_pid = fork();
+    child_is_dead = false;
+    child_pid = fork();
     if (child_pid == 0) {
       dup2(pipe_read[1], STDOUT_FILENO);
 
@@ -154,22 +157,20 @@ Cursor loadFromClipBoard(Cursor cursor) {
   }
   else {
     if (xclip == true) {
-      // redondant if
-
-      int child_pid = fork();
+      child_is_dead = false;
+      child_pid = fork();
       if (child_pid == 0) {
         dup2(pipe_read[1], STDOUT_FILENO);
 
         prctl(PR_SET_PDEATHSIG, SIGTERM);
 
-        execl(xclip_path, xclip_path, "-selection", "-out", NULL);
+        execl(xclip_path, xclip_path,"-selection", "clipboard", "-out", NULL);
 
         close(pipe_read[0]);
         close(pipe_read[1]);
         exit(1);
       }
       f = fdopen(pipe_read[0], "r");
-
     }
     else {
       // If xclip and wl_paste are not found just using last_clip file.
@@ -181,11 +182,53 @@ Cursor loadFromClipBoard(Cursor cursor) {
     return cursor;
   }
 
-  // Duplicated search in project DUP_SCAN.
+  int are_byte_remaining;
+  int child_status;
+  int fd = fileno(f);
+  if (fd == -1) {
+    perror("fileno");
+  }
+
+  struct pollfd fds[1];
+  fds[0].fd = fd;
+  fds[0].events = POLLIN;
+
   char c;
-  while (fscanf(f, "%c", &c) != EOF) {
-    if (c == EOF)
+  // read while pipe is filled and while child is not dead.
+  while ((are_byte_remaining = poll(fds, 1, 0)) != 0 || child_is_dead == false) {
+    if (are_byte_remaining == -1) {
+      fprintf(stderr, "read error in clipboard read\n");
+      exit(-1);
+    }
+
+    // Wait for new data or for child die
+    if (are_byte_remaining == false) {
+
+      if (child_is_dead == false) {
+        // check the status of the child.
+        pid_t terminated_pid = waitpid(child_pid, &child_status, WNOHANG);
+
+        if (terminated_pid == -1) {
+          fprintf(stderr, "child management in clipboard failed.\n");
+          perror("waitpid");
+          exit(-1);
+        }
+        // child is dead
+        if (terminated_pid == child_pid) {
+          child_is_dead = true;
+        }
+      }
+
+      continue;
+    }
+
+    int size = read(fd, &c, 1);
+
+    // support EOF for classic files.
+    if (size == 0 && are_byte_remaining == true || c == EOF) {
       break;
+    }
+
 #ifdef LOGS
     // assert(checkFileIntegrity(root) == true);
 #endif
@@ -220,7 +263,7 @@ Cursor loadFromClipBoard(Cursor cursor) {
       }
     }
     else {
-      Char_U8 ch = readChar_U8FromFileWithFirst(f, c);
+      Char_U8 ch = readChar_U8FromFileWithFirstUsingFd(fd, c);
 #ifdef LOGS
       printChar_U8(stdout, ch);
       // printf("\r\n");

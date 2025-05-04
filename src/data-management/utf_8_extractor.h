@@ -27,8 +27,11 @@ Char_U8 readChar_U8FromFile(FILE* f);
  * Return the first Char_U8 from FILE with first c.
  */
 Char_U8 readChar_U8FromFileWithFirst(FILE* f, char c);
-
-
+/**
+ * Return the first Char_U8 from FILE with first c.
+ * Using fd
+ */
+Char_U8 readChar_U8FromFileWithFirstUsingFd(int fd, char c);
 /**
  * Return the first Char_U8 from sdtin.
  */

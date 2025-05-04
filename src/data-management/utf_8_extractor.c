@@ -2,6 +2,7 @@
 
 #include <ncurses.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <wchar.h>
 
 #include "../utils/constants.h"
@@ -68,6 +69,27 @@ Char_U8 readChar_U8FromFileWithFirst(FILE* f, char c) {
   }
   return ch;
 }
+
+/**
+ * Return the first Char_U8 from FILE with first c.
+ */
+Char_U8 readChar_U8FromFileWithFirstUsingFd(int fd, char c) {
+  Char_U8 ch;
+  ch.t[0] = c;
+  int size = sizeChar_U8(ch);
+
+  for (char i = 1; i < size; i++) {
+    // scan end of the char
+    read(fd, ch.t + i, 1);
+  }
+
+  for (char i = size; i < 4; i++) {
+    // optional, fill the rest of the Char_U8 with 0
+    ch.t[i] = 0;
+  }
+  return ch;
+}
+
 
 
 /**
