@@ -18,7 +18,7 @@ typedef struct {
   TSQueryMatch qmatch;
   PredicateStream* stream;
   Cursor* tmp;
-  RegexMap regex_map;
+  RegexMap *regex_map;
 } ProcessPredicatePayload;
 
 ///// -------- QUERY --------
@@ -26,7 +26,7 @@ typedef struct {
 
 void printQueryLoadError(uint32_t error_offset, TSQueryError error_type);
 
-bool TSQueryCursorNextMatchWithPredicates(Cursor* tmp, TSQuery* query, TSQueryCursor* qcursor, TSQueryMatch* qmatch, RegexMap regex_map);
+bool TSQueryCursorNextMatchWithPredicates(Cursor* tmp, TSQuery* query, TSQueryCursor* qcursor, TSQueryMatch* qmatch, RegexMap *regex_map);
 
 ///// -------- QUERY TOOLS --------
 

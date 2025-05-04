@@ -86,10 +86,10 @@ bool any_of(ProcessPredicatePayload payload) {
 }
 
 void getOrCreateRegex(ProcessPredicatePayload payload, String regex_pattern_string, uint32_t regex_id, regex_t* regex) {
-  bool exist = getRegexForRegexId(&payload.regex_map, regex_id, regex);
+  bool exist = getRegexForRegexId(payload.regex_map, regex_id, regex);
   if (exist == false) {
-    addRegexPatternToRegexMap(&payload.regex_map, regex_pattern_string.content, regex_id);
-    exist = getRegexForRegexId(&payload.regex_map, regex_id, regex);
+    addRegexPatternToRegexMap(payload.regex_map, regex_pattern_string.content, regex_id);
+    exist = getRegexForRegexId(payload.regex_map, regex_id, regex);
     assert(exist == true);
   }
 }
@@ -110,7 +110,6 @@ bool match(ProcessPredicatePayload payload, bool any, bool not) {
     if (areStringEquals(predicate_capture_name, match_capture_name)) {
       TSNode current_node = payload.qmatch.captures[i].node;
       if (isRegexMatchingToNodeContent(payload.tmp, regex, current_node) == (any != not)) {
-        regfree(&regex);
         return any;
       }
     }
@@ -165,7 +164,7 @@ bool executeCurrentPredicate(ProcessPredicatePayload payload) {
 }
 
 
-bool arePredicatesMatching(Cursor* tmp, TSQuery* query, TSQueryMatch qmatch, const TSQueryPredicateStep* predicates, uint32_t length, RegexMap regex_map) {
+bool arePredicatesMatching(Cursor* tmp, TSQuery* query, TSQueryMatch qmatch, const TSQueryPredicateStep* predicates, uint32_t length, RegexMap *regex_map) {
   PredicateStream stream = predicates_stream(predicates, length);
   ProcessPredicatePayload payload;
   payload.qmatch = qmatch;
@@ -185,7 +184,7 @@ bool arePredicatesMatching(Cursor* tmp, TSQuery* query, TSQueryMatch qmatch, con
 }
 
 
-bool TSQueryCursorNextMatchWithPredicates(Cursor* tmp, TSQuery* query, TSQueryCursor* qcursor, TSQueryMatch* qmatch, RegexMap regex_map) {
+bool TSQueryCursorNextMatchWithPredicates(Cursor* tmp, TSQuery* query, TSQueryCursor* qcursor, TSQueryMatch* qmatch, RegexMap *regex_map) {
   TSQueryMatch _qmatch;
   while (ts_query_cursor_next_match(qcursor, &_qmatch)) {
     uint32_t length;

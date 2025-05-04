@@ -187,7 +187,7 @@ void captureHighlight(TSQuery* query, TSQueryCursor* qcursor, FileHighlightDatas
 
   ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_id);
   assert(parser != NULL);
-  RegexMap regex_map = parser->regex_map;
+  RegexMap *regex_map = &parser->regex_map;
 
 
   TSQueryMatch query_match;
