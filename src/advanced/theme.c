@@ -65,6 +65,18 @@ attr_t getAttrForTheme(HighlightTheme theme) {
       case 'd':
         attr |= A_DIM;
         break;
+      case 's':
+        attr |= A_STANDOUT;
+        break;
+      case 'k':
+        attr |= A_BLINK;
+        break;
+      case 'p':
+        attr |= A_PROTECT;
+        break;
+      case 'v':
+        attr |= A_INVIS;
+        break;
       case '"':
         break;
       default:

@@ -138,7 +138,7 @@ void printEditor(GUIContext *gui_context, Cursor cursor, Cursor select_cursor, i
 
       int size = charPrintSize(ch);
       // If the char is detected as not printable char.
-      if (size == 0 || size == -1) {
+      if (size <= 0) {
         ch = readChar_U8FromCharArray("�");
         size = 1;
       }
@@ -157,8 +157,8 @@ void printEditor(GUIContext *gui_context, Cursor cursor, Cursor select_cursor, i
       }
 
       if (ch.t[0] == '\t') {
+        Char_U8 space = readChar_U8FromInput(' ');
         for (int i = 0; i < TAB_SIZE; i++) {
-          Char_U8 space = readChar_U8FromInput(' ');
           printChar_U8ToNcurses(gui_context->ftw, space);
         }
       }
