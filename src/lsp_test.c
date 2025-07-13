@@ -3,13 +3,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <cjson/cJSON.h>
-#include <poll.h>
-#include <string.h>
 #include <unistd.h>
 #include <linux/limits.h>
 
 #include "advanced/lsp/lsp_client.h"
-#include "advanced/tree-sitter/scm_parser.h"
 #include "utils/tools.h"
 #include "../lib/tree-sitter/lib/include/tree_sitter/api.h"
 #include "advanced/lsp/lsp_handler.h"
