@@ -419,7 +419,7 @@ void saveCaptureToHighlightDescriptor(HighlightThemeList theme_list, Cursor tmp,
 
   if (found == false) {
     // Quit if a query was found, but not theme for this group was found.
-    fprintf(stderr, "      || No theme found for capture %s  || \n", result);
+    // fprintf(stderr, "      || No theme found for capture %s  || \n", result);
     return;
   }
 
@@ -488,7 +488,7 @@ void highlightCurrentFile(FileHighlightDatas* highlight_data, WINDOW* ftw, int s
   executeHighlightQuery(parser->queries, parser->cursor, &parser->regex_map, parser->theme_list, cursor, highlight_descriptor);
 
   t = clock() - t;
-  double time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
+  double time_taken = ((double)t) / CLOCKS_PER_SEC * 1000; // in millis
 
-  fprintf(stderr, "highlight() took %f seconds to execute part of check for highlight. \n", time_taken);
+  fprintf(stderr, "highlight() took %f millis to execute part of check for highlight. \n", time_taken);
 }
