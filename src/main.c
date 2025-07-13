@@ -30,9 +30,7 @@
 
 
 /**   TODO list :
- *       - Rework the query for highlight to optimise queries.
- *       - Rework the printEditor for colors. Currently we override char with colored char, that's not optimized.
- *          Create a struct to define a coloration in a file, and calculate it before each paint.
+ *       - Patch Makefile highlight, probably an error from the recent refactor for highlight.
  *       - Patch conditional jump (valgrind) when opening untitled file from a workspace.
  *      
  *
