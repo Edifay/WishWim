@@ -31,6 +31,30 @@ void tphd_init(TextPartHighlightDescriptor* self, FilePosition begin, FilePositi
       self->a_underline_priority = 0;
 }
 
+bool tphd_isCursorIn(TextPartHighlightDescriptor* self, Cursor cursor) {
+  int row = cursor.file_id.absolute_row;
+  int column = cursor.line_id.absolute_column;
+
+  int row_start = self->begin.abs_row;
+  int column_start = self->begin.abs_column;
+
+  int row_end = self->end.abs_row;
+  int column_end = self->end.abs_column;
+
+  return (row_start < row || (row_start == row && column_start < column))
+         && (row < row_end || (row == row_end && column <= column_end));
+}
+
+bool tphd_isCursorAfter(TextPartHighlightDescriptor* self, Cursor cursor) {
+  int row = cursor.file_id.absolute_row;
+  int column = cursor.line_id.absolute_column;
+
+  int row_end = self->end.abs_row;
+  int column_end = self->end.abs_column;
+
+  return (row > row_end || (row == row_end && column > column_end));
+}
+
 void whd_init(WindowHighlightDescriptor* self) {
   self->descriptors = NULL;
   self->size = 0;
@@ -207,15 +231,12 @@ void whd_insertDescriptor(WindowHighlightDescriptor* self, Cursor begin, Cursor 
       if (self->capacity < self->size) {
         // TODO implement a cache system
         self->capacity = self->size;
-        int new_size = self->capacity * sizeof(TextPartHighlightDescriptor);
-        TextPartHighlightDescriptor* ptr = self->descriptors;
-        self->descriptors = realloc(ptr, new_size);
+        self->descriptors = realloc(self->descriptors, self->capacity * sizeof(TextPartHighlightDescriptor));
         assert(self->descriptors != NULL);
       }
 
       if (self->size - i - 1 > 0) {
-        self->descriptors = memmove(self->descriptors + i + 1, self->descriptors + i,
-                                    sizeof(TextPartHighlightDescriptor) * self->size - i - 1);
+        memmove(self->descriptors + i + 1, self->descriptors + i, sizeof(TextPartHighlightDescriptor) * (self->size - i - 1));
       }
 
       tphd_init(self->descriptors + i, current_pos, new_field_end);
@@ -242,8 +263,10 @@ void whd_insertDescriptor(WindowHighlightDescriptor* self, Cursor begin, Cursor 
 
 
         // creating increase_size new case.
-        self->descriptors = memmove(self->descriptors + i + increase_size, self->descriptors + i,
-                                    sizeof(TextPartHighlightDescriptor) * self->size - i - increase_size);
+        if (self->size - i - increase_size > 0) {
+          memmove(self->descriptors + i + increase_size, self->descriptors + i,
+                  sizeof(TextPartHighlightDescriptor) * (self->size - i - increase_size));
+        }
 
         // copy to new cases old data.
         for (int j = 0; j < increase_size; j++) {
@@ -334,6 +357,26 @@ void whd_free(WindowHighlightDescriptor* self) {
   free(self->descriptors);
 }
 
+TextPartHighlightDescriptor* whd_tphd_forCursorWithOffsetIndex(WindowHighlightDescriptor* highlight_descriptor, Cursor cursor,
+                                                               int* offset_index) {
+  // check to increment to the next
+  TextPartHighlightDescriptor* current_highlight = NULL;
+  if (*offset_index < highlight_descriptor->size) {
+    current_highlight = highlight_descriptor->descriptors + *offset_index;
+
+    // skip text_part until reach current position
+    while (tphd_isCursorAfter(current_highlight, cursor) && *offset_index < highlight_descriptor->size - 1) {
+      (*offset_index)++;
+      current_highlight = highlight_descriptor->descriptors + *offset_index;
+    }
+
+    if (!tphd_isCursorIn(current_highlight, cursor)) {
+      current_highlight = NULL;
+    }
+  }
+  return current_highlight;
+}
+
 
 ////// ---------------- COLOR FUNCTIONS ---------------
 
@@ -353,84 +396,9 @@ void initColorsForTheme(HighlightThemeList theme_list, int* color_index, int* co
   }
 }
 
-void highlightLinePartWithBytes(WINDOW* ftw, int start_row_byte, int start_column_byte, int length_byte, attr_t attr,
-                                NCURSES_PAIRS_T color, Cursor cursor, Cursor select,
-                                Cursor* tmp, int screen_y,
-                                int screen_x) {
-  // Convert the byte cursor to Cursor.
-  Cursor converted_cur = byteCursorToCursor(*tmp, start_row_byte, start_column_byte);
-  int start_row = converted_cur.file_id.absolute_row;
-  int start_column = converted_cur.line_id.absolute_column;
-
-
-  // Support wide char in the word.
-  *tmp = tryToReachAbsPosition(*tmp, start_row, start_column);
-  for (int i = 0; i < length_byte && hasElementAfterLine(tmp->line_id) == true; i++) {
-    // Move the cursor to the current char printed.
-    *tmp = tryToReachAbsPosition(*tmp, start_row, start_column + i + 1);
-    if (tmp->line_id.absolute_column == 0) continue;
-
-    Char_U8 current_ch = getCharAtCursor(*tmp);
-    int size = charPrintSize(current_ch);
-
-    attr_t current_char_attr = attr;
-    NCURSES_PAIRS_T current_char_color = color;
-    if (areCursorEqual(moveLeft(*tmp), cursor)) {
-      current_char_attr |= A_STANDOUT;
-    }
-    else if (isCursorDisabled(select) == false && isCursorBetweenOthers(*tmp, cursor, select)) {
-      current_char_color += 1000;
-    }
-
-    int mov_res = wmove(ftw, start_row - screen_y,
-                        getScreenXForCursor(*tmp, screen_x) - size/*TODO optimize, do not use getScreenXForCursor*/);
-    if (mov_res != ERR) {
-      wchgat(ftw, size, current_char_attr, current_char_color, NULL);
-    }
-
-    length_byte += 1 - sizeChar_U8(current_ch);
-  }
-}
-
-
-void highlightLinePart(WINDOW* ftw, int start_row, int start_column, int length, attr_t attr, NCURSES_PAIRS_T color,
-                       Cursor cursor, Cursor select, Cursor* tmp, int screen_y,
-                       int screen_x) {
-  // Support wide char in the word.
-  *tmp = tryToReachAbsPosition(*tmp, start_row, start_column);
-  for (int i = 0; i < length && hasElementAfterLine(tmp->line_id) == true; i++) {
-    // Move the cursor to the current char printed.
-    *tmp = tryToReachAbsPosition(*tmp, start_row, start_column + i + 1);
-    if (tmp->line_id.absolute_column == 0) continue;
-
-    Char_U8 current_ch = getCharAtCursor(*tmp);
-    int size = charPrintSize(current_ch);
-
-    attr_t current_char_attr = attr;
-    NCURSES_PAIRS_T current_char_color = color;
-    if (areCursorEqual(moveLeft(*tmp), cursor)) {
-      current_char_attr |= A_STANDOUT;
-    }
-    else if (isCursorDisabled(select) == false && isCursorBetweenOthers(*tmp, cursor, select)) {
-      current_char_color += 1000;
-    }
-
-    int mov_res = wmove(ftw, start_row - screen_y,
-                        getScreenXForCursor(*tmp, screen_x) - size/*TODO optimize, do not use getScreenXForCursor*/);
-    if (mov_res != ERR) {
-      wchgat(ftw, size, current_char_attr, current_char_color, NULL);
-    }
-  }
-}
-
-
-double sum_check_match_for_highlight;
-
-void printHighlightedChar(HighlightThemeList theme_list, WINDOW* ftw, int screen_x, int screen_y, Cursor cursor, Cursor select,
-                          Cursor tmp, TSNode node, const char* result, WindowHighlightDescriptor* highlight_descriptor,
-                          uint16_t priority) {
+void saveCaptureToHighlightDescriptor(HighlightThemeList theme_list, Cursor tmp, TSNode node, const char* result,
+                                      WindowHighlightDescriptor* highlight_descriptor, uint16_t priority) {
   if (result == NULL) {
-    // fprintf(stderr, "No color found for %s node.\n", tree_path[tree_path_length-1].name);
     return;
   }
 
@@ -451,14 +419,9 @@ void printHighlightedChar(HighlightThemeList theme_list, WINDOW* ftw, int screen
 
   if (found == false) {
     // Quit if a query was found, but not theme for this group was found.
-    // fprintf(stderr, "      || No theme found for capture %s  || \n", result);
+    fprintf(stderr, "      || No theme found for capture %s  || \n", result);
     return;
   }
-
-#ifndef USE_COLOR
-  // quit if color are disabled.
-  continue;
-#endif
 
   TSPoint start_point = ts_node_start_point(node);
   TSPoint end_point = ts_node_end_point(node);
@@ -466,62 +429,11 @@ void printHighlightedChar(HighlightThemeList theme_list, WINDOW* ftw, int screen
   Cursor begin_cursor = byteCursorToCursor(tmp, start_point.row, start_point.column);
   Cursor end_cursor = byteCursorToCursor(tmp, end_point.row, end_point.column);
   whd_insertDescriptor(highlight_descriptor, begin_cursor, end_cursor, color, attr, priority, true);
-
-
-  // Simple line node.
-  if (start_point.row == end_point.row) {
-    int length_byte = end_point.column - start_point.column;
-    highlightLinePartWithBytes(ftw, start_point.row, start_point.column, length_byte, attr, color, cursor, select, &tmp, screen_y,
-                               screen_x);
-  }
-  else // Mutiple line node.
-  {
-    // First line
-    highlightLinePartWithBytes(ftw, start_point.row, start_point.column, INT_MAX, attr, color, cursor, select, &tmp, screen_y,
-                               screen_x);
-
-    // Between lines.
-    int ligne_between = end_point.row - start_point.row - 1;
-    for (int i = 1; i < ligne_between + 1; i++) {
-      highlightLinePartWithBytes(ftw, start_point.row + i, 0, INT_MAX, attr, color, cursor, select, &tmp, screen_y, screen_x);
-    }
-
-    // End line
-    highlightLinePartWithBytes(ftw, end_point.row, 0, end_point.column, attr, color, cursor, select, &tmp, screen_y, screen_x);
-  }
-
-  // End if group found.
 }
 
-void captureHighlight(TSQuery* query, TSQueryCursor* qcursor, FileHighlightDatas* highlight_data,
-                      HighlightThemeList theme_list, WINDOW* ftw, int screen_x,
-                      int screen_y, Cursor cursor, Cursor select) {
+void executeHighlightQuery(TSQuery* query, TSQueryCursor* qcursor, RegexMap* regex_map, HighlightThemeList theme_list,
+                           Cursor cursor, WindowHighlightDescriptor* highlight_descriptor) {
   Cursor tmp = cursor;
-  int width = getmaxx(ftw);
-  int height = getmaxy(ftw);
-
-  // Setup cursor range
-  TSPoint begin;
-  begin.row = screen_y - 1;
-  begin.column = screen_x;
-  TSPoint end;
-  end.row = screen_y + height - 2;
-  end.column = screen_x + width;
-  ts_query_cursor_set_point_range(
-    qcursor,
-    begin,
-    end
-  );
-
-  ts_query_cursor_exec(qcursor, query, ts_tree_root_node(highlight_data->tree));
-
-  ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_id);
-  assert(parser != NULL);
-  RegexMap* regex_map = &parser->regex_map;
-
-  WindowHighlightDescriptor highlight_descriptor;
-  whd_init(&highlight_descriptor);
-
 
   TSQueryMatch query_match;
   while (TSQueryCursorNextMatchWithPredicates(&tmp, query, qcursor, &query_match, regex_map)) {
@@ -535,35 +447,48 @@ void captureHighlight(TSQuery* query, TSQueryCursor* qcursor, FileHighlightDatas
 
       uint16_t priority = query_match.captures[index].index;
       // If a capture.
-      printHighlightedChar(theme_list, ftw, screen_x, screen_y, cursor, select, tmp, node, result, &highlight_descriptor,
-                           priority);
+      saveCaptureToHighlightDescriptor(theme_list, tmp, node, result, highlight_descriptor, priority);
     }
   }
-
-  fprintf(stderr, "================ HIGHLIGHT DESCRIPTOR END ================\n\n");
-  fprintf(stderr, "======= BEGIN =======\n");
-  whd_print(&highlight_descriptor);
-  fprintf(stderr, "======= END =======\n");
 }
 
 
 void highlightCurrentFile(FileHighlightDatas* highlight_data, WINDOW* ftw, int screen_x, int screen_y, Cursor cursor,
-                          Cursor select_cursor) {
-  assert(highlight_data->is_active == true);
-  ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_id);
-  assert(parser != NULL);
+                          WindowHighlightDescriptor* highlight_descriptor) {
+  if (highlight_data->is_active == false) {
+    return;
+  }
 
   clock_t t;
   t = clock();
 
-  // sum_check_match_for_highlight = 0;
+  // setup parser to iterate on captures
+  ParserContainer* parser = getParserForLanguage(&parsers, highlight_data->lang_id);
+  assert(parser != NULL);
 
-  captureHighlight(parser->queries, parser->cursor, highlight_data, parser->theme_list,
-                   ftw, screen_x, screen_y, cursor, select_cursor);
+  int width = getmaxx(ftw);
+  int height = getmaxy(ftw);
+
+  // Setup cursor range
+  TSPoint begin;
+  begin.row = screen_y - 1;
+  begin.column = screen_x;
+  TSPoint end;
+  end.row = screen_y + height - 2;
+  end.column = screen_x + width;
+  ts_query_cursor_set_point_range(
+    parser->cursor,
+    begin,
+    end
+  );
+
+  ts_query_cursor_exec(parser->cursor, parser->queries, ts_tree_root_node(highlight_data->tree));
+
+  // execute the query search.
+  executeHighlightQuery(parser->queries, parser->cursor, &parser->regex_map, parser->theme_list, cursor, highlight_descriptor);
 
   t = clock() - t;
   double time_taken = ((double)t) / CLOCKS_PER_SEC; // in seconds
 
-  fprintf(stderr, "highlight() took %f seconds to execute part of check for highlight : %f \n", time_taken,
-          sum_check_match_for_highlight);
+  fprintf(stderr, "highlight() took %f seconds to execute part of check for highlight. \n", time_taken);
 }

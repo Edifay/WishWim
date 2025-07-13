@@ -4,6 +4,7 @@
 #include "../advanced/tree-sitter/tree_manager.h"
 #include "../advanced/lsp/lsp_handler.h"
 #include "../io_management/workspace_settings.h"
+#include "../terminal/highlight.h"
 
 
 // #define PARSE_PRINT
@@ -24,6 +25,7 @@
 
 #define COLOR_HOVER 8
 
+#define COLOR_HOVER_OFFSET 1000
 #define DEFAULT_COLOR_PAIR 1
 #define DEFAULT_COLOR_HOVER_PAIR 1001
 #define ERROR_COLOR_PAIR 2

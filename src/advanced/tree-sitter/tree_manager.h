@@ -139,7 +139,7 @@ PayloadStateChange getPayloadStateChange(FileHighlightDatas* highlight_datas);
 
 void onStateChangeTS(Action action, long* payload_p);
 
-void parse_tree(FileNode** root, History** history_frame, FileHighlightDatas* highlight_data, History** old_history_frame);
+void parseTree(FileNode** root, History** history_frame, FileHighlightDatas* highlight_data, History** old_history_frame);
 
 
 #endif //TREE_MANAGER_H

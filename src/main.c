@@ -25,8 +25,8 @@
 #include "advanced/lsp/lsp_client.h"
 #include "config/config.h"
 
-// #define SHOW_ERROR true
-#define SHOW_ERROR false
+#define SHOW_ERROR true
+// #define SHOW_ERROR false
 
 
 /**   TODO list :
@@ -50,7 +50,8 @@ WorkspaceSettings loaded_settings;
 
 void dispatcher(cJSON* packet, long* payload) {
   if (packet != NULL) {
-    fprintf(stderr, "\n\n <<< ================ %s ================\n", cJSON_GetStringValue(cJSON_GetObjectItem(packet, "method")));
+    fprintf(stderr, "\n\n <<< ================ %s ================\n",
+            cJSON_GetStringValue(cJSON_GetObjectItem(packet, "method")));
     cJSON* params = cJSON_GetObjectItem(packet, "params");
     char* text = cJSON_Print(params);
     fprintf(stderr, "%s\n", text);
@@ -58,12 +59,8 @@ void dispatcher(cJSON* packet, long* payload) {
   }
 }
 
-//
-// 
-//
-
-
 int main(int file_count, char** args) {
+  // manage logs
   if (!SHOW_ERROR) {
     FILE* f = fopen("/dev/null", "w");
     dup2(fileno(f), STDERR_FILENO);
@@ -138,6 +135,8 @@ int main(int file_count, char** args) {
   bool refresh_local_vars = true; // Need to re-set local vars
 
   //  --- Begin of the Automaton ---
+  WindowHighlightDescriptor highlight_descriptor;
+  whd_init(&highlight_descriptor);
   Cursor tmp;
   MEVENT m_event;
   History* old_history_frame;
@@ -148,7 +147,8 @@ int main(int file_count, char** args) {
     //// --------------- Post Processing -----------------
 
     if (refresh_local_vars == true) {
-      setupLocalVars(files, current_file_index, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x, &screen_y, &old_screen_x, &old_screen_y,
+      setupLocalVars(files, current_file_index, &io_file, &root, &cursor, &select_cursor, &old_cur, &desired_column, &screen_x,
+                     &screen_y, &old_screen_x, &old_screen_y,
                      &history_root,
                      &history_frame, &highlight_data);
       refresh_local_vars = false;
@@ -181,7 +181,7 @@ int main(int file_count, char** args) {
     // If it needed to reparse the current file for tree. Looking for state changes.
     if (highlight_data->is_active == true && (old_history_frame != *history_frame || highlight_data->tree == NULL)) {
       // edit_and_parse_tree(root, history_frame, highlight_data, &old_history_frame);
-      parse_tree(root, history_frame, highlight_data, &old_history_frame);
+      parseTree(root, history_frame, highlight_data, &old_history_frame);
       optimizeHistory(*history_root, history_frame);
       old_history_frame = *history_frame;
     }
@@ -206,12 +206,12 @@ int main(int file_count, char** args) {
 
     // Refresh Editor Windows
     if (gui_context.refresh_edw == true) {
-      printEditor(&gui_context, *cursor, *select_cursor, *screen_x, *screen_y);
+      whd_reset(&highlight_descriptor);
 
-      // If highlight is enable on this file.
-      if (highlight_data->is_active == true) {
-        highlightCurrentFile(highlight_data, gui_context.ftw, *screen_x, *screen_y, *cursor, *select_cursor);
-      }
+      // calculate tree_sitter Highlight
+      highlightCurrentFile(highlight_data, gui_context.ftw, *screen_x, *screen_y, *cursor, &highlight_descriptor);
+
+      printEditor(&gui_context, *cursor, *select_cursor, *screen_x, *screen_y, &highlight_descriptor);
 
       wrefresh(gui_context.lnw);
       wrefresh(gui_context.ftw);
@@ -258,7 +258,7 @@ int main(int file_count, char** args) {
       case H_KEY_RESIZE:
         // Was there but idk why... => Avoid biggest size only used on time before automated resize.
         assert((getmaxx(gui_context.lnw) + gui_context.few_width >= COLS) == false);
-      // Resize Opened File Window
+        // Resize Opened File Window
         resizeOpenedFileWindow(&gui_context);
         resizeEditorWindows(&gui_context, getmaxx(gui_context.lnw));
         gui_context.refresh_ofw = gui_context.refresh_edw = gui_context.refresh_few = true;
@@ -275,12 +275,12 @@ int main(int file_count, char** args) {
 
         detectComplexMouseEvents(&m_event);
 
-      // Avoid refreshing when it's just mouse movement with no change.
+        // Avoid refreshing when it's just mouse movement with no change.
         if (m_event.bstate == NO_EVENT_MOUSE /*No event state*/ && mouse_drag == false) {
           goto read_input;
         }
 
-      // Avoid too much refresh, to avoid input buffer full.
+        // Avoid too much refresh, to avoid input buffer full.
         if (m_event.bstate == NO_EVENT_MOUSE && mouse_drag == true) {
           if (diff2Time(last_time_mouse_drag, timeInMilliseconds()) < 30) {
             goto read_input;
@@ -289,19 +289,21 @@ int main(int file_count, char** args) {
         }
 
 
-      // If pressed enable drag
+        // If pressed enable drag
         if (m_event.bstate & BUTTON1_PRESSED) {
           mouse_drag = true;
         }
 
-        if ((m_event.x < getbegx(gui_context.lnw) && gui_context.focus_w == NULL) || (gui_context.few != NULL && gui_context.focus_w == gui_context.few)) {
+        if ((m_event.x < getbegx(gui_context.lnw) && gui_context.focus_w == NULL) || (
+              gui_context.few != NULL && gui_context.focus_w == gui_context.few)) {
           // Click in File Explorer Window
           if (m_event.bstate & BUTTON1_PRESSED) {
             gui_context.focus_w = gui_context.few;
           }
           handleFileExplorerClick(&gui_context, &files, &file_count, &current_file_index, &pwd, m_event, &refresh_local_vars);
         }
-        else if ((m_event.y - gui_context.ofw_height < 0 && gui_context.focus_w == NULL) || (gui_context.ofw != NULL && gui_context.focus_w == gui_context.ofw)) {
+        else if ((m_event.y - gui_context.ofw_height < 0 && gui_context.focus_w == NULL) || (
+                   gui_context.ofw != NULL && gui_context.focus_w == gui_context.ofw)) {
           // Click on opened file window
           if (m_event.bstate & BUTTON1_PRESSED) {
             gui_context.focus_w = gui_context.ofw;
@@ -395,7 +397,7 @@ int main(int file_count, char** args) {
         if (current_file_index != 0)
           current_file_index--;
         refresh_local_vars = true;
-      // TODO check if the file selected is showing in ofw. If not move it in.
+        // TODO check if the file selected is showing in ofw. If not move it in.
         gui_context.refresh_ofw = true;
         break;
       case H_KEY_CTRL_MAJ_UP:
@@ -403,14 +405,14 @@ int main(int file_count, char** args) {
         if (current_file_index != file_count - 1)
           current_file_index++;
         refresh_local_vars = true;
-      // TODO check if the file selected is showing in ofw. If not move it in.
+        // TODO check if the file selected is showing in ofw. If not move it in.
         gui_context.refresh_ofw = true;
         break;
       case H_KEY_BEGIN:
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_LEFT);
         *cursor = goToBegin(*cursor);
         setDesiredColumn(*cursor, desired_column);
-      // Next is to go to the first non empty char and not to the begin of the line.
+        // Next is to go to the first non empty char and not to the begin of the line.
         setSelectCursorOff(cursor, select_cursor, SELECT_OFF_RIGHT);
         *cursor = moveToNextWord(*cursor);
         setDesiredColumn(*cursor, desired_column);
@@ -471,12 +473,14 @@ int main(int file_count, char** args) {
             }
             saveFile(files[i].root, &files[i].io_file);
             assert(io_file->status == EXIST);
-            setlastFilePosition(files[i].io_file.path_abs, files[i].cursor.file_id.absolute_row, files[i].cursor.line_id.absolute_column, files[i].screen_x, files[i].screen_y);
+            setlastFilePosition(files[i].io_file.path_abs, files[i].cursor.file_id.absolute_row,
+                                files[i].cursor.line_id.absolute_column, files[i].screen_x, files[i].screen_y);
             saveCurrentStateControl(*files[i].history_root, files[i].history_frame, files[i].io_file.path_abs);
           }
         goto end;
       case CTRL('w'):
-        closeFile(&files, &file_count, &current_file_index, &gui_context.refresh_ofw, &gui_context.refresh_edw, &refresh_local_vars);
+        closeFile(&files, &file_count, &current_file_index, &gui_context.refresh_ofw, &gui_context.refresh_edw,
+                  &refresh_local_vars);
         break;
       case CTRL('s'):
         if (io_file->status == NONE) {
@@ -485,7 +489,8 @@ int main(int file_count, char** args) {
         }
         saveFile(*root, io_file);
         assert(io_file->status == EXIST);
-        setlastFilePosition(io_file->path_abs, cursor->file_id.absolute_row, cursor->line_id.absolute_column, *screen_x, *screen_y);
+        setlastFilePosition(io_file->path_abs, cursor->file_id.absolute_row, cursor->line_id.absolute_column, *screen_x,
+                            *screen_y);
         saveCurrentStateControl(**history_root, *history_frame, io_file->path_abs);
         break;
 
@@ -596,10 +601,12 @@ end:
   printf("\033[?1003l\n"); // Disable mouse movement events, as l = low
   fflush(stdout);
 
+  whd_free(&highlight_descriptor);
 
   if (loaded_settings.is_used == true) {
     WorkspaceSettings new_settings;
-    getWorkspaceSettingsForCurrentDir(&new_settings, files, file_count, current_file_index, gui_context.ofw_height != 0, gui_context.few_width != 0, FILE_EXPLORER_WIDTH);
+    getWorkspaceSettingsForCurrentDir(&new_settings, files, file_count, current_file_index, gui_context.ofw_height != 0,
+                                      gui_context.few_width != 0, FILE_EXPLORER_WIDTH);
     saveWorkspaceSettings(loaded_settings.dir_path, &new_settings);
     destroyWorkspaceSettings(&new_settings);
   }

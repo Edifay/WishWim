@@ -4,6 +4,7 @@
 #include <ncurses.h>
 
 
+#include "highlight.h"
 #include "../data-management/file_management.h"
 #include "../data-management/file_structure.h"
 #include "../io_management/io_explorer.h"
@@ -17,7 +18,7 @@ int wcwidth(const wint_t wc);
 typedef struct {
   // Init GUI vars
   WINDOW* ftw; // File Text Window
-  WINDOW* lnw ; // Line Number Window
+  WINDOW* lnw; // Line Number Window
   WINDOW* ofw; // Opened Files Window
   WINDOW* few; // File Explorer Window
   bool refresh_edw; // Need to reprint editor window
@@ -43,24 +44,26 @@ typedef struct {
 void initGUIContext(GUIContext* gui_context);
 
 void initNCurses(GUIContext* gui_context);
+
 ////// -------------- PRINT FUNCTIONS --------------
 
 void printChar_U8ToNcurses(WINDOW* w, Char_U8 ch);
 
-void printEditor(GUIContext *gui_context, Cursor cursor, Cursor select_cursor, int screen_x, int screen_y);
+void printEditor(GUIContext* gui_context, Cursor cursor, Cursor select_cursor, int screen_x, int screen_y,
+                 WindowHighlightDescriptor* highlight_descriptor);
 
 void printOpenedFile(GUIContext* gui_context, FileContainer* files, int file_count, int current_file);
 
-void printFileExplorer(GUIContext *gui_context, ExplorerFolder* pwd);
+void printFileExplorer(GUIContext* gui_context, ExplorerFolder* pwd);
 
 
 ////// -------------- RESIZE FUNCTIONS --------------
 
-void resizeEditorWindows(GUIContext *gui_context, int lnw_new_width);
+void resizeEditorWindows(GUIContext* gui_context, int lnw_new_width);
 
-void resizeOpenedFileWindow(GUIContext *gui_context);
+void resizeOpenedFileWindow(GUIContext* gui_context);
 
-void switchShowFew(GUIContext *gui_context);
+void switchShowFew(GUIContext* gui_context);
 
 ////// -------------- UTILS FUNCTIONS --------------
 

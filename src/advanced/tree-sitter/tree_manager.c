@@ -350,7 +350,7 @@ const char* internalReaderForTree(void* payload, uint32_t byte_index, TSPoint po
 }
 
 
-void parse_tree(FileNode** root, History** history_frame, FileHighlightDatas* highlight_data, History** old_history_frame) {
+void parseTree(FileNode** root, History** history_frame, FileHighlightDatas* highlight_data, History** old_history_frame) {
   if (highlight_data->is_active == false)
     return;
 
