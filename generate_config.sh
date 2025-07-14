@@ -1,1 +1,1 @@
-sed -i "s/%s/$HOME/g" ~/.config/al/config
+sed -i "s|%s|$HOME/|g" ~/.config/al/config
