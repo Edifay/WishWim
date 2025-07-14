@@ -38,7 +38,7 @@ In the root folder :
   - `make`
 
 
-To install and générate the config use :
+### To install and generate the config use :
  - do not use sudo, the generation of the config need to be in user mode.
  - you will be prompted for sudo in the make install it-self.
  - check by yourself the use of sudo (used to cp al /bin/al).
