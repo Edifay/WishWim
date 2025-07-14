@@ -6,7 +6,7 @@ All should be packed in.
 
 ### Ubuntu/Debian :
 
- - `apt install make`
+ - `apt install make gcc`
 
 ### Clang version 18
 
