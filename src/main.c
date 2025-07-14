@@ -30,7 +30,6 @@
 
 
 /**   TODO list :
- *       - Patch Makefile highlight, probably an error from the recent refactor for highlight.
  *       - Patch conditional jump (valgrind) when opening untitled file from a workspace.
  *      
  *

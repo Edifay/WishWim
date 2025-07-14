@@ -41,7 +41,7 @@ bool tphd_isCursorIn(TextPartHighlightDescriptor* self, Cursor cursor) {
   int row_end = self->end.abs_row;
   int column_end = self->end.abs_column;
 
-  return (row_start < row || (row_start == row && column_start < column))
+  return (row_start < row || (row_start == row && column_start <= column))
          && (row < row_end || (row == row_end && column <= column_end));
 }
 
@@ -191,6 +191,7 @@ void whd_insertDescriptor(WindowHighlightDescriptor* self, Cursor begin, Cursor 
                           uint16_t priority, bool override_attributes) {
   FilePosition current_pos = {begin.file_id.absolute_row, begin.line_id.absolute_column};
   FilePosition end_pos = {end.file_id.absolute_row, end.line_id.absolute_column};
+  // fprintf(stderr, "insert (%d, %d) -> (%d, %d)\n", current_pos.abs_row, current_pos.abs_column, end_pos.abs_row, end_pos.abs_column);
 
   // reach the WindowHighlightDescriptor position
   int i = 0;
@@ -205,7 +206,7 @@ void whd_insertDescriptor(WindowHighlightDescriptor* self, Cursor begin, Cursor 
     }
   }
 
-  while (isPositionBeforePosition(current_pos, end_pos)) {
+  while (isPositionBeforeOrEqualPosition(current_pos, end_pos)) {
     FilePosition new_field_end;
     bool is_merge = false;
     if (i >= self->size) {
@@ -294,6 +295,13 @@ void whd_insertDescriptor(WindowHighlightDescriptor* self, Cursor begin, Cursor 
         };
       }
       i += 1 + increase_size;
+    }
+
+    // if positions are equals we assume that this is the end
+    // why do we need this ?, if we reach the end of the file, moveRight can not work and the condition positions equals could lead
+    // to and infinite loop.
+    if (arePositionEquals(current_pos, end_pos)) {
+      break;
     }
 
     // Set the new current_pos
@@ -426,7 +434,7 @@ void saveCaptureToHighlightDescriptor(HighlightThemeList theme_list, Cursor tmp,
   TSPoint start_point = ts_node_start_point(node);
   TSPoint end_point = ts_node_end_point(node);
 
-  Cursor begin_cursor = byteCursorToCursor(tmp, start_point.row, start_point.column);
+  Cursor begin_cursor = moveRight(byteCursorToCursor(tmp, start_point.row, start_point.column));
   Cursor end_cursor = byteCursorToCursor(tmp, end_point.row, end_point.column);
   whd_insertDescriptor(highlight_descriptor, begin_cursor, end_cursor, color, attr, priority, true);
 }
@@ -490,5 +498,5 @@ void highlightCurrentFile(FileHighlightDatas* highlight_data, WINDOW* ftw, int s
   t = clock() - t;
   double time_taken = ((double)t) / CLOCKS_PER_SEC * 1000; // in millis
 
-  fprintf(stderr, "highlight() took %f millis to execute part of check for highlight. \n", time_taken);
+//  fprintf(stderr, "highlight() took %f millis to execute part of check for highlight. \n", time_taken);
 }

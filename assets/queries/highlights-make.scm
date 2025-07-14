@@ -37,7 +37,7 @@
   "@"
   "-"
   "+"
-  ] @operator
+  ] @property
 
 [
   (text)
@@ -124,21 +124,21 @@
 
 (comment)+ @comment
 
-((word) @clean @string.regex @test
-  (#match? @clean "[%\*\?]")
-  (#eq? @clean "test"))
+((word) @property
+  (#match? @property "[%\*\?]")
+  (#eq? @property "test"))
 
 (function_call
   function: "error"
-  (arguments (text) @text.danger))
+  (arguments (text) @property))
 
 (function_call
   function: "warning"
-  (arguments (text) @text.warning))
+  (arguments (text) @property))
 
 (function_call
   function: "info"
-  (arguments (text) @text.note))
+  (arguments (text) @property))
 
 ;; Install Command Categories
 ;; Others special variables
