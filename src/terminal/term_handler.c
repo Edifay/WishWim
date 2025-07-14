@@ -202,7 +202,6 @@ void printEditor_printFileContent(GUIContext* gui_context, Cursor cursor, Cursor
 
 void printEditor_printCursor(GUIContext* gui_context, Cursor cursor, int screen_x, int screen_y,
                              WindowHighlightDescriptor* highlight_descriptor, const int line_count, const int column_count) {
-
   // Check if cursor is in the screen and print it if needed.
   if (cursor.file_id.absolute_row >= screen_y && cursor.file_id.absolute_row < screen_y + line_count
       && cursor.line_id.absolute_column >= screen_x - 1 && cursor.line_id.absolute_column <= screen_x + column_count - 3) {
@@ -415,8 +414,12 @@ void internalPrintExplorerRec(ExplorerFolder* folder, WINDOW* few, int* few_x_of
 void printFileExplorer(GUIContext* gui_context, ExplorerFolder* pwd) {
   wmove(gui_context->few, 0, 0);
 
-  internalPrintExplorerRec(pwd, gui_context->few, &gui_context->few_x_offset, &gui_context->few_y_offset, 0,
-                           &gui_context->few_selected_line);
+  // the internal fct need edit this var to lake them.
+  // We need to make a copy of them to keep the value right in the gui_context.
+  int tmp_few_x_offset = gui_context->few_x_offset;
+  int tmp_few_y_offset = gui_context->few_y_offset;
+  int tmp_few_selected_line = gui_context->few_selected_line;
+  internalPrintExplorerRec(pwd, gui_context->few, &tmp_few_x_offset, &tmp_few_y_offset, 0, &tmp_few_selected_line);
   // Clear end of window
   for (int i = getcury(gui_context->few) + 1; i < getmaxy(gui_context->few); i++) {
     wprintw(gui_context->few, "\n");
