@@ -23,7 +23,7 @@ All should be packed in.
 
  - `rustc --version`
 
-It's really important to be up to date ! You will me in most cases not up to date.
+It's really important to be up to date ! You will be in most cases not up to date.
 
 Ubuntu :
  - `apt install rustup`
