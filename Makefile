@@ -84,4 +84,7 @@ clean_all:
 	rm -rf *.o && rm -rf $(executable) $(ALL_MODULES) && find . -type d -name "target" -exec rm -rf {} +
 
 
+install:
+	make && mkdir -p ~/.config/al && cp -r ./assets/ ~/.config/al 
+
 # find . -type d -name "target" -exec rm -rf {} + # Remove target folders
