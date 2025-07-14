@@ -84,7 +84,9 @@ clean_all:
 	rm -rf *.o && rm -rf $(executable) $(ALL_MODULES) && find . -type d -name "target" -exec rm -rf {} +
 
 
+# !! DO NOT EXECUTE AS SUDO !!. To generate config you have to be as user. sudo will be asked to cp to
+# /bin/al
 install:
-	make && mkdir -p ~/.config/al && cp -r ./assets/* ~/.config/al && sed -i "s|%s|$HOME/|g" ~/.config/al/config && sudo cp al /bin/al
+	make && mkdir -p ~/.config/al && cp -r ./assets/* ~/.config/al && ./generate_config.sh && sudo cp al /bin/al
 
 # find . -type d -name "target" -exec rm -rf {} + # Remove target folders
