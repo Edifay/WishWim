@@ -12,7 +12,7 @@ All should be packed in.
 
  - `wget https://apt.llvm.org/llvm.sh`
  - `chmod +x llvm.sh`
- - `sudo ./llvm.sh 18`
+ - `sudo ./llvm.sh 18` (check result you may be asked to add some dependencies).
 
 ### Install tree-sitter api.h
 
