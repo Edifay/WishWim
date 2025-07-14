@@ -8,7 +8,7 @@
 #define CONFIG_FOLDER ".config/al/"
 #define CONFIG_FILE_NAME "config"
 
-#define DEFAULT_CONFIG "{\n    \"default_path\": \"/home/arnaud/Dev/WishWim/assets/\"\n}\n"
+#define DEFAULT_CONFIG "{\n    \"default_path\": \"~/.config/al\"\n}\n"
 
 // TODO implement a config file for theme and parser highlight.scm. Using JSON.
 bool configExist();

@@ -1,5 +1,4 @@
 .idea
-/assets/main.py
 target
 lib/tree-sitter-make/target/.rustc_info.json
 lib/tree-sitter-markdown_useless/
