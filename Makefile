@@ -85,6 +85,6 @@ clean_all:
 
 
 install:
-	make && mkdir -p ~/.config/al && cp -r ./assets/* ~/.config/al && ./generate_config.sh && sed -i "s|%s|$HOME/|g" ~/.config/al/config && sudo cp al /bin/al
+	make && mkdir -p ~/.config/al && cp -r ./assets/* ~/.config/al && sed -i "s|%s|$HOME/|g" ~/.config/al/config && sudo cp al /bin/al
 
 # find . -type d -name "target" -exec rm -rf {} + # Remove target folders
