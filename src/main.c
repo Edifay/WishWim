@@ -31,7 +31,7 @@
 
 /**   TODO list :
  *       - Patch conditional jump (valgrind) when opening untitled file from a workspace.
- *      
+ *       - Upgrade mouse handle to be more portable.
  *
  */
 
