@@ -13,9 +13,16 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: install tree-sitter
+
+
+# Dependencies
+    - name: building dependencies : tree-sitter
       run: sudo make -C lib/tree-sitter/ install
-    - name: make
+    
+
+# Check project status
+    - name: Compile project - building : parsers, cJSON, al.
       run: make
-    - name: install script
+
+    - name: Executing installation script
       run: make install
