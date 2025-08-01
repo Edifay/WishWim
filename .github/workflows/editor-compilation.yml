@@ -16,7 +16,7 @@ jobs:
 
 
 # Dependencies
-    - name: building dependencies - tree-sitter
+    - name: Building dependencies - tree-sitter
       run: sudo make -C lib/tree-sitter/ install
     
 
