@@ -13,5 +13,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: install tree-sitter
+      run: make -C lib/tree-sitter/ install
     - name: make
       run: make
