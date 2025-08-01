@@ -17,3 +17,5 @@ jobs:
       run: sudo make -C lib/tree-sitter/ install
     - name: make
       run: make
+    - name: install script
+      run: make install
