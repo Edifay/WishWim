@@ -16,12 +16,12 @@ jobs:
 
 
 # Dependencies
-    - name: building dependencies : tree-sitter
+    - name: building dependencies - tree-sitter
       run: sudo make -C lib/tree-sitter/ install
     
 
 # Check project status
-    - name: Compile project - building : parsers, cJSON, al.
+    - name: Compile project - building - parsers, cJSON, al.
       run: make
 
     - name: Executing installation script
